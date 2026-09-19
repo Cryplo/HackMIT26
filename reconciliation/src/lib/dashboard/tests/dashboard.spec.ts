@@ -1,10 +1,10 @@
 // @ts-nocheck — optional Playwright harness; no application dependency on the test runner.
 /** Run with Playwright against an isolated Vite harness or the integrated app.
- * DASHBOARD_BASE_URL defaults to http://127.0.0.1:5173.
+ * DASHBOARD_BASE_URL defaults to http://127.0.0.1:3000.
  */
 import { expect, test } from "@playwright/test";
 import { fixtureReviews } from "../fixtures";
-const base = process.env.DASHBOARD_BASE_URL || "http://127.0.0.1:5173";
+const base = process.env.DASHBOARD_BASE_URL || "http://127.0.0.1:3000";
 
 test("explicit fixture mode, grouped ledger, evidence, and mobile layout", async ({
   page,
@@ -16,7 +16,7 @@ test("explicit fixture mode, grouped ledger, evidence, and mobile layout", async
     }),
   );
   await page.goto(`${base}/business-demo`);
-  await expect(page.getByRole("alert")).toContainText("API offline");
+  await expect(page.locator("main").getByRole("alert")).toContainText("API offline");
   await page.getByRole("button", { name: "Open fixture preview" }).click();
   await expect(
     page.getByText("SIMULATED FIXTURE PREVIEW · READ ONLY"),
@@ -187,7 +187,7 @@ test("one-time override uses an empty payload and preserves the review note afte
     .getByLabel("Review note")
     .fill("Insufficient supporting documentation.");
   await page.getByRole("button", { name: "Save correction" }).click();
-  await expect(page.getByRole("alert")).toContainText(
+  await expect(page.locator("main").getByRole("alert")).toContainText(
     "Reconciliation is still active.",
   );
   await expect(page.getByLabel("Review note")).toHaveValue(

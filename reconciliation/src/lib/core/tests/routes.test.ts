@@ -1,4 +1,7 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { POST as reconcile } from '../../../app/api/reconcile/route';
 import { POST as correct } from '../../../app/api/corrections/route';
@@ -7,6 +10,9 @@ import { DEMO_IDS } from '../fixtures';
 // Run with --conditions=react-server so the real server-only package permits imports.
 for (const key of ['SUPABASE_URL','NEXT_PUBLIC_SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','ELASTICSEARCH_URL','ELASTICSEARCH_API_KEY','TYPESAFE_API_KEY','JEV_API_KEY','RECONCILIATION_APP_ORIGIN']) delete process.env[key];
 process.env.RECONCILIATION_MODE='simulated';
+const dir = mkdtempSync(path.join(tmpdir(), 'reconcile-routes-'));
+process.env.RECONCILIATION_INTAKE_DEMO_DIR=dir;
+after(() => rmSync(dir, {recursive:true,force:true}));
 const request=(path:string,body:unknown,origin='http://localhost:3000')=>new Request(`http://localhost:3000/api/${path}`,{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify(body)});
 test('route handlers: reconcile, correction learning, reviews and structured validation errors',async()=>{
  const initial=await reviews(); assert.equal(initial.status,200); assert.equal(initial.headers.get('cache-control'),'no-store'); assert.equal((await initial.json()).submissions.length,5);

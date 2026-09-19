@@ -7,23 +7,35 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/intake/*.test.ts"
+    "test": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/intake/*.test.ts src/lib/core/tests/*.test.ts src/lib/core/tests/*.test.mjs",
+    "demo": "node scripts/demo.mjs",
+    "demo:reset": "node scripts/reset-demo.mjs",
+    "test:browser": "playwright test",
+    "search:setup": "node --env-file-if-exists=.env.local src/lib/core/provision-search.mjs",
+    "demo:jev": "node --env-file-if-exists=.env.local scripts/demo.mjs --live-jev",
+    "check:jev": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/check-jev.ts",
+    "seed:receipts": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/seed-live-receipts.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
     "next": "16.3.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@supabase/supabase-js": "2.116.0",
-    "zod": "4.6.5",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
+    "@electric-sql/pglite": "^0.3.10",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.19.15",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "tsx": "4.21.0",
     "tailwindcss": "4.3.3",
-    "@tailwindcss/postcss": "4.3.3"
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

@@ -1,4 +1,5 @@
 import "server-only";
+import { recognizedSample } from "../demo/samples";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { Extraction, type ParsedFields, type Usage } from "./schema";
@@ -15,9 +16,10 @@ export async function extractReceipt(
   mode: "demo" | "live",
   transport: typeof fetch = fetch,
 ): Promise<ExtractionResult> {
-  if (mode === "demo")
+  if (mode === "demo") {
+    const sample = recognizedSample(bytes);
     return {
-      fields: {
+      fields: sample ?? {
         schema_version: 1,
         vendor: null,
         receipt_date: null,
@@ -26,10 +28,11 @@ export async function extractReceipt(
         names: [],
         receipt_number: null,
       },
-      raw: "SIMULATED extraction: no provider was called. All receipt values are unknown.",
+      raw: sample ? "SIMULATED extraction: exact bundled sample recognized by file hash. No AI provider was called." : "SIMULATED extraction: no provider was called. All receipt values are unknown.",
       error: null,
       usage: null,
     };
+  }
   const key = process.env.OPENAI_API_KEY;
   if (!key)
     return {

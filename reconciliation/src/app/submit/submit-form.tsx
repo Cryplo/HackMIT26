@@ -56,7 +56,7 @@ export default function SubmitForm({
         {mode === "demo"
           ? "Local demo · simulated extraction, no AI provider calls."
           : mode === "live"
-            ? "Synthetic receipts · OpenAI extraction + private storage."
+            ? "Synthetic receipts · live OpenAI extraction."
             : "Intake needs server configuration before submitting."}
       </p>
       <form onSubmit={submit}>
@@ -149,7 +149,7 @@ export default function SubmitForm({
           {result.extraction_status === "failed"
             ? "We couldn’t extract the receipt. The original is saved for manual review."
             : mode === "demo"
-              ? "Extraction was simulated; all receipt fields remain unknown."
+              ? "Extraction was simulated. Bundled sample receipts have fixture fields; other files remain unknown."
               : "Receipt details extracted. An organizer can now run reconciliation."}
           <br />
           <small>Claim {result.submission_id}</small>
@@ -160,6 +160,7 @@ export default function SubmitForm({
           >
             View saved receipt ↗
           </a>
+          <a href="/business-demo">Open organizer dashboard ↗</a>
         </div>
       )}
     </div>

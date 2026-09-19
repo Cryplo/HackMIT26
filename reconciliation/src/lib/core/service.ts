@@ -5,7 +5,7 @@ import type { Retrieval } from './retrieval';
 import type { Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
 export class CoreService {
-  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean) {}
+  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, private execution?: { decisions: string; retrieval: string; storage: string }) {}
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
     // Three workers; stop launching work before the route's five-minute deadline.
     const results: ReconcileResult[] = new Array(ids.length); let next = 0;
@@ -74,6 +74,6 @@ export class CoreService {
     const reviewed = rows.filter(s => s.status !== 'pending'); const flags = reviewed.filter(s => ['flagged', 'needs_review'].includes(s.status));
     const reasons = new Map<string, number>();
     for (const s of flags) { const fields = new Set(s.decisions.filter(d => d.field_checked !== 'overall_status' && d.verdict !== 'pass').map(d => d.field_checked)); if (!fields.size) fields.add('review_required'); for (const reason of fields) reasons.set(reason, (reasons.get(reason) || 0) + 1); }
-    return { submissions: rows, summary: { approved_amount_minor: rows.filter(s => s.status === 'approved').reduce((n, s) => n + s.amount_requested_minor, 0), flag_rate: reviewed.length ? flags.length / reviewed.length : 0, top_flag_reasons: [...reasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)) }, demo_mode: this.demoMode };
+    return { submissions: rows, summary: { approved_amount_minor: rows.filter(s => s.status === 'approved').reduce((n, s) => n + s.amount_requested_minor, 0), flag_rate: reviewed.length ? flags.length / reviewed.length : 0, top_flag_reasons: [...reasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)) }, demo_mode: this.demoMode, execution: this.execution };
   }
 }

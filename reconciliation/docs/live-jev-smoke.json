@@ -1,0 +1,165 @@
+{
+  "verified_at": "2026-09-19T23:44:57.813Z",
+  "model": "typesafe-ai/jev",
+  "live_jev": true,
+  "retrieval": "simulated",
+  "extraction": "fixtures",
+  "before": [
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000001",
+      "run_id": "da7876f4-0028-4da8-b299-e7c47aeba7f9",
+      "status": "approved"
+    },
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000002",
+      "run_id": "a6c957ec-6e9c-460e-9f9e-91737ecc2a2d",
+      "status": "flagged"
+    },
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000003",
+      "run_id": "c49186c7-ac17-4f5b-92d6-be1ce15715c9",
+      "status": "needs_review"
+    },
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000004",
+      "run_id": "abac110f-a2ac-4d24-9884-4fd17e4d63df",
+      "status": "needs_review"
+    },
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000005",
+      "run_id": "05074463-ebc0-4932-93f7-1efa1601cb14",
+      "status": "needs_review"
+    }
+  ],
+  "after": [
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000004",
+      "run_id": "a2bcaa64-c42b-49cc-8bba-651dc04b97cc",
+      "status": "approved"
+    },
+    {
+      "submission_id": "10000000-0000-4000-8000-000000000005",
+      "run_id": "09478e7c-c940-4d87-acd3-6bb8c34b569f",
+      "status": "needs_review"
+    }
+  ],
+  "checks": [
+    {
+      "run_id": "abac110f-a2ac-4d24-9884-4fd17e4d63df",
+      "field": "merchant",
+      "verdict": "unknown",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 0.62,
+      "confidence": 0.43,
+      "rationale": "Jev merchant assessment: unknown. 0 scoped alias records supplied."
+    },
+    {
+      "run_id": "abac110f-a2ac-4d24-9884-4fd17e4d63df",
+      "field": "name",
+      "verdict": "pass",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 1,
+      "confidence": 1,
+      "rationale": "Jev name assessment: pass. 1 receipt names supplied."
+    },
+    {
+      "run_id": "abac110f-a2ac-4d24-9884-4fd17e4d63df",
+      "field": "duplicate",
+      "verdict": "pass",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 1,
+      "confidence": 1,
+      "rationale": "Jev duplicate assessment: pass. 0 prior receipt candidates supplied."
+    },
+    {
+      "run_id": "a2bcaa64-c42b-49cc-8bba-651dc04b97cc",
+      "field": "merchant",
+      "verdict": "pass",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 0.93,
+      "confidence": 0.9,
+      "rationale": "Jev merchant assessment: pass. 1 scoped alias records supplied."
+    },
+    {
+      "run_id": "a2bcaa64-c42b-49cc-8bba-651dc04b97cc",
+      "field": "name",
+      "verdict": "pass",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 1,
+      "confidence": 1,
+      "rationale": "Jev name assessment: pass. 1 receipt names supplied."
+    },
+    {
+      "run_id": "a2bcaa64-c42b-49cc-8bba-651dc04b97cc",
+      "field": "duplicate",
+      "verdict": "pass",
+      "answer": {
+        "value": "pass"
+      },
+      "probability": 1,
+      "confidence": 1,
+      "rationale": "Jev duplicate assessment: pass. 0 prior receipt candidates supplied."
+    }
+  ],
+  "usage": [
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1295,
+      "output_tokens": 108,
+      "latency_ms": 318
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1133,
+      "output_tokens": 108,
+      "latency_ms": 341
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1136,
+      "output_tokens": 108,
+      "latency_ms": 356
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1136,
+      "output_tokens": 108,
+      "latency_ms": 241
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1136,
+      "output_tokens": 108,
+      "latency_ms": 279
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1388,
+      "output_tokens": 108,
+      "latency_ms": 234
+    },
+    {
+      "provider": "vercel-typesafe",
+      "model": "typesafe-ai/jev",
+      "input_tokens": 1169,
+      "output_tokens": 108,
+      "latency_ms": 261
+    }
+  ]
+}

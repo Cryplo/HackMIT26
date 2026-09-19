@@ -1,4 +1,21 @@
-# HackMIT 26 — Jev browser agent
+# HackMIT 26 — Fieldnotes reimbursement project
+
+The current hackathon project lives in **[reconciliation/](reconciliation/README.md)**.
+It includes receipt intake, Jev reconciliation, scoped correction learning, and an organizer dashboard.
+
+```sh
+cd reconciliation
+npm ci
+npm run demo:jev
+```
+
+`demo:jev` can reuse the existing Gateway key and makes live Jev calls; `npm run demo`
+is the no-credential, fully simulated alternative. Open http://127.0.0.1:3000/demo.
+See the linked guide for live OpenAI/Supabase/Elasticsearch setup and verification.
+
+The original browser prototype is preserved below and on `codex/jev-browser-agent`.
+
+## Original Jev browser agent
 
 ## Voice extension
 

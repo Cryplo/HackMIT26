@@ -4,3 +4,9 @@ node_modules/
 !.env.example
 .intake-demo/
 *.tsbuildinfo
+
+.intake-demo.backup-*/
+test-results/
+playwright-report/
+
+.next-test/

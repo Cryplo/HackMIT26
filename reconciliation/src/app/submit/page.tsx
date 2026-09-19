@@ -1,14 +1,14 @@
 import SubmitForm from "./submit-form";
 export const dynamic = "force-dynamic";
 export default function SubmitPage() {
-  const mode = process.env.RECONCILIATION_INTAKE_MODE;
+  const mode = process.env.RECONCILIATION_EXTRACTION_MODE || process.env.RECONCILIATION_INTAKE_MODE;
   return (
     <main className="intake-shell">
       <nav className="intake-nav">
         <a className="intake-brand" href="/submit">
-          <span>↗</span>Reconciliation
+          <span>↗</span>Fieldnotes
         </a>
-        <span className="intake-tag">Synthetic demo only</span>
+        <a className="intake-tag" href="/business-demo">Organizer dashboard ↗</a>
       </nav>
       <div className="intake-grid">
         <section className="intake-intro">
@@ -54,6 +54,9 @@ export default function SubmitPage() {
             </li>
           </ol>
           <p className="intake-note">
+            <a href="/api/demo/receipt/train">Download a sample receipt ↗</a>
+            <br />Try Alex Demo, train, $123.45, New York, and any fictional email.
+            <br />
             Use fictional names, emails, and receipts only. This unauthenticated
             demo does not issue payments.
           </p>

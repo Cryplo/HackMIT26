@@ -161,7 +161,8 @@ export default function BusinessDashboard() {
         <a href="/business-demo" className={styles.brand}>
           FIELDNOTES <span>/ reimbursement desk</span>
         </a>
-        <span>ORGANIZER WORKSPACE</span>
+        <a href="/submit">New claim ↗</a>
+        <a href="/demo">Demo guide ↗</a>
       </div>
       <div
         className={`${styles.banner} ${fixture || data?.demo_mode ? styles.simulated : ""}`}
@@ -170,13 +171,13 @@ export default function BusinessDashboard() {
           {fixture
             ? "SIMULATED FIXTURE PREVIEW · READ ONLY"
             : data?.demo_mode
-              ? "SIMULATED API DEMO · SYNTHETIC DATA ONLY"
+              ? data?.execution?.decisions === "live Jev" ? "LIVE JEV · LOCAL DEMO · SYNTHETIC DATA ONLY" : "SIMULATED API DEMO · SYNTHETIC DATA ONLY"
               : "SYNTHETIC DATA ONLY · USD"}
         </strong>
         <span>
           {fixture
             ? "Illustrative records. No API actions or live provider results."
-            : "Hackathon reimbursement review. Approved does not mean paid."}
+            : data?.execution ? `${data.execution.decisions} decisions · ${data.execution.retrieval} retrieval · ${data.execution.storage}. Approved does not mean paid.` : "Hackathon reimbursement review. Approved does not mean paid."}
         </span>
         <button
           disabled={busy}
@@ -548,7 +549,7 @@ export default function BusinessDashboard() {
           </p>
           <p>
             Save an alias on the ambiguous claim, then reconcile the related
-            claim. The hotel counterexample stays outside a train alias’s scope.
+            claim. A claim in a different category stays outside the alias’s scope.
           </p>
           <span>REVIEW → CORRECT → RECONCILE</span>
         </aside>

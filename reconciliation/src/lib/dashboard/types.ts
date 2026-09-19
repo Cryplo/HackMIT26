@@ -53,6 +53,7 @@ export interface ReviewsResponse {
     top_flag_reasons: { reason: string; count: number }[];
   };
   demo_mode: boolean;
+  execution?: { decisions: string; retrieval: string; storage: string };
 }
 export interface CorrectionInput {
   submission_id: string;
