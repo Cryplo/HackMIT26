@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Jev \u00b7 Voice for the web",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "description": "Navigate and fill forms with voice, numbered targets, and Jev.",
+  "permissions": [
+    "sidePanel",
+    "offscreen",
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": ["http://127.0.0.1:8767/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open Jev voice panel"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:8767 wss://api.deepgram.com"
+  }
+}
