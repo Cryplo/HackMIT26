@@ -1,0 +1,15 @@
+{
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "kind": {"type":"keyword"},
+      "submission_id": {"type":"keyword"},
+      "category": {"type":"keyword"},
+      "currency": {"type":"keyword"},
+      "observed_vendor": {"type":"text"},
+      "observed_vendor_normalized": {"type":"keyword"},
+      "scope": {"properties":{"category":{"type":"keyword"},"currency":{"type":"keyword"}}},
+      "receipt": {"properties":{"receipt_number":{"type":"keyword"},"amount_minor":{"type":"long"},"receipt_date":{"type":"date","format":"strict_date"}}}
+    }
+  }
+}
