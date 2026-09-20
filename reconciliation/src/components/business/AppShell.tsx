@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Files, LayoutDashboard, ListChecks, Menu, ReceiptText, SearchCheck, SlidersHorizontal } from "lucide-react";
+import { CommandMenuTrigger } from "@/components/CommandMenu";
 import { SiftLogo } from "@/components/SiftLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -20,7 +21,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
   const router = useRouter();
   function navigate(next: "reviews" | "rules" | "checks") {
     if (onViewChange) onViewChange(next);
-    else router.push(`/business-demo?view=${next}${preview ? "&preview=1" : ""}`);
+    router.push(`/business-demo?view=${next}${preview ? "&preview=1" : ""}`);
     setMenuOpen(false);
   }
   const navigation = (
@@ -28,6 +29,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
       <Link href={preview ? "/overview?preview=1" : "/overview"} className={styles.brand}>
         <SiftLogo />
       </Link>
+      <CommandMenuTrigger />
       <div className={styles.workspaceLabel}>HackMIT · Travel</div>
       <nav aria-label="Workspace" className={styles.navigation}>
         <Link href={preview ? "/overview?preview=1" : "/overview"} className={investigationStyles.navLink} aria-current={view === "overview" ? "page" : undefined} onClick={() => setMenuOpen(false)}>

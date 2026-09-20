@@ -7,5 +7,5 @@ export default async function BusinessDemoPage({ searchParams }: {
 }) {
   const params = await searchParams;
   const preview = params.preview === "1";
-  return <BusinessDashboard key={preview ? "preview" : "api"} preview={preview} />;
+  return <BusinessDashboard key={`${preview ? "preview" : "api"}:${typeof params.view === "string" ? params.view : "reviews"}`} preview={preview} />;
 }
