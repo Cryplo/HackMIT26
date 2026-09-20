@@ -1,4 +1,6 @@
-# Fieldnotes: hackathon reimbursements
+# Sift: hackathon reimbursements
+
+Current UI branch: `feat/ramp-ui`. See [the current build instructions](../BUILD_INSTRUCTIONS.md) and open `/business-demo?preview=1` for the new review workspace. The v2 backend integration is still pending; preview data and learning results are simulated. The backend behavior and setup described below refer to the existing v1 implementation.
 
 Integrated intake, reconciliation, and organizer review. A reviewer can correct a merchant alias and improve a later claim without changing financial rules. **Synthetic data only: no authentication or payments.** Approved means approved for reimbursement, not paid. The older browser prototype remains untouched outside this directory. Integration branch: `codex/reconciliation-integrated`.
 
@@ -40,7 +42,7 @@ npm run demo:reset -- --confirm
 npm run demo
 ```
 
-Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, without deleting it or touching Supabase. For a custom data directory, supply the same `RECONCILIATION_INTAKE_DEMO_DIR` to both commands. If an interrupted process leaves `.core-lock`, confirm no app process is running before removing that lock directory.
+Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, without deleting it or touching Supabase. For a custom data directory, supply the same `RECONCILIATION_INTAKE_DEMO_DIR` to both commands. A lock left by a crashed process is recovered automatically (dead owner PID, or an unreadable owner older than a minute); a lock held by a live process is never stolen, and a request that loses its lock to recovery fails with `DEMO_BUSY` rather than overwriting the winner's state. An unreadable or incomplete `core-state.json` is reported as `DEMO_CORRUPT` and never reseeded over; an unreadable `*.receipt.json` or `*.submission.json` quarantines that one claim and is logged, leaving the rest of the ledger readable.
 
 ## Full live setup: manual credentials required
 
@@ -60,6 +62,10 @@ npm run dev -- --hostname 127.0.0.1
 `search:setup` creates the index once and will not replace an existing index. `seed:receipts` uploads five fictional PDFs after SQL seeding, overwriting only their fixed synthetic storage objects. `check:jev` makes one live call; `npm run check:jev -- --workflow` runs seven calls covering the correction loop. Seed parsed fields are fixtures: upload a **new file through the form** to verify OpenAI extraction.
 
 Live mode fails closed on missing configuration and never silently simulates provider failure. Restart after changing environment settings.
+
+## Decision justifications
+
+Every completed run stores a reviewer-facing justification inside the `overall_status` decision. The new receipt drawer renders it as "Recorded explanation" when provided in a v2 response; `POST /api/justifications` with `{"submission_id": "<uuid>"}` regenerates one on demand from the latest completed run. The narrative only restates checks that already ran: it cannot change a verdict, a status, or a stored decision, and a narrative that argues for a different outcome or does not describe the recorded one is discarded. When a human correction owns the status, the narrative says so instead of crediting the machine checks. Demo and simulated modes emit a deterministic template. OpenAI narratives are opt-in: set `RECONCILIATION_JUSTIFICATION_MODE=live` with `OPENAI_API_KEY` (model override: `JUSTIFICATION_MODEL`, default `gpt-4.1-mini`) outside simulated mode; an `OPENAI_API_KEY` alone never starts spending on narratives. Live usage is logged in `model_calls`, one row per provider call. If OpenAI refuses, times out, or returns an unusable narrative, both paths keep the outcome and fall back to the deterministic summary with an `error` code attached.
 
 Optional local live extraction: keep intake mode `demo`, set extraction mode `live`, configure `OPENAI_API_KEY`, and use `npm run dev`, not `npm run demo` (which forces simulation). Keep reconciliation mode `simulated` for simulated checks, or leave it unset with a Jev key for live decisions and local retrieval. Inspect the dashboard execution label.
 
@@ -82,6 +88,7 @@ SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase har
 - Code enforces amounts, dates, and caps. Jev judges merchant/category compatibility, attendee identity, and duplicate evidence. Code combines independent checks. Missing fields and uncertainty require review. Thresholds are conservative starting values, not calibrated on representative data.
 - Reusable aliases are scoped to observed vendor/category/currency. One-time overrides teach nothing. Explicitly rerunning a manually resolved claim creates a new machine outcome; old decisions remain stored. Related claims need a rerun to use a correction.
 - Usage is logged once per call; unknown costs stay null. Highest-value next sponsor feature: a fair labeled Jev-versus-LLM benchmark with measured latency/cost and decision quality, plus visible usage reporting.
+- Justifications are explanations of recorded checks, not model reasoning traces and not an independent audit of the outcome.
 - Dashboard shows current decisions and the applicable human override. A historical run comparison/export, extraction edit/retry controls, and policy editor would improve usability. Rationale is an evidence-based template, not a claim to expose model reasoning.
 - Elasticsearch retrieval is bounded to a small demo corpus (1000 records), not production incremental indexing. Evaluate varied receipts and near-duplicates before broad quality claims.
 - Before real users: authentication/authorization, retention controls, upload abuse limits, and background jobs/retries. No payments, DOCX, currency conversion, or independent auditor.

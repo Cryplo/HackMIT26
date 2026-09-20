@@ -2,7 +2,7 @@
 
 > Execute this brief as one independent agent. You do not need earlier conversation or another agent's responses. Read `README.md`, `context.md`, `api.md`, `contracts.ts` and [ramp-ui.md](ramp-ui.md) in this directory first. They are part of this instruction set. The visual contract defines the UI, including actual Ramp reference screenshots you must inspect. Do not use the older greenfield packet.
 
-**Goal:** Transform the existing Fieldnotes interface into a compact, polished finance review desk with an understandable receipt-review and learning flow.
+**Goal:** Transform the existing Sift interface into a compact, polished finance review desk with an understandable receipt-review and learning flow.
 
 **Architecture:** Keep the existing Next app, same-origin routes and working fetch/mutation patterns. Use the frozen v2 DTOs and shadcn primitives. Implement a clearly labeled preview client so you can finish/test without B's backend.
 
@@ -40,7 +40,7 @@ Reuse useful logic in `BusinessDashboard.tsx`: request ordering, preserving the 
 
 **Produces:** the primary reviewer workflow at `/business-demo`.
 
-- [ ] Build a compact sidebar with functional Reimbursements and Learned rules navigation (the latter can select a panel on the same page). Keep Fieldnotes branding small. Do not add dead Accounts/Analytics/Settings links.
+- [ ] Build a compact sidebar with functional Reimbursements and Learned rules navigation (the latter can select a panel on the same page). Keep Sift branding small. Do not add dead Accounts/Analytics/Settings links.
 - [ ] Top bar: “Reimbursements”, one brief context line, New claim action. Use compact status tabs/counts and a toolbar with text search, category and decision filters. Default to pending human decisions; offer All. Do not show giant KPI cards, editorial hero text, numbered sections or decorative counters.
 - [ ] Table columns: claimant, merchant, requested amount, receipt amount, assessment, human decision, row action. Put origin/date and full check detail in the sheet. Use tabular numbers, null as an em dash, clear text badges and restrained borders. Keep first rows above the fold at 1440×900.
 - [ ] Support selecting up to 50 rows and Recheck selected. Preserve selection by ID, clear IDs no longer present, and refresh when a batch finishes. Poll every three seconds while mounted; preserve the open row by ID and avoid stale requests overwriting newer results.

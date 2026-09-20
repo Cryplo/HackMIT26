@@ -26,6 +26,51 @@ const message = (error: unknown) => error instanceof Error ? error.message : "Th
 const code = (error: unknown) => error && typeof error === "object" && "code" in error ? String(error.code) : "";
 const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 
+interface JustificationView {
+  summary: string;
+  reasons: string[];
+  next_step: string;
+  model: string;
+  simulated: boolean;
+  error: string | null;
+}
+
+/** Narrative stored with the run; it restates the outcome and never sets it. */
+function justificationOf(decisions: ReviewRow["decisions"]): JustificationView | null {
+  const evidence = decisions.find((decision) => decision.field_checked === "overall_status")?.evidence_json;
+  const value = typeof evidence === "object" && evidence !== null
+    ? (evidence as { justification?: unknown }).justification
+    : null;
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Partial<JustificationView>;
+  if (typeof candidate.summary !== "string" || typeof candidate.next_step !== "string" || !Array.isArray(candidate.reasons)) return null;
+  return {
+    summary: candidate.summary,
+    reasons: candidate.reasons.filter((reason): reason is string => typeof reason === "string"),
+    next_step: candidate.next_step,
+    model: typeof candidate.model === "string" ? candidate.model : "unknown",
+    simulated: candidate.simulated !== false,
+    error: typeof candidate.error === "string" ? candidate.error : null,
+  };
+}
+
+function JustificationPanel({ decisions }: { decisions: ReviewRow["decisions"] }) {
+  const justification = justificationOf(decisions);
+  if (!justification) return null;
+  return <section aria-labelledby="justification-title" className="space-y-3 text-sm leading-6">
+    <h3 id="justification-title" className="font-semibold">Recorded explanation</h3>
+    <p>{justification.summary}</p>
+    <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+      {justification.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+    </ul>
+    <p>{justification.next_step}</p>
+    <p className="text-xs text-muted-foreground">
+      {justification.simulated ? "Deterministic summary" : `Written by ${justification.model}`}
+      {justification.error ? ` · model unavailable (${justification.error}), outcome unchanged` : ""}
+    </p>
+  </section>;
+}
+
 function approvalBlock(row: ReviewRow, knowledgeRevision: number, rows: ReviewRow[]) {
   if (row.processing_status === "running") return "Wait for the current check to finish before approving.";
   if (row.receipt?.extraction_status !== "succeeded") return "Extract the original receipt and recheck before approving.";
@@ -189,6 +234,8 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
             {checks.some((check) => check.field_checked === "merchant" && check.verdict === "unknown") && <p className="mt-3 text-sm text-[var(--status-review)]">Merchant needs confirmation.</p>}
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground"><span>Origin: {row.origin_location || "—"}</span><span className="break-all">{row.email}</span>{parsed?.receipt_number && <span>Receipt {parsed.receipt_number}</span>}</div>
           </section>
+
+          <JustificationPanel decisions={row.decisions} />
 
           <section><h3 className="mb-3 font-semibold">Checks</h3>{checks.length ? <ul className="space-y-3">{checks.map((check) => <li key={check.id} className="flex gap-2">{check.verdict === "pass" ? <Check className="mt-0.5 size-4 shrink-0 text-[var(--status-good)]" aria-hidden="true" /> : <TriangleAlert className={`mt-0.5 size-4 shrink-0 ${check.verdict === "fail" ? "text-destructive" : "text-[var(--status-review)]"}`} aria-hidden="true" />}<div className="min-w-0"><p className="text-sm font-medium">{fieldLabels[check.field_checked] || statusLabel(check.field_checked)} <span className="font-normal text-muted-foreground">· {check.verdict === "pass" ? "Passed" : check.verdict === "fail" ? "Failed" : "Needs confirmation"}</span></p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{check.rationale_text}</p></div></li>)}</ul> : <p className="text-sm text-muted-foreground">No completed checks. Recheck after receipt extraction.</p>}</section>
 

@@ -9,7 +9,7 @@ export default function SubmitPage() {
   return (
     <main className="min-h-dvh bg-muted/40 text-foreground">
       <nav aria-label="Main navigation" className="flex h-16 items-center justify-between border-b border-border bg-background px-4 sm:px-8">
-        <Link href="/business-demo" className="flex items-center gap-2 text-sm font-semibold"><FileCheck2 className="size-5" aria-hidden="true" />Fieldnotes</Link>
+        <Link href="/business-demo" className="flex items-center gap-2 text-sm font-semibold"><FileCheck2 className="size-5" aria-hidden="true" />Sift</Link>
         <Button asChild variant="ghost" className="h-11 sm:h-9"><Link href="/business-demo"><ArrowLeft aria-hidden="true" />Review workspace</Link></Button>
       </nav>
       <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">

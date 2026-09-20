@@ -1,7 +1,9 @@
-# HackMIT 26 — Fieldnotes reimbursement project
+# HackMIT 26 — Sift reimbursement project
 
 The current hackathon project lives in **[reconciliation/](reconciliation/README.md)**.
 It includes receipt intake, Jev reconciliation, scoped correction learning, and an organizer dashboard.
+
+For the new Sift interface, follow [the current build instructions](BUILD_INSTRUCTIONS.md) and open `/business-demo?preview=1`. The UI uses the v2 contract; the backend upgrade is still pending. Preview data and learning results are explicitly simulated.
 
 ```sh
 cd reconciliation

@@ -21,7 +21,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
   const navigation = (
     <>
       <Link href={preview ? "/business-demo?preview=1" : "/business-demo"} className={styles.brand}>
-        <ScanLine aria-hidden="true" /> Fieldnotes
+        <ScanLine aria-hidden="true" /> Sift
       </Link>
       <div className={styles.workspaceLabel}>HackMIT · Travel</div>
       <nav aria-label="Workspace" className={styles.navigation}>
@@ -51,7 +51,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
               {navigation}
             </SheetContent>
           </Sheet>
-          <span>Fieldnotes</span>
+          <span>Sift</span>
         </div>
         <main id="workspace" className={styles.main} tabIndex={-1}>{children}</main>
       </div>

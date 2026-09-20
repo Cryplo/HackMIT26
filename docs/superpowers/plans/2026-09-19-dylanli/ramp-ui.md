@@ -1,6 +1,8 @@
-# Fieldnotes visual contract — Ramp-style reimbursement review
+# Sift visual contract — Ramp-style reimbursement review
 
-Read this before implementing Agent A. This file governs visual choices; `api.md` and `contracts.ts` govern behavior. Keep Fieldnotes naming. The target is Ramp's actual finance workspace, with its compact hierarchy and review flow.
+Read this before implementing Agent A. This file governs visual choices; `api.md` and `contracts.ts` govern behavior. Keep Sift naming. The target is Ramp's actual finance workspace, with its compact hierarchy and review flow.
+
+**Current theme override:** The user selected neutral light shadcn defaults. Use `reconciliation/src/app/theme.css` as the source of truth; it supersedes the initial lime palette and theme snippet below. Keep the compact layout and review interactions.
 
 ## Reference screens: look before coding
 
@@ -54,7 +56,7 @@ At 1440 × 900, build this structure:
 
 ```text
 ┌─ 208px navigation ─┬─ flexible workspace ──────────────────────────────┐
-│ Fieldnotes         │ Expenses                       Synthetic demo    │
+│ Sift               │ Expenses                       Synthetic demo    │
 │                    │ Reimbursements                    [+ New claim]  │
 │ Reimbursements     │ Needs review 6   Approved 2   Rejected 1   All 9   │
 │ Learned rules      ├───────────────────────────────────────────────────┤
@@ -91,7 +93,7 @@ Use a real accessible merchant/person link or button inside each row for keyboar
 
 ## Theme: paste into the existing token layer
 
-These are Fieldnotes approximations chosen for this design, not Ramp's proprietary values. A merges them into `globals.css` after initialization, preserving the generated Tailwind imports and semantic `@theme inline` mappings. Do not keep two conflicting token systems. Existing `--muted` and `--accent` have different meanings in the legacy CSS: update/remove their old consumers while restyling the pages.
+These are Sift approximations chosen for this design, not Ramp's proprietary values. A merges them into `globals.css` after initialization, preserving the generated Tailwind imports and semantic `@theme inline` mappings. Do not keep two conflicting token systems. Existing `--muted` and `--accent` have different meanings in the legacy CSS: update/remove their old consumers while restyling the pages.
 
 ```css
 :root {
@@ -141,7 +143,7 @@ body { font-family: Arial, "Helvetica Neue", system-ui, sans-serif; }
 
 Use `bg-background`, `text-foreground`, `text-muted-foreground`, `border-border` and component variants rather than scattered hex values. Map custom status tokens with CSS variables/classes where used. Dark text on lime; never white text on lime. Keep one bright primary action in each active surface. Secondary actions stay white/outlined. Status labels are small tinted rectangles with an icon and words; color alone never communicates state. Pending decision is neutral; machine needs-review is amber.
 
-Remove old serif headings, oversized numbers, hard offset shadows, cream paper panels and decorative section labels. Keep Fieldnotes text branding modest. Use native system fonts consistently across pages; no font download is required. Verify text, controls and focus indicators remain distinguishable in actual rendered states.
+Remove old serif headings, oversized numbers, hard offset shadows, cream paper panels and decorative section labels. Keep Sift text branding modest. Use native system fonts consistently across pages; no font download is required. Verify text, controls and focus indicators remain distinguishable in actual rendered states.
 
 ## Receipt review and learning
 

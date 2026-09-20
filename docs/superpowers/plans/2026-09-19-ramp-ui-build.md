@@ -46,3 +46,5 @@ On the local `feat/ramp-ui` branch: the initial implementation passed 34 Node te
 The user's subsequent theme choice supersedes the original Ramp palette: neutral light shadcn defaults now live in `reconciliation/src/app/theme.css`, alongside typography, radii, and motion timing. The compact layout remains. Motion uses the existing Radix components, CSS, and `tw-animate-css`; no new dependency was added.
 
 Run instructions are in the root `BUILD_INSTRUCTIONS.md`. Local preview: `http://127.0.0.1:3000/business-demo?preview=1`. The live v2 backend and provider verification remain B/C integration work.
+
+Sift rename and upstream integration: merged `origin/main` at `16a58c4`, retaining Devin's storage durability fixes and explanation endpoint. The receipt drawer preserves stored explanations when supplied in the v2 response. Verified 44 Node tests, 11 browser tests (including explanation regression), TypeScript, production build, and Sift branding in the rendered desktop capture. Backend v2 integration remains pending.

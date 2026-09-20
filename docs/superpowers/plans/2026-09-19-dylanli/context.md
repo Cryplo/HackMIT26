@@ -4,7 +4,7 @@
 
 We are four technical HackMIT teammates building an event travel reimbursement review desk. An attendee submits a reimbursement claim plus one receipt. A finance reviewer checks that the receipt supports the claim and that the expense fits the event's policy. The system extracts evidence, checks deterministic financial rules, uses Jev for ambiguous structured judgments, investigates unresolved cases, and learns narrowly scoped merchant aliases from reviewed corrections.
 
-The visible experience should follow [the Ramp-style visual contract](ramp-ui.md): compact work queue, obvious exceptions, original receipt beside claimed/extracted values, and clear human actions. It includes actual product screenshot references, shadcn Radix/Nova setup and concrete theme/layout choices. Working name: Fieldnotes, preserving the branch's name; do not spend time renaming the project.
+The visible experience should follow [the Ramp-style visual contract](ramp-ui.md): compact work queue, obvious exceptions, original receipt beside claimed/extracted values, and clear human actions. It includes actual product screenshot references, shadcn Radix/Nova setup and concrete theme/layout choices. Product name: Sift. Keep this branding consistent across the interface and documentation.
 
 Primary demo story: a strange hotel billing descriptor causes an exception. The agent inspects relevant evidence and explains the unresolved merchant. A human reviews it, approves the supported claim and proposes a merchant alias. The system tests the candidate on valid and adversarial examples, activates it only if it improves results without regressions, and handles new receipts for that merchant with less human intervention. Overclaims and duplicate receipts remain flagged.
 

@@ -3,12 +3,12 @@ import { ArrowLeft, ArrowUpRight, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import styles from "@/components/business/business.module.css";
 
-export const metadata = { title: "Demo guide · Fieldnotes" };
+export const metadata = { title: "Demo guide · Sift" };
 
 export default function DemoGuide() {
   return (
     <main className={styles.guide}>
-      <nav className={styles.guideNav} aria-label="Demo guide"><Link className={styles.brand} href="/business-demo"><ScanLine aria-hidden="true" /> Fieldnotes</Link><Button asChild variant="ghost"><Link href="/business-demo"><ArrowLeft aria-hidden="true" /> Reimbursements</Link></Button></nav>
+      <nav className={styles.guideNav} aria-label="Demo guide"><Link className={styles.brand} href="/business-demo"><ScanLine aria-hidden="true" /> Sift</Link><Button asChild variant="ghost"><Link href="/business-demo"><ArrowLeft aria-hidden="true" /> Reimbursements</Link></Button></nav>
       <header className={styles.guideHeader}>
         <span className={styles.guideBadge}>Workspace walkthrough</span>
         <h1>From receipt to reviewed claim.</h1>

@@ -1,4 +1,4 @@
-# Build instructions — reimbursement review workspace
+# Build instructions — Sift reimbursement review workspace
 
 The `reconciliation/` app contains the new review UI and a working synthetic preview. The normal workspace targets the frozen v2 API; the checked-in backend still needs the separate platform and intelligence upgrades below.
 

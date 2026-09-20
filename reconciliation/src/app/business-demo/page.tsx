@@ -1,6 +1,6 @@
 import BusinessDashboard from "@/components/business/BusinessDashboard";
 
-export const metadata = { title: "Reimbursements · Fieldnotes" };
+export const metadata = { title: "Reimbursements · Sift" };
 
 export default async function BusinessDemoPage({ searchParams }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
