@@ -4,6 +4,7 @@ import { CoreService } from './service';
 import { SupabaseStore } from './store';
 import { FileStore, demoDirectory } from './file-store';
 import { LiveJev, SimulatedJev } from './jev';
+import { OpenAiJustifier, SimulatedJustifier } from './justification';
 import { ElasticsearchRetrieval, SimulatedRetrieval } from './retrieval';
 import { CoreError } from './validation';
 const globalCore = globalThis as typeof globalThis & { reimbursementCore?: CoreService };
@@ -24,7 +25,10 @@ export function getCore(): CoreService {
   const liveSearch = !simulated && !!e.ELASTICSEARCH_URL;
   if (e.RECONCILIATION_MODE === 'live' && (!url || !liveJev || !liveSearch)) throw new CoreError('CONFIG_ERROR', 'Live mode requires Supabase, Jev, and Elasticsearch credentials.', 503);
   const demoMode = !url || !liveJev || !liveSearch;
-  globalCore.reimbursementCore = new CoreService(store, liveSearch ? new ElasticsearchRetrieval(e.ELASTICSEARCH_URL!, e.ELASTICSEARCH_API_KEY!, e.ELASTICSEARCH_INDEX) : new SimulatedRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: liveSearch ? 'Elasticsearch' : 'local simulated', storage: url ? 'Supabase' : 'local disk' });
+  if (e.RECONCILIATION_JUSTIFICATION_MODE && !['simulated','live'].includes(e.RECONCILIATION_JUSTIFICATION_MODE)) throw new CoreError('CONFIG_ERROR', 'RECONCILIATION_JUSTIFICATION_MODE must be live or simulated.', 503);
+  if (e.RECONCILIATION_JUSTIFICATION_MODE === 'live' && (simulated || !e.OPENAI_API_KEY)) throw new CoreError('CONFIG_ERROR', 'Live justifications require OPENAI_API_KEY outside simulated mode.', 503);
+  const liveJustification = !simulated && e.RECONCILIATION_JUSTIFICATION_MODE !== 'simulated' && !!e.OPENAI_API_KEY;
+  globalCore.reimbursementCore = new CoreService(store, liveSearch ? new ElasticsearchRetrieval(e.ELASTICSEARCH_URL!, e.ELASTICSEARCH_API_KEY!, e.ELASTICSEARCH_INDEX) : new SimulatedRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: liveSearch ? 'Elasticsearch' : 'local simulated', storage: url ? 'Supabase' : 'local disk', justification: liveJustification ? 'live OpenAI' : 'deterministic summary' }, liveJustification ? new OpenAiJustifier(e.OPENAI_API_KEY!, e.JUSTIFICATION_MODEL || 'gpt-4.1-mini') : new SimulatedJustifier());
   return globalCore.reimbursementCore;
 }
 

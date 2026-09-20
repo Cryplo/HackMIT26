@@ -13,6 +13,10 @@ export function reconcileInput(v: unknown): string[] {
   if (!isObject(v) || !Array.isArray(v.submission_ids) || v.submission_ids.length < 1 || v.submission_ids.length > 50 || !v.submission_ids.every(isUUID)) throw new CoreError('INVALID_INPUT', 'submission_ids must contain 1–50 UUIDs.');
   return [...new Set(v.submission_ids as string[])];
 }
+export function justificationInput(v: unknown): string {
+  if (!isObject(v) || !isUUID(v.submission_id)) throw new CoreError('INVALID_INPUT', 'submission_id must be a UUID.');
+  return v.submission_id;
+}
 export function aliasPayload(v: unknown): AliasPayload {
   if (!isObject(v) || typeof v.observed_vendor !== 'string' || !v.observed_vendor.trim() || v.observed_vendor.length > 200 || typeof v.canonical_vendor !== 'string' || !v.canonical_vendor.trim() || v.canonical_vendor.length > 200 || !isObject(v.scope) || !categories.includes(String(v.scope.category)) || v.scope.currency !== 'USD') throw new CoreError('INVALID_ALIAS', 'Alias needs observed_vendor, canonical_vendor and scope {category,currency:"USD"}.');
   return v as unknown as AliasPayload;

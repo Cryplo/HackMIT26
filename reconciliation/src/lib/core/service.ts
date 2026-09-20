@@ -1,11 +1,13 @@
-import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse } from '../contracts';
+import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse, SubmissionStatus } from '../contracts';
 import { decision, deterministic, overall } from './checks';
 import type { Jev, SemanticField } from './jev';
+import type { Justification, Justifier, JustificationRequest } from './justification';
+import { deterministicJustification, SimulatedJustifier } from './justification';
 import type { Retrieval } from './retrieval';
 import type { Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
 export class CoreService {
-  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, private execution?: { decisions: string; retrieval: string; storage: string }) {}
+  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, private execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier()) {}
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
     // Three workers; stop launching work before the route's five-minute deadline.
     const results: ReconcileResult[] = new Array(ids.length); let next = 0;
@@ -47,7 +49,8 @@ export class CoreService {
         }
       }
       const status = overall(ds);
-      ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id) }));
+      const justification = await this.narrate({ submission: s, receipt: r?.parsed_fields_json ?? null, decisions: ds, status }, run);
+      ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id), justification }));
       await this.store.finish(run, ds, status);
       return { submission_id: id, run_id: run, status };
     } catch (error) {
@@ -59,6 +62,23 @@ export class CoreService {
       const status = error instanceof CoreError && error.code === 'STALE_RUN' ? current?.status || 'needs_review' : 'needs_review';
       return { submission_id: id, run_id: run, status, error: message };
     }
+  }
+  /** Narration never changes an outcome: provider failure degrades to the deterministic summary. */
+  private async narrate(request: JustificationRequest, runId: string | null): Promise<Justification> {
+    try { return await this.justifier.explain(request, runId, call => this.store.usage(call)); }
+    catch (error) { return deterministicJustification(request, error instanceof CoreError ? error.code : 'JUSTIFICATION_UNAVAILABLE'); }
+  }
+  /** On-demand narrative for the latest completed run. Read-only: nothing is persisted. */
+  async justify(id: string): Promise<{ submission_id: string; run_id: string; status: SubmissionStatus; justification: Justification }> {
+    const state = await this.store.snapshot();
+    const s = state.submissions.find(x => x.id === id);
+    if (!s) throw new CoreError('NOT_FOUND', 'Submission not found.', 404);
+    const run = state.runs.find(r => r.id === s.latest_run_id && r.status === 'completed');
+    if (!run) throw new CoreError('NO_COMPLETED_RUN', 'Reconcile this submission before requesting a justification.', 409);
+    const decisions = state.decisions.filter(d => d.run_id === run.id && d.field_checked !== 'overall_status');
+    const receipt = state.receipts.find(r => r.submission_id === id)?.parsed_fields_json ?? null;
+    const request: JustificationRequest = { submission: s, receipt, decisions, status: s.status };
+    return { submission_id: id, run_id: run.id, status: s.status, justification: await this.justifier.explain(request, run.id, call => this.store.usage(call)) };
   }
   correct(input: CorrectionInput) { return this.store.correct(input); }
   async reviews(): Promise<ReviewsResponse> {
