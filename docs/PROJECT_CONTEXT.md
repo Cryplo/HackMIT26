@@ -57,9 +57,12 @@ This does **not** learn arbitrary business policies or retrain a model. Rejectio
 
 **Responsive data.** The shared workspace client caches snapshots, invalidates after mutations, and polls active work/learning approximately every two seconds and idle visible workspaces less often. Investigation details poll recorded progress. This is HTTP polling, not a WebSocket/token stream. Flow dots represent observed activity; they are not independent proof of a provider call. Short steps may finish between refreshes.
 
-**Reset.** Local and opt-in live reset archive then reseed the curated 14 claims. Live reset is synthetic-only and guards active work, queued delivery, and changed snapshots. It retains original storage objects and advances revisions. Reset is an explicit demo operation, not a routine prerequisite to debugging. Never reset the user's live workspace just to obtain a clean test run.
+**Reset.** Local reset archives then restores 14 claims; opt-in live reset archives then restores 80 claims (migration 011). Live reset is synthetic-only and guards active work, queued delivery, and changed snapshots. It retains original storage objects and advances revisions. Reset is an explicit demo operation, not a routine prerequisite to debugging. Never reset the user's live workspace just to obtain a clean test run.
 
 ## Modes and demo facts
+
+The live demo was expanded to **80 claims / 80 parsed receipts / 20 supporting documents** on September 20, 2026. The original 14 claims and all their stored records were preserved; 66 new claims were added as unchecked with cached authored transcriptions. No model calls or notices were triggered. The local showcase remains 14 claims. Live reset now restores the expanded 80-claim seed; migration `202609200011_expanded_live_demo.sql` is applied to this demo and required elsewhere for that reset.
+
 
 | Mode | Data and execution |
 | --- | --- |

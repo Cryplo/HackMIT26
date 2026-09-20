@@ -55,7 +55,7 @@ The UI distinguishes queued, accepted by Resend, failed, and unknown delivery ou
 
 ## 6. Deploy schema and app together
 
-Migration `202609200004_communications.sql` introduced platform version **4**, message storage, and transaction/worker RPCs. Migration `202609200006_automatic_notices.sql` adds automatic-notice support; the current app also requires the remaining ordered migrations in [the app README](../README.md#live-setup), through 010. Version 4 alone does not establish that those additions are present.
+Migration `202609200004_communications.sql` introduced platform version **4**, message storage, and transaction/worker RPCs. Migration `202609200006_automatic_notices.sql` adds automatic-notice support; the current app also requires the remaining ordered migrations in [the app README](../README.md#live-setup), through 011. Version 4 alone does not establish that those additions are present.
 
 Inspect the target database’s migration history and apply only missing migrations in order through the normal database-owner process. Coordinate app/worker rollout with schema changes. Do not replay earlier migrations, assume the database is still version 3, reset records, or drop audit tables to resolve a rollout problem. The existing demo’s dated deployment notes are in [Showcase](SHOWCASE.md#live-services). Local FileStore needs no SQL migration.
 

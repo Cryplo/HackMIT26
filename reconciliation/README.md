@@ -63,6 +63,9 @@ Do not add `--audit-ready`, which reenables automation. Review Sam Mercer, choos
 
 ## Live setup
 
+The current live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The additional 66 claims were appended without changing the original 14 claims or their histories. They start unchecked: cached extraction avoids OCR latency, but assessments and investigations still run live. The live reset restores 80 unchecked claims; local simulation stays at 14. Migration 011 enables that expanded reset without modifying records on application.
+
+
 Use a dedicated synthetic-only Supabase project. Existing configured projects should retain their records: inspect migration history and apply only missing migrations in order. **Do not reset or reseed an existing live database as a setup step.** Migrations add schema/functions; applying the reset migrations does not itself reset claims.
 
 Apply all files in [supabase/migrations](supabase/migrations), in this order:
@@ -77,6 +80,7 @@ Apply all files in [supabase/migrations](supabase/migrations), in this order:
 8. `202609200008_readable_demo_seed.sql`
 9. `202609200009_designed_demo_seed.sql`
 10. `202609200010_feedback_learning.sql`
+11. `202609200011_expanded_live_demo.sql`
 
 The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
 

@@ -22,7 +22,7 @@ test('live reset archives all raw tables atomically and refuses stale, busy, rea
   const document = state.supporting_documents![0].id;
   try {
     await db.exec('create role anon; create role authenticated; create role service_role bypassrls; create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);');
-    for (const migration of ['202609190001_reimbursement_core', '202609200002_platform', '202609200003_investigations', '202609200004_communications', '202609200005_demo_reset', '202609200006_automatic_notices', '202609200007_policy_revision_safeupdate', '202609200008_readable_demo_seed', '202609200009_designed_demo_seed']) {
+    for (const migration of ['202609190001_reimbursement_core', '202609200002_platform', '202609200003_investigations', '202609200004_communications', '202609200005_demo_reset', '202609200006_automatic_notices', '202609200007_policy_revision_safeupdate', '202609200008_readable_demo_seed', '202609200009_designed_demo_seed', '202609200010_feedback_learning', '202609200011_expanded_live_demo']) {
       const sql = await readFile(new URL(`../../../../supabase/migrations/${migration}.sql`, import.meta.url), 'utf8');
       await db.exec(sql.replace('create extension if not exists pgcrypto;', ''));
     }
@@ -91,6 +91,17 @@ test('live reset archives all raw tables atomically and refuses stale, busy, rea
     await db.exec("create function deny_demo_archive() returns trigger language plpgsql as $$ begin raise exception 'ARCHIVE_FAILED'; end $$; create trigger deny_demo_archive before insert on demo_reset_archives for each row execute function deny_demo_archive();");
     await refuses(/ARCHIVE_FAILED/);
     await db.exec('drop trigger deny_demo_archive on demo_reset_archives;');
+    const expanded = showcaseFixture(80).state;
+    const expandedSeed = { submissions: expanded.submissions, receipts: expanded.receipts, policies: expanded.policies, supporting_documents: expanded.supporting_documents };
+    assert.equal((await reset(undefined, expandedSeed)).reset, true);
+    const expandedSnapshot = await snapshot();
+    assert.equal(expandedSnapshot.submissions.length, 80);
+    assert.equal(expandedSnapshot.receipts.length, 80);
+    assert.equal(expandedSnapshot.supporting_documents.length, 20);
+    assert.ok(expandedSnapshot.submissions.every((s: any) => s.latest_run_id === null && s.decision_status === 'pending'));
+    const badExpanded = structuredClone(expandedSeed);
+    badExpanded.supporting_documents![0].id = '64000000-0000-4000-8000-000000000999';
+    await refuses(/INVALID_RESET_SEED/, undefined, badExpanded);
     await db.exec('set role anon');
     await assert.rejects(db.query('select * from demo_reset_archives'), /permission denied/);
     await assert.rejects(reset(fresh), /permission denied/);
@@ -127,7 +138,7 @@ test('live reset helper verifies originals without overwrite and never retries a
       resets++;
       const body = JSON.parse(String(init?.body));
       assert.deepEqual(body.p_expected, fixture.state);
-      assert.equal(body.p_seed.submissions.length, 14);
+      assert.equal(body.p_seed.submissions.length, 80);
       assert.equal(body.p_seed.receipts[0].raw_extracted_text, fixture.state.receipts[0].raw_extracted_text, 'cached facts preserve the designed original text');
       assert.match(body.p_seed.receipts[0].extraction_provenance, /no extraction provider called/);
       if (uncertain) throw new Error('response lost after possible commit');
@@ -156,11 +167,11 @@ test('live reset helper verifies originals without overwrite and never retries a
   const first = fixture.originals[0];
   originals.delete(first.receipt.storage_path);
   assert.equal((await resetLiveDemo(core, token)).reset, true);
-  assert.equal(uploads, 1, 'restores only the missing original');
-  assert.equal(originals.size, 22);
+  assert.equal(uploads, 79, 'restores the missing original and uploads 78 new originals');
+  assert.equal(originals.size, 100);
   originals.set(first.receipt.storage_path, Buffer.from('different original'));
   await assert.rejects(resetLiveDemo(core, token), { code: 'ORIGINAL_CONFLICT' });
-  assert.equal(uploads, 1);
+  assert.equal(uploads, 79);
   assert.equal(resets, 1, 'conflicting bytes cannot reach the reset RPC');
   originals.set(first.receipt.storage_path, first.bytes);
   uncertain = true;

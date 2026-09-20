@@ -36,12 +36,79 @@ const cases: Case[] = [
   { title: 'Unassessed bus claim', name: 'Jordan Vale', category: 'bus', vendor: 'Cedar Bus', amount: 4200, number: 'SHOW-BUS-701', unassessed: true, date: '2026-09-16', origin: 'Providence, RI', destination: 'Boston South', travelDate: '2026-09-18', departure: '09:10 AM', arrival: '10:25 AM', service: 'CB 108', seat: '16', submitted: '2026-09-19T16:06:00.000Z' },
 ];
 
+export const LIVE_SHOWCASE_COUNT = 80;
+
+const expandedNames = `Nora Ashford, Leo Bennett, Isla Brooks, Owen Calder, Elena Dalton, Finn Emerson,
+Zoe Fairchild, Miles Foster, Clara Grant, Eli Hartwell, Ada Iverson, Noah Jennings,
+Lila Kendall, Felix Lawson, Nina Marlow, Theo Nolan, Iris Oakley, Luca Prescott,
+Eva Ramsey, Milo Sterling, Leah Thornton, Arlo Underwood, June Voss, Ellis Whitaker,
+Sofia Alden, Oscar Bellamy, Cora Camden, Hugo Delaney, Freya Easton, Simon Fletcher,
+Vera Grayson, Isaac Hollis, Esme Ingram, Julian Keaton, Willa Langley, Jasper Monroe,
+Alice Norwood, Silas Osborne, Maeve Palmer, Emmett Rhodes, Hazel Sullivan, Louis Tate,
+Stella Vaughn, Rowan Winslow, Anya Archer, Callum Barrett, Daisy Collins, Tobias Drake,
+Mira Everett, Jonah Finch, Phoebe Gardner, Adrian Hayes, Celia Irving, Nolan Kerr,
+Tessa Linden, Wesley Marsh, Daphne Nash, Everett Pierce, Gemma Roswell, Bennett Shaw,
+Audrey Talbot, Gideon Vale, Amara Westbrook, Ronan York, Sylvia Lindenhurst, Nathan Bramble`
+  .split(',').map(name => name.trim());
+
+function expandedCases(): Case[] {
+  const categories: Category[] = ['flight', 'flight', 'flight', 'flight', 'train', 'train', 'train', 'bus', 'bus', 'hotel', 'hotel'];
+  const origins = {
+    flight: ['New York (JFK)', 'Chicago (ORD)', 'Seattle (SEA)', 'Atlanta (ATL)'],
+    train: ['New York Penn', 'New Haven Union', 'Providence Station'],
+    bus: ['Portland, ME', 'Hartford, CT', 'Providence, RI'],
+    hotel: ['Chicago, IL', 'Philadelphia, PA', 'Seattle, WA', 'Portland, ME'],
+  };
+  const merchants = {
+    flight: ['Northstar Airlines', 'Summit Air', 'Juniper Airways'],
+    train: ['Maple Rail', 'Birch Rail', 'Coastline Rail'],
+    bus: ['Cedar Bus', 'Willow Coach', 'Elm Express'],
+    hotel: [descriptor],
+  };
+  return expandedNames.map((name, i): Case => {
+    const group = Math.floor(i / 11), slot = i % 11;
+    const category = categories[slot] as keyof typeof origins;
+    const travelDay = 16 + group % 4;
+    const day = (n: number) => `2026-09-${String(n).padStart(2, '0')}`;
+    const mismatch = (slot === 0 && group % 2 === 0) || (slot === 9 && group === 1);
+    const capped = i === 15 || i === 29 || i === 53;
+    const booking = category !== 'hotel' ? undefined : slot === 10 && (group === 1 || group === 4) ? 'conflicting'
+      : slot === 10 && (group === 2 || group === 5) ? undefined : 'matching';
+    const amount = capped ? { flight: 54000, train: 22400, bus: 11800, hotel: 28900 }[category]
+      : { flight: 18600 + (i * 137) % 21500, train: 5400 + (i * 211) % 8500,
+        bus: 2800 + (i * 97) % 3800, hotel: 15200 + (i * 173) % 7400 }[category];
+    const origin = origins[category][i % origins[category].length];
+    const reference = `SHOW-${category.toUpperCase()}-${801 + i}`;
+    return {
+      title: mismatch ? 'Receipt total differs' : capped ? 'Policy cap exceeded'
+        : booking === 'conflicting' ? 'Conflicting hotel confirmations'
+          : category === 'hotel' && !booking ? 'Hotel booking missing'
+            : category === 'hotel' ? 'Matching hotel booking' : `Ordinary ${category}`,
+      name, category, vendor: merchants[category][group % merchants[category].length], amount,
+      requested: mismatch ? amount + 1500 : undefined, number: `${reference}-R`, reference, booking,
+      date: day(1 + i % 14), origin, destination: category === 'flight' ? 'Boston (BOS)'
+        : category === 'hotel' ? (i % 2 ? 'Cambridge, MA' : 'Boston, MA') : 'Boston South',
+      travelDate: day(travelDay), stayEnd: category === 'hotel' ? day(travelDay + 1) : undefined,
+      room: category === 'hotel' ? String(210 + i) : undefined,
+      departure: category === 'hotel' ? '' : '08:15 AM',
+      arrival: category === 'hotel' ? '' : category === 'flight' ? ['09:31 AM', '11:38 AM', '04:39 PM', '10:50 AM'][i % 4]
+        : category === 'train' ? ['12:37 PM', '10:42 AM', '09:07 AM'][i % 3]
+          : ['10:10 AM', '10:20 AM', '09:30 AM'][i % 3],
+      service: category === 'hotel' ? '' : `${{ flight: 'FL', train: 'RL', bus: 'BC' }[category]} ${801 + i}`,
+      seat: category === 'hotel' ? '' : category === 'flight' ? `${10 + i % 20}${['A', 'C', 'F'][i % 3]}`
+        : category === 'train' ? `Car ${1 + i % 4} / ${2 + i % 18}A` : String(2 + i % 30),
+      submitted: `${day(travelDay + 1)}T${String(10 + i % 9).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00.000Z`,
+    };
+  });
+}
+
 /** Labels remain outside receipt text and model evidence. Every fact below is printed in its PDF. */
-export function showcaseFixture() {
+export function showcaseFixture(count: 14 | 80 = 14) {
+  const selectedCases = count === LIVE_SHOWCASE_COUNT ? [...cases, ...expandedCases()] : cases;
   const state: Snapshot = { submissions: [], receipts: [], policies: [], supporting_documents: [], decisions: [], corrections: [], runs: [] };
   const originals: { receipt: Receipt; bytes: Buffer }[] = [];
   const supporting: { document: StoredDocument; bytes: Buffer }[] = [];
-  const caseMap = cases.map((c, index) => ({ id: id(41, index + 1), title: c.title, assess: !c.unassessed }));
+  const caseMap = selectedCases.map((c, index) => ({ id: id(41, index + 1), title: c.title, assess: !c.unassessed }));
   const categories: Category[] = ['flight', 'hotel', 'train', 'bus', 'other'];
   state.policies = categories.map((category, index): PolicyRule => ({
     id: id(43, index + 1), category, currency: 'USD', region_or_route: '*',
@@ -50,7 +117,7 @@ export function showcaseFixture() {
     claimant_identity_evidence: category === 'flight' || category === 'train' ? 'receipt_or_linked_itinerary' : 'receipt_only',
   }));
   // New original IDs preserve archived PDFs from the earlier showcase seeds.
-  cases.forEach((c, index) => {
+  selectedCases.forEach((c, index) => {
     const claimId = caseMap[index].id, receiptId = id(62, index + 1);
     const timestamp = c.submitted;
     const submission: Submission = {
@@ -100,6 +167,6 @@ export function showcaseFixture() {
 /** Explicit offline reparse recognizes original bytes only, never a claim ID or filename. */
 export function recognizedShowcaseReceipt(bytes: Uint8Array): { fields: ParsedReceipt; raw: string } | null {
   const digest = hash(bytes);
-  const match = showcaseFixture().originals.find(original => original.receipt.sha256 === digest)?.receipt;
+  const match = showcaseFixture(LIVE_SHOWCASE_COUNT).originals.find(original => original.receipt.sha256 === digest)?.receipt;
   return match ? { fields: structuredClone(match.parsed_fields_json!), raw: match.raw_extracted_text! } : null;
 }
