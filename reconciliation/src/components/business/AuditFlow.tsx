@@ -118,7 +118,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
     <div className={styles.canvas}>
       <header className={styles.toolbar}>
         <div><h2 id="audit-title">Follow the audit</h2><p>{checked} of {rows.length} claims checked overall · {unchecked} unchecked</p><p role="status" aria-atomic="true">{active && <LoaderCircle aria-hidden="true" className={styles.spinner} />}{progress}</p></div>
-        <div className={styles.controls}>{active ? <Button variant="outline" disabled={resetBusy || audit.status === "stopping"} onClick={audit.stop}><Pause aria-hidden="true" />{audit.status === "stopping" ? "Stopping…" : "Stop after active checks"}</Button> : <Button disabled={resetBusy || (!eligible && !incoming)} onClick={() => void audit.start()}><Play aria-hidden="true" />{audit.startedAt && (eligible || incoming) ? "Continue audit" : "Start audit"}</Button>}{!sources && <ResetDemoButton preview={preview} onBusy={setResetBusy} />}</div>
+        <div className={styles.controls}>{active ? <Button variant="outline" disabled={resetBusy || audit.status === "stopping"} onClick={audit.stop}><Pause aria-hidden="true" />{audit.status === "stopping" ? "Stopping…" : "Stop after active checks"}</Button> : <Button disabled={resetBusy || (!eligible && !incoming)} onClick={() => void audit.start()}><Play aria-hidden="true" />{audit.startedAt && (eligible || incoming) ? "Continue audit" : "Start audit"}</Button>}<ResetDemoButton preview={preview} onBusy={setResetBusy} /></div>
       </header>
       <div className={styles.progressTrack}>{audit.total > 0 && <progress value={audit.done} max={audit.total} aria-label="Claims checked in this session" />}</div>
       {audit.error && <p className={styles.error} role="alert">{audit.error}</p>}
