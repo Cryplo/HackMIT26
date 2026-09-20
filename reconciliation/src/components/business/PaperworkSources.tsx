@@ -1,30 +1,28 @@
 import Link from "next/link";
-import { ArrowRight, FileCheck2, Images, Mail, ScanLine, Tickets } from "lucide-react";
+import { ArrowRight, FileCheck2, ClipboardList, Mail, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import styles from "./paperwork-sources.module.css";
 
 export function PaperworkSources() {
-  return <section className={styles.panel} aria-labelledby="paperwork-sources-heading">
+  return <section className={styles.panel} aria-labelledby="data-sources-heading">
     <div className={styles.heading}>
       <div>
-        <h2 id="paperwork-sources-heading">Paperwork sources</h2>
-        <p>Bring files together. Confirm the case. Review the exceptions.</p>
+        <h2 id="data-sources-heading">Data sources</h2>
+        <p>Different places. One review queue.</p>
       </div>
-      <Button asChild size="sm"><Link href="/import">Import paperwork<ArrowRight aria-hidden="true" /></Link></Button>
+      <Button asChild size="sm"><Link href="/import">Explore sample inputs<ArrowRight aria-hidden="true" /></Link></Button>
     </div>
     <div className={styles.flow}>
       <div className={styles.sources}>
-        <Link href="/import"><Images aria-hidden="true" /><span>Receipts &amp; photos<small>Scans, PDFs, snapshots</small></span></Link>
-        <Link href="/import"><Tickets aria-hidden="true" /><span>Booking documents<small>Tickets and confirmations</small></span></Link>
-        <Link href="/import"><Mail aria-hidden="true" /><span>Email PDFs<small>Requests and conversations</small></span></Link>
+        <Link href="/submit"><ClipboardList aria-hidden="true" /><span>Google Forms<small>Reimbursement responses</small><em>Demo form</em></span><ArrowRight aria-hidden="true" /></Link>
+        <Link href="/import"><Mail aria-hidden="true" /><span>Email<small>Requests and attachments</small><em>Demo source</em></span><ArrowRight aria-hidden="true" /></Link>
+        <Link href="/import"><FolderOpen aria-hidden="true" /><span>Dropbox folder<small>Receipts and bookings</small><em>Demo source</em></span><ArrowRight aria-hidden="true" /></Link>
       </div>
-      <div className={styles.outcomes} aria-label="Paperwork workflow">
+      <div className={styles.outcomes} aria-label="Source intake workflow">
         <ArrowRight className={styles.connector} aria-hidden="true" />
-        <span><FileCheck2 aria-hidden="true" /><strong>Confirm cases</strong><small>With linked evidence</small></span>
-        <ArrowRight aria-hidden="true" />
-        <span><ScanLine aria-hidden="true" /><strong>Review exceptions</strong><small>In your audit below</small></span>
+        <span><FileCheck2 aria-hidden="true" /><strong>Organize &amp; confirm</strong><small>Then enter the audit below</small></span>
       </div>
     </div>
-    <p className={styles.caption}>Upload files from your device, or <Link href="/submit">submit a completed claim</Link>.</p>
+    <p className={styles.caption}>Demo inputs · no accounts connected. Try Sift’s form or sample files in place of live form, email, and folder connections.</p>
   </section>;
 }

@@ -30,7 +30,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
           <LayoutDashboard aria-hidden="true" /> Audit overview
         </Link>
         <Link href="/import" className={investigationStyles.navLink} onClick={() => setMenuOpen(false)}>
-          <Files aria-hidden="true" /> Paperwork
+          <Files aria-hidden="true" /> Data sources
         </Link>
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>
           <ReceiptText aria-hidden="true" /> Reimbursements
@@ -57,7 +57,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className={styles.mobileNavigation}>
-              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, paperwork, reimbursements, learned rules, and investigations.</SheetDescription></SheetHeader>
+              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, data sources, reimbursements, learned rules, and investigations.</SheetDescription></SheetHeader>
               {navigation}
             </SheetContent>
           </Sheet>

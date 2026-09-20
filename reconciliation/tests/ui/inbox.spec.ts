@@ -6,13 +6,18 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   page.on('request', r => { if (r.url().endsWith('/api/inbox') && r.method() === 'POST') uploadCalls++; });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/overview');
-  const sources = page.getByRole('region', { name: 'Paperwork sources' });
-  await expect(sources.getByRole('link', { name: /Receipts & photos/ })).toBeVisible();
-  await expect(sources.getByRole('link', { name: /Email PDFs/ })).toBeVisible();
+  const sources = page.getByRole('region', { name: 'Data sources' });
+  await expect(sources.getByRole('link', { name: /Google Forms/ })).toBeVisible();
+  await expect(sources.getByRole('link', { name: /Dropbox folder/ })).toBeVisible();
   await expect(page.getByText('Loading saved claims…')).not.toBeVisible();
+  await expect(sources).toContainText('no accounts connected');
+  await expect(sources.getByRole('link', { name: /Google Forms/ })).toHaveAttribute('href', '/submit');
+  await expect(page.getByRole('region', { name: 'Sources into the audit' })).toBeVisible();
+  await expect(page.locator('[data-flow-edge="sources-waiting"]')).toHaveCount(1);
+  await expect(page.locator('[data-flow-edge]')).toHaveCount(9);
   await page.screenshot({ path: test.info().outputPath('sources-dashboard.png'), fullPage: true });
-  await sources.getByRole('link', { name: 'Import paperwork' }).click();
-  await expect(page.getByRole('heading', { name: 'Close out the event. Start with the paperwork.' })).toBeVisible();
+  await sources.getByRole('link', { name: 'Explore sample inputs' }).click();
+  await expect(page.getByRole('heading', { name: 'From scattered inputs to review-ready cases.' })).toBeVisible();
   await page.getByRole('button', { name: 'Try sample paperwork' }).click();
   await expect(page.getByRole('status').first()).toContainText('9 unique documents', { timeout: 30000 });
   await expect(page.getByRole('status').first()).toContainText('1 repeated copy counted once');
@@ -96,7 +101,8 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
 test('mobile sources and results fit; unknown formats and unlinked files stay visible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/overview');
-  await expect(page.getByRole('region', { name: 'Paperwork sources' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Data sources' })).toBeVisible();
+  await expect(page.locator('[data-flow-edge="sources-waiting"]')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('sources-mobile.png'), fullPage: true });
   await page.goto('/import');

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, CircleX, FileStack, LoaderCircle, Pause, Play, ScanLine, SearchCheck, Maximize2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, CircleX, ClipboardList, FolderOpen, Mail, FileStack, LoaderCircle, Pause, Play, ScanLine, SearchCheck, Maximize2 } from "lucide-react";
 import { AuditClaimsDialog } from "./AuditClaimsDialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,13 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
       {audit.notice && <p role="status" className="text-sm text-[var(--status-review)]">{audit.notice}</p>}
       <div className={styles.flow} ref={graph}>
         <FlowConnectors graph={graph} events={activity.events} />
+        <section className={styles.sourceIntake} data-flow-node="sources" aria-label="Sources into the audit">
+          <div><strong>Data sources</strong><small>Demo input routes</small></div>
+          <div className={styles.sourceKinds}><span><ClipboardList aria-hidden="true" />Forms</span><span><Mail aria-hidden="true" />Email</span><span><FolderOpen aria-hidden="true" />Dropbox</span></div>
+          <ArrowRight aria-hidden="true" />
+          <Link href="/import">Organize evidence &amp; confirm cases<ArrowUpRight aria-hidden="true" /></Link>
+          <p>Confirmed cases enter Waiting, then move through checks. Sample inputs stand in for connected accounts.</p>
+        </section>
         <ClaimStage title="Waiting" icon={<FileStack aria-hidden="true" />} items={waiting} tone="waiting" empty="No claims waiting" onReview={onReview} />
 
         <ClaimStage title="Checking" icon={checking.length ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : <ScanLine aria-hidden="true" />} items={checking} tone="checking" empty={active ? "Preparing the next claim" : "Ready when you are"} onReview={onReview} elapsed={activity.elapsed} />

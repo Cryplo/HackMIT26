@@ -9,6 +9,9 @@
 .sources a:hover { border-color: var(--primary); }
 .sources a > svg { width: 21px; height: 21px; flex-shrink: 0; color: var(--primary); }
 .sources span { min-width: 0; font-size: 12px; line-height: 18px; font-weight: 550; }
+.sources span { flex: 1; }
+.sources em { display: inline-block; font-size: 10px; font-style: normal; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-top: 6px; }
+.sources a > svg:last-child { width: 13px; height: 13px; }
 .sources small, .outcomes small { display: block; color: var(--muted-foreground); font-size: 11px; line-height: 17px; font-weight: 400; }
 .outcomes { display: flex; align-items: center; gap: 14px; }
 .outcomes > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-foreground); }
@@ -31,7 +34,6 @@
   .heading { flex-wrap: wrap; gap: 10px; }
   .sources { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .sources a { min-height: 52px; }
-  .sources small { display: inline; margin-left: 6px; }
   .outcomes { flex-wrap: wrap; gap: 8px; }
   .caption a { display: inline-block; padding-block: 8px; }
 }

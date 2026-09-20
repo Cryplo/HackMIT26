@@ -74,7 +74,7 @@ export function FlowConnectors({ graph, events }: { graph: RefObject<HTMLDivElem
         const box = node.getBoundingClientRect();
         return [node.dataset.flowNode, { left: box.left - outer.left, top: box.top - outer.top, right: box.right - outer.left, bottom: box.bottom - outer.top }];
       })) as Record<FlowNode, NodeBox>;
-      if (Object.keys(boxes).length !== 6) return;
+      if (Object.keys(boxes).length !== 7) return;
       const next = { width: outer.width, height: outer.height, edges: flowEdges(boxes, outer.width), investigation: [(boxes.investigations.left + boxes.investigations.right) / 2, boxes.investigations.top] as [number, number] };
       setLayout(old => JSON.stringify(old) === JSON.stringify(next) ? old : next);
     };
@@ -87,7 +87,7 @@ export function FlowConnectors({ graph, events }: { graph: RefObject<HTMLDivElem
   if (!layout) return null;
   return <svg className={styles.graphConnectors} width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-hidden="true">
     <defs><marker id={marker} viewBox="0 0 6 6" refX="6" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L6 3L0 6" className={styles.arrowhead} /></marker></defs>
-    {layout.edges.map(edge => <path key={`${edge.from}-${edge.to}`} d={pathOf(edge.points)} className={styles.graphEdge} markerEnd={`url(#${marker})`} />)}
+    {layout.edges.map(edge => <path key={`${edge.from}-${edge.to}`} data-flow-edge={`${edge.from}-${edge.to}`} d={pathOf(edge.points)} className={styles.graphEdge} markerEnd={`url(#${marker})`} />)}
     {events.map(event => {
       if (event.from === event.to) return <circle key={event.id} cx={layout.investigation[0]} cy={layout.investigation[1]} r="5" className={styles.stepPulse} style={{ animationDuration: `${event.duration}ms` }} />;
       const edge = layout.edges.find(edge => edge.from === event.from && edge.to === event.to);

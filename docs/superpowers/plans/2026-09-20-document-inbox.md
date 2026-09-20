@@ -25,3 +25,11 @@
 - [x] Add a fresh isolated demo launcher with explicit optional live reading and simulated review.
 - [x] Verify 19 backend checks, desktop/mobile browser flow, two live browser scenarios, TypeScript, and production build. Record real timings and the corrected test-only locator failure in the runbook.
 - [x] Keep main untouched; publish only the feature branch for review.
+
+## Data sources visual refinement
+
+User-directed design: label navigation and entry panel Data sources; show Google Forms, Email, and Dropbox folder as demo input routes. Reuse the existing form and sample-file intake without OAuth or sync. Add a static Sources → Waiting connection to the measured audit graph; preserve actual queue counts and observed activity.
+
+- [x] Rename the source panel and add explicit demo input cards with working local destinations.
+- [x] Add the sources graph node and route it into Waiting at desktop/tablet/mobile widths.
+- [x] Update existing geometry/browser checks, inspect screenshots, and run typecheck/build. Keep work on the feature branch.
