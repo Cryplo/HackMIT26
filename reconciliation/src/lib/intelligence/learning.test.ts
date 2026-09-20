@@ -22,7 +22,7 @@ const input = (candidate = rule()): RuleEvaluationInput => ({
   rule: candidate, active_aliases: [], knowledge_revision: 4, examples: build_rule_suite(candidate),
   mode: 'simulated', signal: new AbortController().signal,
 });
-const asAlias = (candidate: MerchantRule): ActiveAlias => ({ id: candidate.id, source_correction_id: candidate.source_correction_id, payload: candidate.payload });
+const asAlias = (candidate: MerchantRule): ActiveAlias => ({ id: candidate.id, source_correction_id: candidate.source_correction_id!, payload: candidate.payload });
 const legacySubmission = (facts: EvaluationCase['facts']): Submission => ({ ...facts.submission, updated_at: facts.submission.submitted_at, status: 'pending', latest_run_id: null });
 const legacyReceipt = (facts: EvaluationCase['facts']): Receipt => ({ ...facts.receipt!, storage_path: 'synthetic-fixture-only', extracted_at: '2026-09-19T12:00:00.000Z' });
 const correction = (candidate: MerchantRule): Correction => ({

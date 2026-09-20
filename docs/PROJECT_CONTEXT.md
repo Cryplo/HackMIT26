@@ -152,3 +152,9 @@ At this handoff, unrelated pitch/benchmark changes and locally generated Next fi
 ## Copy into a new chat
 
 > We are working on Sift in `HackMIT26/reconciliation`. Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, `reconciliation/AGENTS.md`, and `reconciliation/README.md`, then inspect Git status. This is the integrated audit/investigation/review-learning and Data sources app, with a local 14-claim simulation and an 80-claim live demo. The live reset restores 70 explicitly authored checked records and 10 unchecked claims; migrations 013–016 are applied to the configured demo, but inspect current state before changing it. It is not the old browser prototype. Preserve unrelated edits and live data. Distinguish persisted live results, simulated fixtures, and unverified claims. Keep the UI simple and use focused verification. My next task is: [describe the task].
+
+### Prepared learned-rule example
+
+Migration `202609210017_prepared_demo_rule.sql` adds a service-only, idempotent seed helper and restores one inactive merchant-rule example after live demo resets: Harbor Reservations → Harbor Hotel, hotel/USD, linked to Sam Mercer. Learned rules labels it **Prepared example · Inactive**. It records no human approval, test results, activation, or provider use; it leaves knowledge revision and current decisions unchanged. This is a demonstration of a possible rule, not evidence of completed learning. Actual feedback learning still requires source approval and passing evidence checks.
+
+The migration and explicit seed were applied September 20. Before/after live snapshots differed only in `rules`; the application API returned the labeled inactive example. Focused offline reset checks preserved the 70/10 baseline. No live provider or email calls were made for this seed.

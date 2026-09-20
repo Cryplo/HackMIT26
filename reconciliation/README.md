@@ -57,6 +57,8 @@ Decisions and policy approvals create held applicant notices without sending. **
 
 ## Learning from review reasons
 
+The live seed includes one **Prepared example · Inactive** merchant rule: **Harbor Reservations → Harbor Hotel**, scoped to hotel/USD and linked to Sam Mercer’s synthetic evidence. It has no invented approval or test report, cannot affect assessments, and does not change the audit’s knowledge revision. Live reset restores this example. Actual review feedback still follows the tested learning flow below.
+
 A human decision saves first; background learning then classifies its internal reason, derives a supported evidence check, tests twelve fixed safety cases, and activates only a current passing candidate. Failed learning does not reverse the decision. The UI exposes status, source evidence, test reports, disabling a check, and retrying eligible failures.
 
 The supported automatic pattern is **hotel billing descriptor → hotel identity**, corroborated by each claim's own receipt and booking confirmation: reference, guest, purchase date, amount, and currency must agree. Financial, identity, policy, and duplicate checks remain mandatory. One-time exceptions and policy changes do not become automatic rules. This saves evidence-check logic; it does **not train or fine-tune a model**.
@@ -99,6 +101,7 @@ Apply all files in [supabase/migrations](supabase/migrations), in this order:
 15. `202609210014_live_demo_baseline.sql` — historical prepared 60-checked/20-unchecked live-reset baseline.
 16. `202609210015_live_demo_baseline_70.sql` — current prepared 70-checked/10-unchecked live-reset baseline.
 17. `202609210016_held_notifications.sql` — hold decision notices until explicit batch confirmation, including bounded failed-delivery retries (applied to the configured demo).
+18. `202609210017_prepared_demo_rule.sql` — service-only installation of an inactive prepared merchant-rule example; guarded live resets restore it (applied and explicitly seeded in the configured demo).
 
 The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
 

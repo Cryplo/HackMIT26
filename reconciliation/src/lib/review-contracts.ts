@@ -131,7 +131,8 @@ export interface RuleTestReport {
 }
 export interface MerchantRule {
   id: string; version: number; state: 'draft' | 'active' | 'disabled';
-  source_submission_id: string; source_correction_id: string; payload: AliasPayload;
+  source_submission_id: string; source_correction_id: string | null; payload: AliasPayload;
+  prepared_demo?: true;
   created_at: string; latest_test: RuleTestReport | null;
   latest_test_error?: string | null;
 }

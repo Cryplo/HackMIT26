@@ -12,7 +12,7 @@ export type RuleCommand =
  | {action:'test';id:string;expected_rule_version:number;suite_hash:string;provider_identity:string;mode:ProviderMode}
  | {action:'tested';id:string;attempt_id:string;report:RuleTestReport|null;error:string|null;observations:(EvaluationObservation & {phase?:'before'|'after';case_id?:string})[]}
  | {action:'activate'|'disable';id:string;expected_rule_version:number;suite_hash?:string;provider_identity?:string;mode?:ProviderMode};
-export function activeAliases(state:Snapshot):ActiveAlias[] {return (state.rules??[]).filter(r=>r.state==='active').map(r=>({id:r.id,source_correction_id:r.source_correction_id,payload:r.payload}));}
+export function activeAliases(state:Snapshot):ActiveAlias[] {return (state.rules??[]).flatMap(r=>r.state==='active'&&!r.prepared_demo&&r.source_correction_id?[{id:r.id,source_correction_id:r.source_correction_id,payload:r.payload}]:[]);}
 export function aliasCorrections(aliases:ActiveAlias[]) {return aliases.map(a=>({id:a.id,submission_id:a.source_correction_id,human_verdict:'approved' as const,human_note:'Tested active merchant identity.',correction_type:'vendor_alias' as const,correction_payload_json:a.payload as unknown as Record<string,unknown>,corrected_at:'1970-01-01T00:00:00.000Z'}));}
 export function invalidateSource(state:Snapshot,id:string) {
  invalidateProcedures(state,id);
@@ -52,9 +52,9 @@ export function mutateRule(state:Snapshot,cmd:RuleCommand) {
     if(rule.state==='disabled')throw new CoreError('STALE_RULE','Rule is already disabled.',409);
     if(rule.state==='active')state.knowledge_revision++;rule.state='disabled';rule.version++;rule.latest_test=null;rule.test_binding=null;
    }else{
-    source(state,rule);if(rule.state!=='draft')throw new CoreError('STALE_RULE','Only draft rules can be tested or activated.',409);
+    const approval=source(state,rule);if(rule.state!=='draft'||rule.prepared_demo)throw new CoreError('STALE_RULE','Only draft rules can be tested or activated.',409);
     if(cmd.action==='test'){
-     const binding:TestBinding={source_correction_id:rule.source_correction_id,source_review_revision:reviewRevision(state,rule.source_submission_id),knowledge_revision:state.knowledge_revision,suite_hash:cmd.suite_hash,provider_identity:cmd.provider_identity,mode:cmd.mode};
+     const binding:TestBinding={source_correction_id:approval.id,source_review_revision:reviewRevision(state,rule.source_submission_id),knowledge_revision:state.knowledge_revision,suite_hash:cmd.suite_hash,provider_identity:cmd.provider_identity,mode:cmd.mode};
      const attempt:RuleAttempt={id:crypto.randomUUID(),rule_id:rule.id,rule_version:rule.version,binding,status:'running',report:null,error:null,observations:[]};state.rule_tests.push(attempt);rule.latest_attempt_id=attempt.id;rule.latest_test=null;rule.test_binding=null;rule.latest_test_error=null;
     }else{
      const b=rule.test_binding,t=rule.latest_test;
