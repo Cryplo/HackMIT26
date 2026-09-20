@@ -163,3 +163,26 @@ test('rejected planner outputs retain safe specific diagnostics without provider
  const unavailable=setup([]);
  await assert.rejects(runInvestigationPlanner(input,unavailable.execute,unavailable.options,config,async()=>{throw new Error('private-network-error');}),{code:'PROVIDER_UNAVAILABLE'});
 });
+
+// The live failure cited a UUID/type pair outside the read registry. The output schema
+// must prevent that combination instead of merely detecting it after generation.
+test('wire schema restricts both findings and learning citations to actually observed typed records',async()=>{
+ const h=setup([[call('read_receipt','r'),call('read_supporting_documents','d')],[message(final())]]);
+ await h.run();
+ const schemas=h.requests.map((r:any)=>r.text.format.schema);
+ const cites=(schema:any,ref:{kind:string;id:string}):boolean=>{
+  if(schema.anyOf)return schema.anyOf.some((s:any)=>cites(s,ref));
+  const permits=(s:any,v:string)=>s.const!==undefined?s.const===v:Array.isArray(s.enum)?s.enum.includes(v):true;
+  return permits(schema.properties.kind,ref.kind)&&permits(schema.properties.id,ref.id);
+ };
+ const findingRefs=(schema:any)=>schema.properties.findings.items.properties.evidence_refs.items;
+ assert.ok(cites(findingRefs(schemas[0]),{kind:'claim',id:s.id}));
+ assert.equal(cites(findingRefs(schemas[0]),{kind:'receipt',id:receipt.id}),false,'unread receipts cannot be generated');
+ assert.ok(cites(findingRefs(schemas[1]),{kind:'receipt',id:receipt.id}));
+ assert.ok(cites(findingRefs(schemas[1]),{kind:'supporting_document',id:document.id}));
+ assert.equal(cites(findingRefs(schemas[1]),{kind:'receipt',id:document.id}),false,'a read ID cannot be paired with a different kind');
+ assert.equal(cites(findingRefs(schemas[1]),{kind:'receipt',id:snapshot.receipts[0].id}),false,'foreign records remain unavailable');
+ const proposal=schemas[1].properties.proposed_learning.anyOf.find((s:any)=>s.type==='object');
+ assert.deepEqual(proposal.properties.source_evidence_refs.items,findingRefs(schemas[1]));
+ assert.equal(h.requests.length,2,'no added retry or invented evidence read');
+});

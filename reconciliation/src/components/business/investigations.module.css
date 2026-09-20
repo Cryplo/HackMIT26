@@ -21,9 +21,8 @@
 .table thead th { background: var(--muted); color: var(--muted-foreground); font-size: 11px; font-weight: 500; white-space: nowrap; }
 .table tbody th { font-weight: 500; min-width: 110px; }
 .table tr[aria-selected="true"] { background: var(--status-good-bg); box-shadow: inset 2px 0 0 var(--primary); }
-.table tr[data-failed]:hover, .table tr[data-failed][aria-selected="true"] { background: var(--status-bad-bg); }
-.table tr[data-failed][aria-selected="true"] { box-shadow: inset 2px 0 0 var(--destructive); }
-.table tr[data-failed] .runButton strong { color: var(--destructive); }
+.table tr[data-failed]:hover, .table tr[data-failed][aria-selected="true"] { background: var(--status-review-bg); }
+.table tr[data-failed][aria-selected="true"] { box-shadow: inset 2px 0 0 var(--status-review); }
 .table time { font-size: 11px; overflow-wrap: anywhere; }
 .runButton { display: flex; flex-direction: column; gap: 4px; min-height: 44px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .runButton strong { color: var(--primary); font-weight: 550; }
@@ -34,7 +33,6 @@
 .runView .row > div { flex: 1 1 240px; }
 .conclusion { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .conclusion[data-warning] { background: var(--status-review-bg); border-color: color-mix(in srgb, var(--status-review) 30%, var(--border)); }
-.conclusion[data-failed] { background: var(--status-bad-bg); border-color: color-mix(in srgb, var(--destructive) 30%, transparent); }
 .conclusion .mode { display: inline-block; margin-top: 8px; }
 .conclusion p + p { margin-top: 8px; }
 .disclosure { min-width: 0; border-top: 1px solid var(--border); }
@@ -72,7 +70,6 @@
 .activity { color: var(--primary); font-size: 13px; }
 .activity svg, .stepHeading svg { width: 16px; height: 16px; flex-shrink: 0; }
 .conclusion[data-warning] .activity, .activity[data-warning] { color: var(--status-review); }
-.conclusion[data-failed] .activity, .activity[data-failed] { color: var(--destructive); }
 .stepDetails > summary { min-height: 40px; cursor: pointer; align-content: center; font-size: 12px; }
 .stepDetails > summary::marker { color: var(--muted-foreground); }
 .stepHeading { display: inline-flex; flex-wrap: wrap; vertical-align: middle; }

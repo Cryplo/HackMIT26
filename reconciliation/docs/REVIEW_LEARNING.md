@@ -26,7 +26,9 @@ The advanced manual investigation workflow remains separate: an eligible resolve
 
 The **Internal review reason** is never copied into applicant email. Approval notices are generic. Discretionary rejections offer a collapsed **Applicant message (optional)** with neutral default wording; editing it does not change the internal reason. Leaving it blank uses the standard rejection notice. Retrying an uncertain decision preserves the original separate payloads.
 
-Investigation failures retain an allowlisted stage and reason, with a short plain-language explanation. Provider payloads, credentials, and arbitrary exception text do not become UI error messages. Historical failures that saved only `INVALID_PROVIDER_OUTPUT` cannot be diagnosed retroactively.
+Investigation failures retain their failed status and an allowlisted stage/reason. The UI routes them to **Needs review** with saved evidence available; **Technical details** retains the failure explanation and code. This fallback does not create successful findings or approve the claim. Provider payloads, credentials, and arbitrary exception text do not become UI error messages. Historical failures that saved only `INVALID_PROVIDER_OUTPUT` cannot be diagnosed retroactively.
+
+The planner's output schema limits citations to exact evidence-type/ID pairs from records actually read in that run. Server validation still rejects unobserved citations. Historical `UNOBSERVED_CITATION` errors establish that a citation was rejected, but do not retain the offending pair; the schema fix does not rewrite those runs.
 
 ## Validation
 

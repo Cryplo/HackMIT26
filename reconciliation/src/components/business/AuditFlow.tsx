@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button";
 import { isAuditEligible, useAudit } from "@/lib/dashboard/audit-session";
 import { auditFlowStage, checkState, humanActions } from "@/lib/dashboard/human-actions";
+import { investigationFailureDetails } from "@/lib/intelligence/investigation-errors";
 import { money, statusLabel } from "@/lib/dashboard/helpers";
 import type { ReviewRow } from "@/lib/dashboard/types";
 import { useWorkspace } from "@/lib/dashboard/workspace-store";
@@ -91,14 +92,17 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
 
   const renderRun = ({ row, run }: typeof runs[number]) => {
     const steps = [...run.steps].sort((a, b) => a.sequence - b.sequence);
+    const failure = investigationFailureDetails(run.error);
     const activeStep = run.status === "running" ? steps.find(step => step.status === "running") : undefined;
     return <article className={styles.agent} data-status={run.status} key={run.run_id}>
       <div className={styles.agentHeading}><strong>{row.attendee_name}</strong><span>{run.mode === "simulated" ? "Simulated" : "Live"}</span></div>
-      <p className={styles.agentStatus}>{run.status === "running" ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : run.status === "completed" ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}{run.status === "running" ? activeStep ? `Running · ${statusLabel(activeStep.tool)}` : "Running · investigating evidence" : run.status === "failed" ? "Needs attention · Failed" : statusLabel(run.status)}{run.status === "running" && <span className={styles.elapsed}>{activity.elapsed(row.id)}</span>}</p>
-      <p className={styles.agentSummary}>{run.status === "failed" ? "Evidence check failed. Open findings for the error before retrying."
+      <p className={styles.agentStatus}>{run.status === "running" ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : run.status === "completed" ? <Check aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}{run.status === "running" ? activeStep ? `Running · ${statusLabel(activeStep.tool)}` : "Running · investigating evidence" : run.status === "failed" ? "Needs review" : statusLabel(run.status)}{run.status === "running" && <span className={styles.elapsed}>{activity.elapsed(row.id)}</span>}</p>
+      <p className={styles.agentSummary}>{run.status === "failed" ? "Automatic investigation could not finish. Review the saved evidence."
         : run.status === "superseded" ? "Evidence changed. Open the claim for its latest result."
         : run.headline || run.summary || (run.status === "running" ? "Reading the available evidence." : "No summary was recorded.")}</p>
+      {run.status === "failed" && <details className={styles.toolHistory}><summary>Technical details</summary><p>Investigation failed. {failure.message}</p>{failure.detail && <p><code>{failure.detail}</code></p>}</details>}
       <details className={styles.toolHistory} open={run.status === "running"}><summary>Tool history · {steps.length}</summary>{steps.length ? <ol>{steps.map(step => <li key={step.id}><strong>{statusLabel(step.tool)}</strong><span>{step.status === "running" && run.status !== "running" ? "Incomplete" : statusLabel(step.status)}</span><p>{step.summary || "No summary recorded."}</p></li>)}</ol> : <p>No tool steps recorded yet.</p>}</details>
+      {run.status === "failed" && <button type="button" className={styles.runLink} onClick={() => onReview(row.id)}>Open claim<ArrowUpRight aria-hidden="true" /></button>}
       <Link className={styles.runLink} href={`/investigations?${preview ? "preview=1&" : ""}run=${encodeURIComponent(run.run_id)}`}>View findings and evidence<ArrowUpRight aria-hidden="true" /></Link>
     </article>;
   };

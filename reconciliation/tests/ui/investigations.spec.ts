@@ -69,29 +69,43 @@ test("known mandatory failures disable investigation with the current reason", a
   expect(state.requests.filter(request => request.method === "POST")).toEqual([]);
 });
 
-test("a successful HTTP response with a failed saved run shows its error and never implies approval", async ({ page }) => {
+test("failed saved investigations keep evidence actionable and diagnostics collapsed", async ({ page }) => {
   const state = await fixtureState(), source = state.reviews.submissions.find(row => row.id === sam)!;
-  let posts = 0;
+  const failed: InvestigationRun = { ...source.latest_investigation!, run_id: fixtureId(9510), status: "failed", outcome: null,
+    headline: "Synthetic saved failed investigation", summary: "Provider did not complete the investigation.",
+    started_at: "2026-09-20T15:00:00.000Z", completed_at: "2026-09-20T15:00:01.000Z", after_assessment: null,
+    proposed_learning: null, unresolved_question: null, findings: [], error: "INVALID_PROVIDER_OUTPUT:VALIDATION:UNOBSERVED_CITATION" };
+  source.latest_investigation = failed; source.processing_status = "failed"; source.processing_error = failed.error;
+  state.runs = [failed, ...state.runs.filter(run => run.claim_id !== sam)];
   await mockApi(page, state);
-  await page.route(`**/api/submissions/${sam}/investigate`, route => {
-    posts++;
-    const failed: InvestigationRun = { ...source.latest_investigation!, run_id: fixtureId(9510), status: "failed", outcome: null,
-      headline: "Synthetic saved failed investigation", summary: "Provider did not complete the investigation.",
-      started_at: "2026-09-20T15:00:00.000Z", completed_at: "2026-09-20T15:00:01.000Z", after_assessment: null,
-      proposed_learning: null, unresolved_question: null, findings: [], steps: [], error: "PROVIDER_TIMEOUT" };
-    source.latest_investigation = failed; source.processing_status = "failed"; source.processing_error = "PROVIDER_TIMEOUT";
-    state.runs = [failed, ...state.runs];
-    return route.fulfill({ json: { run: failed, row: source } });
-  });
-  await page.goto(`/business-demo?claim=${sam}`);
-  await sheet(page).getByRole("button", { name: "Investigate", exact: true }).click();
-  await expect(details(page).getByRole("status")).toContainText("Investigation failed. PROVIDER_TIMEOUT");
-  await expect(details(page).getByText("Ready for approval", { exact: true })).toHaveCount(0);
-  await expect(details(page).getByText(/After: No published assessment/)).toBeVisible();
-  await expect(sheet(page).getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
-  await page.reload();
-  await expect(details(page).getByRole("status")).toContainText("Investigation failed. PROVIDER_TIMEOUT");
-  expect(posts).toBe(1); expect(source.decision_status).toBe("pending");
+  await page.goto(`/investigations?run=${failed.run_id}`);
+  await expect(details(page).getByRole("heading", { name: "Needs review", exact: true })).toBeVisible();
+  await expect(details(page).getByText("Automatic investigation could not finish. Review the saved evidence.", { exact: true })).toBeVisible();
+  const technical = details(page).locator("details").filter({ has: page.locator("summary", { hasText: "Technical details" }) });
+  await expect(technical).not.toHaveAttribute("open");
+  await technical.locator("summary").click();
+  await expect(technical).toContainText("Investigation failed.");
+  await expect(technical).toContainText("The investigator cited evidence it had not read.");
+  await expect(technical).toContainText(failed.error!);
+  const history = details(page).locator("details").filter({ has: page.locator("summary", { hasText: "How this was checked" }) });
+  await expect(history).not.toHaveAttribute("open");
+  await expect(details(page).getByRole("button", { name: "Open claim", exact: true })).toBeVisible();
+  await expect(details(page).getByRole("heading", { name: "Checks passed", exact: true })).toHaveCount(0);
+
+  await page.goto("/overview");
+  const card = page.getByRole("article").filter({ has: page.getByText("Sam Example", { exact: true }) });
+  await expect(card).toHaveAttribute("data-status", "failed");
+  await expect(card.getByText("Needs review", { exact: true })).toBeVisible();
+  await expect(card.getByText("Automatic investigation could not finish. Review the saved evidence.", { exact: true })).toBeVisible();
+  await expect(card.locator("details").filter({ hasText: "Tool history" })).not.toHaveAttribute("open");
+  await card.locator("summary", { hasText: "Technical details" }).click();
+  await expect(card.getByText(failed.error!, { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Open claim", exact: true }).click();
+  await expect(sheet(page)).toBeVisible();
+  await expect(sheet(page).getByRole("button", { name: "Investigate", exact: true })).toHaveCount(0);
+  expect(source.decision_status).toBe("pending");
+  expect(failed.status).toBe("failed");
+  expect(state.requests.filter(request => request.method !== "GET")).toEqual([]);
 });
 
 test("one awaited investigation POST discovers saved ordered steps, stops at terminal, and survives reopen", async ({ page }) => {

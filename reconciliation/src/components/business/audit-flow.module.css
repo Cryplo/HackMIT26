@@ -68,8 +68,10 @@
 .agentLane { display: flex; flex: 1; min-height: 0; gap: 12px; overflow-x: auto; scrollbar-width: thin; }
 .agent, .agentHistory { flex: 0 0 285px; min-width: 0; height: 100%; overflow-y: auto; scrollbar-width: thin; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .agent[data-status="completed"] .agentStatus { color: var(--status-good); }
-.agent[data-status="failed"] { border-color: var(--status-bad); background: var(--status-bad-bg); }
-.agent[data-status="failed"] .agentStatus { color: var(--status-bad); }
+.agent[data-status="failed"] { border-color: color-mix(in srgb, var(--status-review) 30%, var(--border)); background: var(--status-review-bg); }
+.agent[data-status="failed"] .agentStatus { color: var(--status-review); }
+.agent[data-status="failed"] .agentSummary { display: block; }
+.agent .runLink + .runLink { margin-left: 12px; }
 .agent[data-status="superseded"] .agentStatus { color: var(--muted-foreground); }
 .agentHistory { height: fit-content; max-height: 100%; }
 .agentHistory > summary { cursor: pointer; color: var(--status-good); font-size: 12px; font-weight: 600; line-height: 20px; }
