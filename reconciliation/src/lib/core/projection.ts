@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { ReviewRow, InvestigationRun } from '../review-contracts';
 import type { Snapshot } from './store';
 import { overall } from './checks';
+import { requiredFieldsIn } from './custom-checks';
 import { CoreError } from './validation';
 import { confirmedDuplicates, latestCorrection, reviewRevision } from './safety';
 import { hasAutomaticApproval } from './automation';
@@ -26,7 +27,7 @@ export function workspaceRows(state: Snapshot): ReviewRow[] {
   const evidence=checks.filter(d=>d.field_checked!=='overall_status');
   const correction=latestCorrection(state,s.id);
   const human=correction?state.decisions.find(d=>d.check_method==='human' && d.evidence_json.correction_id===correction.id):undefined;
-  const assessment_status=!evidence.length?null:overall(evidence)==='approved'?'matched':overall(evidence) as 'flagged'|'needs_review';
+  const assessment_status=!evidence.length?null:overall(evidence,requiredFieldsIn(evidence))==='approved'?'matched':overall(evidence,requiredFieldsIn(evidence)) as 'flagged'|'needs_review';
   const automatic=!correction&&hasAutomaticApproval(state,s.id,machineRun,checks);
   const decision_status=correction?.human_verdict||(automatic?'approved':'pending');
   const decision_source=correction?'human':automatic?'automatic':null;

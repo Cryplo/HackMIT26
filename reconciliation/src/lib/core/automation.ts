@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Decision, ReconciliationRun } from '../contracts';
 import type { ReviewRow } from '../review-contracts';
 import type { Snapshot } from './store';
-import { deterministic, overall, requiredChecks } from './checks';
+import { deterministic, overall } from './checks';
+import { requiredFieldsIn } from './custom-checks';
 import { boundedEvidence, supportingFor } from './evidence';
 import { confirmedDuplicates, earlier, latestCorrection, samePurchase } from './safety';
 
@@ -21,7 +22,7 @@ function evidenceIdentity(state:Snapshot,id:string) {
 function eligible(state:Snapshot,id:string,checks:Pick<Decision,'field_checked'|'verdict'|'check_method'>[]) {
  const s=state.submissions.find(s=>s.id===id),r=state.receipts.find(r=>r.submission_id===id);
  return !!s&&!latestCorrection(state,id)&&(s.decision_status??'pending')==='pending'
-  &&overall(checks.filter(d=>d.check_method!=='human'&&d.field_checked!=='overall_status'))==='approved'
+  &&overall(checks.filter(d=>d.check_method!=='human'&&d.field_checked!=='overall_status'),requiredFieldsIn(checks))==='approved'
   &&deterministic(s,r??null,state.policies,'automatic-policy-check').every(d=>d.verdict==='pass')
   &&!confirmedDuplicates(state,id).length
   &&!state.submissions.some(x=>x.id!==id&&latestCorrection(state,x.id)?.human_verdict==='approved'&&samePurchase(r,state.receipts.find(r=>r.submission_id===x.id)));
@@ -48,7 +49,7 @@ export function shouldInvestigateAutomatically(state:Snapshot,row:ReviewRow) {
  if(row.decision_status!=='pending'||row.processing_status==='running'||!row.latest_run_id||row.assessment_knowledge_revision!==(state.knowledge_revision??0)||row.duplicate_submission_ids.length)return false;
  const checks=row.decisions.filter(d=>d.check_method!=='human'&&d.field_checked!=='overall_status');
  const unresolved=checks.filter(d=>d.verdict!=='pass');
- if(!unresolved.length||unresolved.some(d=>!['merchant','name'].includes(d.field_checked))||requiredChecks.some(field=>!checks.some(d=>d.field_checked===field)))return false;
+ if(!unresolved.length||unresolved.some(d=>!['merchant','name'].includes(d.field_checked))||requiredFieldsIn(checks).some(field=>!checks.some(d=>d.field_checked===field)))return false;
  if(!supportingFor(state,row.id).some(d=>d.extraction_status==='succeeded'&&!!d.facts&&!!d.extracted_text?.trim()))return false;
  try{boundedEvidence(state,row.id);}catch{return false;}
  const revision=state.submissions.find(s=>s.id===row.id)?.evidence_revision??0;

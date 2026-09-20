@@ -7,6 +7,7 @@ import { createAssessProcedureExample } from './evaluation';
 import { activeAliases } from './rule-state';
 import { CoreError } from './validation';
 import { requiredChecks } from './checks';
+import { CUSTOM_FIELD } from './custom-checks';
 const proposal=z.object({run_id:z.uuid(),expected_review_revision:z.number().safe().int().nonnegative()}).strict();
 const mutation=z.object({expected_procedure_version:z.number().safe().int().positive()}).strict();
 export function publicProcedure(p:ResolutionProcedure):ResolutionProcedure{
@@ -46,7 +47,7 @@ export function validateProcedureReport(r:ProcedureTestReport,p:ResolutionProced
   const a=after[0],b=before[0];
   if(a.assessment===e.expected_assessment&&a.checks.some(c=>c.field_checked==='merchant'&&c.verdict==='pass'&&Array.isArray(c.evidence_json.procedure_ids)&&c.evidence_json.procedure_ids.includes(p.id)&&c.evidence_json.exact_method==='booking_reference_identity'&&Array.isArray(c.evidence_json.evidence_refs)&&c.evidence_json.evidence_refs.some((ref:{kind:string})=>ref.kind==='supporting_document')))applied.push(e.id);
   if(b.assessment===e.expected_assessment&&a.assessment!==e.expected_assessment)regressed.push(e.id);
-  if(requiredChecks.some(field=>['pass','fail'].some(verdict=>b.checks.some(c=>c.field_checked===field&&c.verdict===verdict)&&!a.checks.some(c=>c.field_checked===field&&c.verdict===verdict))))protectedRegression=true;
+  if([...requiredChecks,...new Set([...b.checks,...a.checks].map(c=>c.field_checked).filter(f=>CUSTOM_FIELD.test(f)))].some(field=>['pass','fail'].some(verdict=>b.checks.some(c=>c.field_checked===field&&c.verdict===verdict)&&!a.checks.some(c=>c.field_checked===field&&c.verdict===verdict))))protectedRegression=true;
  }
  if(JSON.stringify([...r.applied_case_ids].sort())!==JSON.stringify(applied.sort())||JSON.stringify([...r.regressed_case_ids].sort())!==JSON.stringify(regressed.sort()))bad();
  if(r.passed&&(!applied.some(id=>examples.find(e=>e.id===id)?.expected_assessment==='matched')||r.after.false_matches||regressed.length||protectedRegression||r.after.correct<r.before.correct))bad();

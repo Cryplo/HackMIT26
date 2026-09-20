@@ -1,4 +1,5 @@
 import type {
+  CheckMutationRequest, CheckResponse, ChecksResponse, CustomCheckUpsert,
   DecisionRequest, DecisionResponse, ReconcileRequest, ReconcileResponse,
   ClaimMessage, ReviewRow, ReviewsResponse, RuleProposalRequest, RuleMutationRequest,
   RuleResponse, RulesResponse, RuleTestReport, SearchRequest, SearchResponse, WorkspaceCapabilities, ExportRequest,
@@ -32,6 +33,11 @@ export interface DashboardClient {
   testProcedure(id: string, expectedVersion: number): Promise<ProcedureTestReport>;
   activateProcedure(id: string, expectedVersion: number): Promise<{ procedure: ResolutionProcedure; knowledge_revision: number }>;
   disableProcedure(id: string, expectedVersion: number): Promise<{ procedure: ResolutionProcedure; knowledge_revision: number }>;
+  getChecks(signal?: AbortSignal): Promise<ChecksResponse>;
+  createCheck(input: CustomCheckUpsert): Promise<CheckResponse>;
+  updateCheck(id: string, input: CustomCheckUpsert & CheckMutationRequest): Promise<CheckResponse>;
+  enableCheck(id: string, input: CheckMutationRequest): Promise<CheckResponse>;
+  disableCheck(id: string, input: CheckMutationRequest): Promise<CheckResponse>;
   getMessages?(id: string, signal?: AbortSignal): Promise<{ messages: ClaimMessage[] }>;
   draftMessage?(id: string, input: DraftMessageInput): Promise<{ message: ClaimMessage; generation_error: string | null }>;
   editMessage?(id: string, input: { expected_draft_revision: number; subject: string; body: string }): Promise<{ message: ClaimMessage }>;
@@ -73,6 +79,14 @@ export interface ReviewSheetProps {
   onOpenRules(): void;
   backId: string | null;
   onBack(): void;
+}
+
+export interface ChecksPanelProps {
+  simulatedEnvironment: boolean;
+  client: DashboardClient;
+  knowledgeRevision: number;
+  capabilities?: WorkspaceCapabilities;
+  onChanged(): Promise<void>;
 }
 
 export interface RulesPanelProps {

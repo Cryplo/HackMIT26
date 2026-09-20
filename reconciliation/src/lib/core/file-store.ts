@@ -11,6 +11,7 @@ import { MemoryStore, type Snapshot, type Store } from './store';
 import { demoSnapshot } from './fixtures';
 import { receiptPdf } from '../demo/samples';
 import type { RuleCommand } from './rule-state';
+import type { CheckCommand } from './custom-checks';
 import { CoreError } from './validation';
 import { showcaseFixture } from '../demo/showcase';
 import { workspaceSnapshot } from './projection';
@@ -213,6 +214,7 @@ export class FileStore implements Store {
   }
   correct(input: CorrectionInput) { return this.transaction(store => store.correct(input)); }
   rule(command:RuleCommand){return this.transaction(store=>store.rule(command));}
+  customCheck(command:CheckCommand){return this.transaction(store=>store.customCheck(command));}
   beginExtraction(id:string,revision:number){return this.transaction(store=>store.beginExtraction(id,revision));}
   finishExtraction(lease:string,receipt:Receipt){return this.transaction(store=>store.finishExtraction(lease,receipt));}
   receiptHash(id:string,hash:string){return this.transaction(store=>store.receiptHash(id,hash));}

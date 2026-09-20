@@ -42,6 +42,8 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 
 Checks enforce amount, currency, date, policy caps, identity, and duplicate constraints. Clean claims can be approved automatically under `RECONCILIATION_AUTOMATION_MODE=policy-caps`; `disabled` leaves approval to reviewers. Eligible uncertainty with useful supporting evidence can trigger an investigation. Missing evidence and unresolved checks remain visible for review. Supporting uploads and extraction retry are implemented, and human decisions survive reassessment.
 
+The workspace Checks view lists every local and Jev-backed check and lets reviewers author up to 12 custom Jev questions (`/api/checks`), optionally scoped to a category. Active custom checks return calibrated pass/fail/needs-review verdicts, join the required set for `matched`, and can never override a failed financial or duplicate check. Changing the check configuration bumps `knowledge_revision` and marks in-flight assessments for recheck; in simulated mode custom checks honestly return needs-review.
+
 Decisions and policy approvals create saved applicant notices. Email defaults to **preview**, so no message is sent. Internal review reasons stay separate from applicant text; approval notices are generic, and discretionary rejections have a separate optional applicant message. Provider acceptance in live email mode is not proof of inbox delivery.
 
 ## Learning from review reasons

@@ -36,3 +36,20 @@ test("visible receipt facts follow saved checks and freshness, never apparent eq
   assert.match(facts().find(fact => fact.field === "policy_cap")!.observed, /Limit \$200.00/);
   assert.match(facts().find(fact => fact.field === "receipt_date")!.observed, /Allowed Sep 17, 2026 – Sep 20, 2026/);
 });
+
+test("custom Jev checks render with their recorded label and verdict", () => {
+  const row = structuredClone(fixtureReviews.submissions[0]);
+  const custom = fixtureCheck(0, "custom_itemized", "unknown", "Jev custom check \"Itemized receipt\": unknown.", true);
+  custom.evidence_json = { check_label: "Itemized receipt" };
+  row.decisions.push(custom);
+  const fact = checkFacts(row, 0, true).find(entry => entry.field === "custom_itemized")!;
+  assert.equal(fact.label, "Custom: Itemized receipt");
+  assert.equal(fact.observed, "Sent to Jev");
+  assert.equal(fact.verdict, "unknown");
+  assert.match(fact.reason, /Itemized receipt/);
+  const passed = structuredClone(row);
+  passed.decisions.find(check => check.field_checked === "custom_itemized")!.verdict = "pass";
+  assert.equal(checkFacts(passed, 0, true).find(entry => entry.field === "custom_itemized")!.verdict, "pass");
+  // A stale or running assessment never shows a custom check as current.
+  assert.equal(checkFacts(row, 1, true).find(entry => entry.field === "custom_itemized")!.verdict, "unknown");
+});

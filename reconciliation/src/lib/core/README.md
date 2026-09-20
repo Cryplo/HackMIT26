@@ -4,7 +4,9 @@ Entry point: `runtime.ts`; orchestration: `service.ts`; public v2 types: `../rev
 
 ## Delivered behavior
 
-The workspace advertises `rule_learning`, `extraction_retry`, `export`, `duplicate_links`, and `knowledge_revisions`. `custom_checks` is false. Supporting documents are implemented. The complete intelligence port and procedure capabilities are integrated. Investigation remains explicitly configured (`disabled`, `simulated`, or `live`); the mode and runtime capability determine availability. The [investigation handoff](INVESTIGATION_HANDOFF.md) describes the earlier backend delivery. Reviews return complete coverage for at most 1,000 claims and fail explicitly above that bound.
+The workspace advertises `rule_learning`, `extraction_retry`, `export`, `custom_checks`, `duplicate_links`, and `knowledge_revisions`. Supporting documents are implemented. The complete intelligence port and procedure capabilities are integrated. Investigation remains explicitly configured (`disabled`, `simulated`, or `live`); the mode and runtime capability determine availability. The [investigation handoff](INVESTIGATION_HANDOFF.md) describes the earlier backend delivery. Reviews return complete coverage for at most 1,000 claims and fail explicitly above that bound.
+
+Custom checks (`/api/checks`, migration `202609210011`) let reviewers author extra Jev questions: a label, instructions, optional pass/fail/unknown criteria, and an optional category scope. Each active applicable check joins the Jev request as an additional `custom_*` question and is required for `matched`; unknown or missing results route to review and any fail flags the claim. They never relax the mandatory financial/duplicate approval gate. Create/update/enable/disable bump `knowledge_revision` (except editing a disabled check), the configuration fingerprint joins run evidence so in-flight runs go stale, and optimistic `version` numbers reject stale edits. In simulated mode custom checks honestly return `unknown`; no fixture fabricates semantic answers.
 
 Machine assessment (`matched`, `flagged`, `needs_review`, or null) is separate from human decision (`pending`, `approved`, `rejected`). Reconciliation preserves human decisions and history. A known mandatory failure remains flagged despite another unknown check. Approval requires succeeded extraction, current evidence/knowledge, passing financial and duplicate checks, a reviewer note, and the expected review revision. Merchant/name ambiguity can be explicitly reviewed. Both decision routes use the same guarded operation; legacy alias corrections are rejected.
 
@@ -145,7 +147,7 @@ GET reviews after assessing the source claim (one of five rows shown):
     "rule_learning": true,
     "extraction_retry": true,
     "export": true,
-    "custom_checks": false,
+    "custom_checks": true,
     "duplicate_links": true,
     "knowledge_revisions": true
   },

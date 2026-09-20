@@ -36,7 +36,7 @@ export function checkFacts(row: ReviewRow, revision: number, knowledgeEnabled: b
     { field: "policy", label: "Policy coverage", observed: `${statusLabel(row.category)} · ${row.currency}`, pass: "One policy covers this category, currency, and date.", fail: "The claim did not pass the policy coverage check.", unknown: "A single applicable policy has not been confirmed." },
     { field: "duplicate", label: "Duplicate receipt", observed: row.duplicate_submission_ids.length ? `${row.duplicate_submission_ids.length} linked ${row.duplicate_submission_ids.length === 1 ? "claim" : "claims"}` : "No linked claims", pass: row.duplicate_submission_ids.length ? "The saved check passed; linked claims still need review." : "No duplicate purchase found in the saved checks.", fail: row.duplicate_submission_ids.length ? "Saved evidence identifies a duplicate receipt or purchase." : "Possible duplicate flagged; compare original receipts.", unknown: "The duplicate check is inconclusive." },
   ];
-  return definitions.map(definition => {
+  const facts = definitions.map(definition => {
     const related = checks.filter(check => check.field_checked === definition.field || (definition.field === "duplicate" && check.field_checked === "exact_duplicate"));
     const saved: Verdict = related.some(check => check.verdict === "fail") ? "fail"
       : !related.some(check => check.field_checked === definition.field) || related.some(check => check.verdict === "unknown") ? "unknown" : "pass";
@@ -49,4 +49,19 @@ export function checkFacts(row: ReviewRow, revision: number, knowledgeEnabled: b
       : definition[saved];
     return { field: definition.field, label: definition.label, observed: definition.observed, verdict, reason };
   });
+  // Reviewer-configured Jev checks are labelled from their recorded evidence.
+  const customFields = [...new Set(checks.map(check => check.field_checked).filter(field => /^custom_[a-z0-9_]+$/.test(field)))];
+  for (const field of customFields) {
+    const related = checks.filter(check => check.field_checked === field);
+    const label = related.map(check => check.evidence_json.check_label).find((value): value is string => typeof value === "string" && !!value.trim()) ?? field;
+    const saved: Verdict = related.some(check => check.verdict === "fail") ? "fail" : related.some(check => check.verdict === "unknown") ? "unknown" : "pass";
+    const verdict = pending || outdated || unavailable ? "unknown" : saved;
+    const result = saved === "pass" ? "pass" : saved === "fail" ? "fail" : "inconclusive";
+    const reason = pending ? `Check in progress; previous result: ${result}.`
+      : outdated ? `Recheck needed; previous result: ${result}.`
+      : unavailable ? "No current verified result. Recheck the receipt."
+      : related.at(-1)?.rationale_text || `Custom check evaluated as ${result}.`;
+    facts.push({ field, label: `Custom: ${label}`, observed: "Sent to Jev", verdict, reason });
+  }
+  return facts;
 }

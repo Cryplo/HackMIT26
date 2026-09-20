@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, LayoutDashboard, Menu, ReceiptText, SearchCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, LayoutDashboard, ListChecks, Menu, ReceiptText, SearchCheck, SlidersHorizontal } from "lucide-react";
 import { SiftLogo } from "@/components/SiftLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -10,13 +10,13 @@ import styles from "./business.module.css";
 import investigationStyles from "./investigations.module.css";
 
 export function AppShell({ view, onViewChange, preview, children }: {
-  view: "overview" | "reviews" | "rules" | "investigations";
-  onViewChange(view: "reviews" | "rules"): void;
+  view: "overview" | "reviews" | "rules" | "checks" | "investigations";
+  onViewChange(view: "reviews" | "rules" | "checks"): void;
   preview: boolean;
   children: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  function navigate(next: "reviews" | "rules") {
+  function navigate(next: "reviews" | "rules" | "checks") {
     onViewChange(next);
     setMenuOpen(false);
   }
@@ -32,6 +32,9 @@ export function AppShell({ view, onViewChange, preview, children }: {
         </Link>
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>
           <ReceiptText aria-hidden="true" /> Reimbursements
+        </button>
+        <button type="button" aria-current={view === "checks" ? "page" : undefined} onClick={() => navigate("checks")}>
+          <ListChecks aria-hidden="true" /> Checks
         </button>
         <button type="button" aria-current={view === "rules" ? "page" : undefined} onClick={() => navigate("rules")}>
           <SlidersHorizontal aria-hidden="true" /> Learned rules
@@ -56,7 +59,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className={styles.mobileNavigation}>
-              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, reimbursements, learned rules, and investigations.</SheetDescription></SheetHeader>
+              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, reimbursements, checks, learned rules, and investigations.</SheetDescription></SheetHeader>
               {navigation}
             </SheetContent>
           </Sheet>

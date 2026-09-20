@@ -22,9 +22,9 @@ export class DashboardError extends Error {
     this.name = "DashboardError";
   }
 }
-export async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+export async function api<T>(path: string, body?: unknown, signal?: AbortSignal, method?: string): Promise<T> {
   const response = await fetch(path, {
-    method: body === undefined ? "GET" : "POST", credentials: "same-origin", cache: "no-store", signal,
+    method: method ?? (body === undefined ? "GET" : "POST"), credentials: "same-origin", cache: "no-store", signal,
     ...(body === undefined ? {} : body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
   const data = await response.json().catch(() => null);

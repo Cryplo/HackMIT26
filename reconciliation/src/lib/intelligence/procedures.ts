@@ -5,6 +5,7 @@ import type {
   ProcedureEvaluationCase, ProcedureEvaluationInput, ProcedureTestReport, ResolutionProcedure,
 } from '../review-contracts';
 import { requiredChecks } from '../core/checks';
+import { CUSTOM_FIELD } from '../core/custom-checks';
 import { aliasPayload, CoreError, isObject, isUUID, normalize } from '../core/validation';
 
 const cases = [
@@ -189,7 +190,7 @@ export async function evaluate_procedure(input: ProcedureEvaluationInput, assess
   examples.forEach((e, index) => {
     const before = observed(e, index, 'before'), after = observed(e, index, 'after');
     if (before.assessment === e.expected_assessment && after.assessment !== e.expected_assessment) regressed_case_ids.push(e.id);
-    if (requiredChecks.some(field => (['pass', 'fail'] as const).some(verdict =>
+    if ([...requiredChecks, ...new Set([...before.checks, ...after.checks].map(c => c.field_checked).filter(f => CUSTOM_FIELD.test(f)))].some(field => (['pass', 'fail'] as const).some(verdict =>
       before.checks.some(c => c.field_checked === field && c.verdict === verdict) &&
       !after.checks.some(c => c.field_checked === field && c.verdict === verdict)))) protectedRegression = true;
     if (after.assessment === e.expected_assessment && after.checks.some(c => {
