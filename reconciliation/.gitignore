@@ -8,6 +8,7 @@ node_modules/
 
 .intake-demo.backup-*/
 test-results/
+test-results-*/
 playwright-report/
 
 .next-*/

@@ -43,7 +43,7 @@ The user prefers a simple light-green design, meaningful status colors, obvious 
 
 ## Document inbox branch extension
 
-On `feat/document-inbox`, `/import` adds batch intake for loose synthetic receipts, booking PDFs, and email chains exported as PDFs. One extraction per file feeds deterministic candidate matching, source-linked editable drafts, and explicit confirmation into the existing claim/review flow. Requested amounts stay separate from receipt totals; ambiguous/conflicting requests need a person. No mailbox/Dropbox integration or database migration is included. Server-local staging and browser-memory drafts limit this to one server. See [document inbox runbook](../reconciliation/docs/DOCUMENT_INBOX.md) for demo, tests, live smoke check, and failure/restart limits.
+On `feat/document-inbox`, `/import` adds batch intake for loose synthetic receipts, booking PDFs, and email chains exported as PDFs. The overview now has a **Paperwork sources** entry point and primary **Paperwork** navigation. One extraction per unique file feeds deterministic candidate matching, compact visual cases beside original sources, editable request details, and explicit confirmation into the existing claim/review flow. Exact duplicate attachments are skipped before extraction; unresolved matches can produce an editable unsent clarification draft. Requested amounts stay separate from receipt totals; ambiguous/conflicting requests need a person. No mailbox/Dropbox integration or database migration is included. Server-local staging and browser-memory drafts limit this to one server. See [document inbox runbook](../reconciliation/docs/DOCUMENT_INBOX.md) for demo, tests, live smoke check, and failure/restart limits.
 
 ## What is implemented
 

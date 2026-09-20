@@ -1,33 +1,17 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { ArrowUpRight, CheckCircle2, FileText, LoaderCircle, Upload } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleHelp, Copy, FileImage, Files, FileText, Link2, LoaderCircle, Mail, Paperclip, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { InboxDocument, InboxSuggestion, ImportResult } from "@/lib/inbox/schema";
 
-type Draft = { attendee_name: string; email: string; amount: string; category: string; origin_location: string };
-type UploadItem = { id: string; name: string; status: "queued" | "reading" | "done" | "error"; message?: string };
-const selectClass = "h-11 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-ring";
+import { caseSummary, clarificationDraft, defaultDraft as defaults, money, requestCents, type Draft } from "@/lib/inbox/presentation";
+import styles from "./import.module.css";
 
-function uniqueValue<T>(values: (T | null | undefined)[]): T | undefined {
-  const unique = [...new Set(values.filter((value): value is T => value != null && value !== ""))];
-  return unique.length === 1 ? unique[0] : undefined;
-}
-
-function defaults(receipt: InboxDocument, supporting: InboxDocument[]): Draft {
-  const requests = [...supporting, receipt].flatMap(d => d.evidence ? [d.evidence.request] : []);
-  const amount = uniqueValue(requests.map(r => r.amount_requested_minor));
-  const names = requests.map(r => r.attendee_name).filter(Boolean);
-  return {
-    attendee_name: uniqueValue(names.length ? names : receipt.evidence?.facts.names || []) || "",
-    email: uniqueValue(requests.map(r => r.email)) || "",
-    amount: amount == null ? "" : (amount / 100).toFixed(2),
-    category: uniqueValue(requests.map(r => r.category)) || "",
-    origin_location: uniqueValue(requests.map(r => r.origin_location)) || "",
-  };
-}
+type UploadItem = { id: string; name: string; status: "queued" | "reading" | "done" | "error"; documentId?: string; duplicateOf?: string; message?: string };
+const selectClass = styles.select;
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -38,14 +22,17 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 
 function Evidence({ document }: { document: InboxDocument }) {
   const facts = document.evidence?.facts;
-  return <div className="min-w-0 space-y-2 text-sm">
-    <a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 max-w-full items-center gap-1 underline underline-offset-4"><span className="break-all">{document.filename}</span><ArrowUpRight className="size-3 shrink-0" aria-hidden="true" /></a>
-    {facts && <p className="break-words text-xs leading-5 text-muted-foreground">{[facts.vendor, ...facts.names, facts.purchase_date, facts.amount_minor == null ? null : `${facts.currency || "Unknown currency"} ${(facts.amount_minor / 100).toFixed(2)}`, facts.booking_reference ? `Reference ${facts.booking_reference}` : null].filter(Boolean).join(" · ") || "No receipt facts found."}</p>}
-    {document.evidence?.raw_extracted_text && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer py-1">Extracted text</summary><p className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3">{document.evidence.raw_extracted_text}</p></details>}
+  const Icon = document.file_type.startsWith("image/") ? FileImage : document.evidence?.document_kind === "email" ? Mail : FileText;
+  return <div className={styles.evidence}>
+    <div className={styles.evidenceTitle}><Icon aria-hidden="true" size={16} /><a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer">{document.filename}<ArrowUpRight aria-hidden="true" size={13} /></a></div>
+    {document.file_type.startsWith("image/") && <a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer" aria-label={`View image ${document.filename}`}><img src={`/api/inbox/${document.id}`} alt={`Original synthetic receipt: ${document.filename}`} className={styles.receiptThumbnail} loading="lazy" /></a>}
+    {facts && <p>{[facts.vendor, ...facts.names, facts.purchase_date, facts.amount_minor == null ? null : `${facts.currency || "?"} ${(facts.amount_minor / 100).toFixed(2)}`].filter(Boolean).join(" · ") || "No purchase facts found."}</p>}
+    {facts?.booking_reference && <p className={styles.reference}><Link2 size={12} aria-hidden="true" />Booking {facts.booking_reference}</p>}
+    {document.evidence?.raw_extracted_text && <details className={styles.excerpt}><summary>Source text</summary><p>{document.evidence.raw_extracted_text}</p></details>}
   </div>;
 }
 
-export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unconfigured" }) {
+export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo" | "live" | "unconfigured"; simulatedReview: boolean }) {
   const [documents, setDocuments] = useState<InboxDocument[]>([]);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [anchors, setAnchors] = useState<string[]>([]);
@@ -57,11 +44,20 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
   const [results, setResults] = useState<ImportResult[]>([]);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(true);
+  const [composer, setComposer] = useState<{ documentId: string; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const lock = useRef(false);
   const available = documents.filter(d => !consumed.includes(d.id));
   const receipts = available.filter(d => anchors.includes(d.id));
   const supporting = available.filter(d => !anchors.includes(d.id));
   const linked = (id: string) => supporting.filter(d => assignments[d.id] === id);
+  const summaries = receipts.filter(r => drafts[r.id]).map(receipt => ({ receipt, summary: caseSummary(receipt, linked(receipt.id), drafts[receipt.id], suggestions.flatMap(s => s.candidates.filter(c => c.receipt_id === receipt.id && assignments[s.document_id] === receipt.id))) }));
+  const ambiguous = supporting.filter(d => !assignments[d.id] && suggestions.some(s => s.document_id === d.id && s.candidates.length));
+  const unmatched = supporting.filter(d => !assignments[d.id] && !ambiguous.includes(d));
+  const duplicates = uploads.filter(u => u.duplicateOf).length;
+  const finished = uploads.filter(u => u.status === "done" || u.status === "error").length;
 
   function assign(documentId: string, receiptId: string) {
     setAssignments(previous => ({ ...previous, [documentId]: receiptId }));
@@ -95,6 +91,8 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
     if (uploads.length + files.length > 12) throw new Error("This inbox supports up to 12 files per session. Refresh to start another batch after saving your claims.");
     const items = files.map(file => ({ id: crypto.randomUUID(), name: file.name, status: "queued" as const }));
     setUploads(previous => [...previous, ...items]);
+    setUploadOpen(false);
+    const pendingHashes = new Map(documents.map(document => [document.sha256, Promise.resolve(document)]));
     const added: InboxDocument[] = [];
     let cursor = 0;
     setBusy("Reading paperwork…");
@@ -106,16 +104,21 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
         update({ status: "reading" });
         try {
           if (!file.size || file.size > 8 * 1024 * 1024 || !["application/pdf", "image/png", "image/jpeg"].includes(file.type)) throw new Error("Use a PDF, PNG, or JPG up to 8 MB.");
-          const body = new FormData();
-          body.set("file", file);
-          const document = await json<InboxDocument>("/api/inbox", { method: "POST", body });
-          if ([...documents, ...added].some(d => d.sha256 === document.sha256)) {
-            update({ status: "done", message: "Duplicate file skipped" });
+          const contentHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), b => b.toString(16).padStart(2, '0')).join('');
+          const duplicate = pendingHashes.get(contentHash);
+          if (duplicate) {
+            const document = await duplicate;
+            update({ status: document.error ? 'error' : 'done', message: document.error || 'Repeated copy · counted once', duplicateOf: document.id, documentId: document.id });
             continue;
           }
+          const body = new FormData();
+          body.set("file", file);
+          const reading = json<InboxDocument>("/api/inbox", { method: "POST", body });
+          pendingHashes.set(contentHash, reading);
+          const document = await reading;
           added.push(document);
           setDocuments(previous => [...previous, document]);
-          update({ status: document.error ? "error" : "done", message: document.error || undefined });
+          update({ status: document.error ? "error" : "done", documentId: document.id, message: document.error || undefined });
         } catch (e) { update({ status: "error", message: e instanceof Error ? e.message : "Upload failed." }); }
       }
     }
@@ -144,11 +147,11 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
 
   async function samples() {
     setBusy("Loading sample paperwork…");
-    const { samples } = await json<{ samples: { name: string; url: string }[] }>("/api/inbox/samples");
+    const { samples } = await json<{ samples: { name: string; url: string; file_type?: string }[] }>("/api/inbox/samples");
     const files = await Promise.all(samples.map(async sample => {
       const response = await fetch(sample.url);
       if (!response.ok) throw new Error("Could not load sample paperwork.");
-      return new File([await response.blob()], sample.name, { type: "application/pdf" });
+      return new File([await response.blob()], sample.name, { type: sample.file_type || response.headers.get("content-type") || "application/pdf" });
     }));
     await upload(files);
   }
@@ -158,10 +161,8 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
     await run(async () => {
       if (!confirmations[receipt.id]) throw new Error("Please check the current documents and request before confirming.");
       const draft = drafts[receipt.id];
-      if (!/^\d+(\.\d{1,2})?$/.test(draft.amount)) throw new Error("Enter a USD amount with no more than two decimal places.");
-      const [whole, fraction = ""] = draft.amount.split(".");
-      const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-      if (!Number.isSafeInteger(cents) || cents > 2147483647) throw new Error("Requested amount must be between $0.00 and $21,474,836.47.");
+      const cents = requestCents(draft.amount);
+      if (cents === null) throw new Error("Enter a valid USD amount with no more than two decimal places.");
       const selected = linked(receipt.id);
       if (selected.length > 8) throw new Error("Attach no more than eight supporting documents to a claim.");
       setBusy("Saving claim…");
@@ -176,92 +177,109 @@ export default function ImportWorkspace({ mode }: { mode: "demo" | "live" | "unc
     });
   }
 
-  return <div className="space-y-6">
-    <section aria-labelledby="upload-heading" className="rounded-xl border border-border bg-background p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><h2 id="upload-heading" className="text-base font-semibold">1. Add your paperwork</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{mode === "demo" ? "Simulated extraction · exact sample files use authored facts. Other uploads stay unknown." : mode === "live" ? "Live AI extraction · documents are read once, then matched by their facts." : "Configure extraction on the server before importing."}</p></div>
-        <Button variant="outline" disabled={!!busy || mode === "unconfigured" || uploads.length > 0} onClick={() => void run(samples)}>Try sample paperwork</Button>
+  return <div className={styles.workspace}>
+        <p className={styles.mode}>{mode === "demo" ? "Simulated reading · sample facts are authored" : mode === "live" ? (simulatedReview ? "Live AI reading · simulated review sandbox" : "Live AI reading · check facts against originals") : "Extraction needs server configuration"}</p>
+    <div className={styles.journey} aria-label="Paperwork workflow">
+      <span data-active={!documents.length}><Files aria-hidden="true" />Bring your files</span><ArrowRight className={styles.journeyArrow} aria-hidden="true" />
+      <span data-active={!!documents.length && !results.length}><Link2 aria-hidden="true" />Understand the connections</span><ArrowRight className={styles.journeyArrow} aria-hidden="true" />
+      <span data-active={!!results.length}><CheckCircle2 aria-hidden="true" />Take the next step</span>
+    </div>
+    <details className={styles.uploadDisclosure} open={uploadOpen} onToggle={event => setUploadOpen(event.currentTarget.open)}><summary><Upload size={15} aria-hidden="true" />{uploads.length ? "Add more paperwork" : "Add source files"}<span>Photos · bookings · email PDFs</span><ChevronDown size={14} aria-hidden="true" /></summary>
+    <section className={styles.uploadPanel} aria-labelledby="upload-heading">
+      <div className={styles.uploadIntro}>
+        <h2 id="upload-heading">Bring the whole paper trail.</h2>
+        <p>Receipt photos, bookings, and email PDFs can arrive together. No renaming or sorting needed.</p>
       </div>
-      <div className="mt-5 rounded-lg border border-dashed border-input bg-muted/30 p-4">
-        <Label htmlFor="paperwork" className="mb-3 flex items-center gap-2"><Upload className="size-4" aria-hidden="true" />Upload receipts, bookings, or email PDFs</Label>
-        <input id="paperwork" type="file" multiple accept="application/pdf,image/png,image/jpeg" disabled={!!busy || mode === "unconfigured" || uploads.length >= 12} aria-describedby="paperwork-help" className="w-full min-w-0 text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-2 focus-visible:outline-2 focus-visible:outline-ring" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; void run(() => upload(files)); }} />
-        <p id="paperwork-help" className="mt-3 text-xs leading-5 text-muted-foreground">PDF, PNG, JPG · 8 MB per file · up to 12 files. Synthetic documents only. Keep this page open until you save your claims.</p>
+      <div className={`${styles.dropZone} ${dragging ? styles.dragging : ''}`} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy && mode !== 'unconfigured') void run(() => upload(Array.from(event.dataTransfer.files))); }}>
+        <Upload size={22} aria-hidden="true" />
+        <Label htmlFor="paperwork">Drop paperwork here, or choose files</Label>
+        <input id="paperwork" type="file" multiple accept="application/pdf,image/png,image/jpeg" disabled={!!busy || mode === "unconfigured" || uploads.length >= 12} aria-label="Upload receipts, bookings, or email PDFs" aria-describedby="paperwork-help" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; void run(() => upload(files)); }} />
+        <p id="paperwork-help">PDF, PNG, JPG · 8 MB each · up to 12 files · fictional data only</p>
       </div>
-      {!!uploads.length && <ul className="mt-4 divide-y divide-border">{uploads.map(item => <li key={item.id} className="flex items-start justify-between gap-3 py-2 text-xs"><span className="min-w-0 break-all">{item.name}</span><span className={`max-w-[55%] shrink-0 text-right ${item.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{item.message || ({ queued: "Queued", reading: "Reading…", done: "Read", error: "Failed" }[item.status])}</span></li>)}</ul>}
-      <p role="status" aria-live="polite" className="mt-3 flex min-h-5 items-center gap-2 text-xs text-muted-foreground">{busy && <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />}{busy || (documents.length ? `${available.length} documents awaiting confirmation` : "No documents imported yet")}</p>
-    </section>
-
-    {error && <div role="alert" className="rounded-lg border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
-
-    {!!supporting.length && <section aria-labelledby="link-heading" className="rounded-xl border border-border bg-background p-5 sm:p-6">
-      <h2 id="link-heading" className="text-base font-semibold">2. Check the connections</h2>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">Each supporting document belongs to one claim. Uncertain matches stay unassigned; a shared amount alone is not enough.</p>
-      <div className="mt-4 divide-y divide-border">{supporting.map(document => {
-        const suggestion = suggestions.find(s => s.document_id === document.id);
-        const candidate = suggestion?.candidates.find(c => c.receipt_id === assignments[document.id]);
-        const warnings = [...new Set((candidate ? candidate.warnings : suggestion?.candidates.flatMap(c => c.warnings) || []))];
-        return <article key={document.id} className="grid min-w-0 gap-4 py-4 md:grid-cols-[1fr_18rem]">
-          <div className="min-w-0"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{document.evidence?.document_kind.replaceAll("_", " ") || "Unread document"}</p><Evidence document={document} />
-            {document.error && <p className="mt-2 text-xs text-destructive">{document.error}</p>}
-            {candidate && <p className="mt-2 text-xs leading-5 text-muted-foreground">{candidate.reasons.join(" · ")}</p>}
-            {!assignments[document.id] && !!suggestion?.candidates.length && <p className="mt-2 text-xs text-amber-800">Possible match — choose a receipt after checking the evidence.</p>}
-            {!assignments[document.id] && !!suggestion?.candidates.length && <ul className="mt-2 space-y-1 text-xs leading-5 text-muted-foreground">{suggestion.candidates.filter(c => receipts.some(r => r.id === c.receipt_id)).map(c => <li key={c.receipt_id}><span className="font-medium">{receipts.find(r => r.id === c.receipt_id)?.filename}</span>: {c.reasons.join(" · ")}</li>)}</ul>}
-            {warnings.map(warning => <p key={warning} className="mt-1 text-xs leading-5 text-amber-800">{warning}</p>)}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`assign-${document.id}`}>Attach to receipt</Label>
-            <select id={`assign-${document.id}`} className={selectClass} value={assignments[document.id] || ""} disabled={!!busy || !document.evidence || !!document.error} onChange={event => assign(document.id, event.target.value)}><option value="">Unassigned</option>{receipts.map(receipt => <option key={receipt.id} value={receipt.id}>{receipt.filename}</option>)}</select>
-            <Button variant="ghost" className="h-10 px-1 text-xs" disabled={!!busy || !document.evidence || !!document.error} onClick={() => { setAnchors(previous => [...previous, document.id]); assign(document.id, ""); setDrafts(previous => ({ ...previous, [document.id]: defaults(document, []) })); }}>Use as receipt instead</Button>
-          </div>
-        </article>;
-      })}</div>
-    </section>}
-
-    {!!receipts.length && <section aria-labelledby="draft-heading" className="space-y-4">
-      <div><h2 id="draft-heading" className="text-base font-semibold">3. Confirm your draft claims</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Receipt totals are evidence. Requested amounts come from an explicit request or your confirmation.</p></div>
-      {receipts.map(receipt => {
-        const draft = drafts[receipt.id];
-        if (!draft) return null;
-        const selected = linked(receipt.id);
-        const amountConflict = new Set([...selected, receipt].map(d => d.evidence?.request.amount_requested_minor).filter(amount => amount != null)).size > 1;
-        const update = (field: keyof Draft, value: string) => {
-          setDrafts(previous => ({ ...previous, [receipt.id]: { ...previous[receipt.id], [field]: value } }));
-          setConfirmations(previous => ({ ...previous, [receipt.id]: false }));
-        };
-        return <article key={receipt.id} className="overflow-hidden rounded-xl border border-border bg-background">
-          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-4 text-sm font-semibold"><FileText className="size-4" aria-hidden="true" />Draft claim · {receipt.evidence?.facts.names[0] || "Confirm traveler"}</div>
-          <div className="grid min-w-0 lg:grid-cols-[0.85fr_1.15fr]">
-            <div className="min-w-0 space-y-5 border-b border-border p-5 lg:border-r lg:border-b-0">
-              <div><h3 className="mb-1 text-xs font-semibold">Receipt evidence</h3><Evidence document={receipt} /></div>
-              <Button type="button" variant="outline" className="h-auto min-h-10 whitespace-normal" disabled={!!busy} onClick={() => {
-                setAnchors(previous => previous.filter(id => id !== receipt.id));
-                setAssignments(previous => Object.fromEntries(Object.entries(previous).map(([id, target]) => [id, target === receipt.id || id === receipt.id ? "" : target])));
-                setDrafts(previous => { const next = { ...previous }; delete next[receipt.id]; return next; });
-                setConfirmations(previous => ({ ...previous, [receipt.id]: false }));
-              }}>Use as supporting document</Button>
-              <div><h3 className="mb-2 text-xs font-semibold">Supporting documents ({selected.length}/8)</h3>{selected.length ? <div className="space-y-4">{selected.map(document => <Evidence key={document.id} document={document} />)}</div> : <p className="text-xs leading-5 text-muted-foreground">No linked documents. Attach any relevant requests or bookings above.</p>}</div>
-              <p className="text-xs leading-5 text-muted-foreground">{mode === "demo" ? "Simulated · authored sample extraction" : "Live AI extraction"}{receipt.latency_ms != null ? ` · ${(receipt.latency_ms / 1000).toFixed(1)}s extraction` : ""}</p>
-            </div>
-            <form className="min-w-0 p-5" onSubmit={event => void confirm(event, receipt)}>
-              <fieldset disabled={!!busy} className="grid min-w-0 gap-4 sm:grid-cols-2">
-                <legend className="mb-4 text-sm font-semibold">Reimbursement request</legend>
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor={`name-${receipt.id}`}>Attendee name</Label><Input id={`name-${receipt.id}`} value={draft.attendee_name} onChange={event => update("attendee_name", event.target.value)} required maxLength={200} className="h-11" autoComplete="off" /></div>
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor={`email-${receipt.id}`}>Email</Label><Input id={`email-${receipt.id}`} type="email" value={draft.email} onChange={event => update("email", event.target.value)} required maxLength={254} className="h-11" autoComplete="off" /></div>
-                <div className="space-y-2"><Label htmlFor={`amount-${receipt.id}`}>Requested amount · USD</Label><Input id={`amount-${receipt.id}`} value={draft.amount} onChange={event => update("amount", event.target.value)} required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" placeholder="Confirm requested amount" className="h-11" /></div>
-                <div className="space-y-2"><Label htmlFor={`category-${receipt.id}`}>Category</Label><select id={`category-${receipt.id}`} required value={draft.category} onChange={event => update("category", event.target.value)} className={selectClass}><option value="">Choose category</option>{["flight", "hotel", "train", "bus", "other"].map(category => <option key={category} value={category}>{category[0].toUpperCase() + category.slice(1)}</option>)}</select></div>
-                {amountConflict && <p className="text-xs leading-5 text-amber-800 sm:col-span-2">Linked requests disagree on the amount. Check the sources and enter the correct requested amount.</p>}
-                <div className="space-y-2 sm:col-span-2"><Label htmlFor={`origin-${receipt.id}`}>Traveling from</Label><Input id={`origin-${receipt.id}`} value={draft.origin_location} onChange={event => update("origin_location", event.target.value)} required maxLength={200} className="h-11" /></div>
-                <Button type="button" variant="outline" className="h-auto min-h-10 whitespace-normal sm:col-span-2" onClick={() => { setDrafts(previous => ({ ...previous, [receipt.id]: defaults(receipt, selected) })); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); }}>Refresh fields from linked request</Button>
-                <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Changing document connections keeps your edits. Refresh replaces these fields using the currently linked evidence.</p>
-                <label className="flex items-start gap-2 text-xs leading-5 sm:col-span-2"><input type="checkbox" required checked={!!confirmations[receipt.id]} onChange={event => setConfirmations(previous => ({ ...previous, [receipt.id]: event.target.checked }))} className="mt-1 size-4 shrink-0 accent-primary" />I checked the documents, traveler, and requested amount.</label>
-                <Button type="submit" className="h-11 sm:col-span-2" disabled={!!busy || selected.length > 8 || !confirmations[receipt.id]}>Confirm & send for review <ArrowUpRight className="size-4" aria-hidden="true" /></Button>
-              </fieldset>
-            </form>
-          </div>
-        </article>;
-      })}
-    </section>}
-
-    {!!results.length && <section aria-label="Saved claims" className="space-y-3">{results.map(result => <div key={result.submission_id} role="status" className="rounded-xl border border-primary/20 bg-primary/5 p-5 text-sm"><p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-4" aria-hidden="true" />Claim saved with {result.supporting_count} supporting documents.</p><a href={`/business-demo?claim=${encodeURIComponent(result.submission_id)}`} className="mt-2 inline-flex min-h-11 items-center gap-1 underline underline-offset-4">Open saved claim <ArrowUpRight className="size-4" aria-hidden="true" /></a></div>)}</section>}
+      <div className={styles.sampleAction}><Button variant="outline" disabled={!!busy || mode === "unconfigured" || uploads.length > 0} onClick={() => void run(samples)}>Try sample paperwork</Button><small>Mixed sources, a repeated attachment, and real questions to resolve.</small></div>
+    </section></details>
+    {error && <div role="alert" className={styles.error}>{error}</div>}
+    <div className={styles.progressLine} role="status" aria-live="polite">
+      {busy ? <><LoaderCircle className="motion-safe:animate-spin" size={16} aria-hidden="true" />{busy} <span>{finished} of {uploads.length} files read</span></> : documents.length ? <><CheckCircle2 size={16} aria-hidden="true" />{available.length} unique documents in this inbox{duplicates > 0 && <span>{duplicates} repeated {duplicates === 1 ? 'copy' : 'copies'} counted once</span>}</> : <>Your files stay together. Claims are created only when you confirm.</>}
+    </div>
+    {!!uploads.length && <div className={styles.board}>
+      <aside className={styles.sourceRail} aria-label="Source files">
+        <div className={styles.railHeading}><h2>Source files</h2><span>{uploads.length}</span></div>
+        <p className={styles.muted}>Originals stay a click away.</p>
+        <ul>{uploads.map(item => {
+          const document = documents.find(d => d.id === (item.duplicateOf || item.documentId));
+          const Icon = item.name.match(/\.(png|jpe?g)$/i) ? FileImage : document?.evidence?.document_kind === 'email' ? Mail : FileText;
+          return <li key={item.id} data-failed={item.status === 'error'} data-duplicate={!!item.duplicateOf}>
+            <div className={styles.fileIcon}>{item.status === 'reading' ? <LoaderCircle size={18} className="motion-safe:animate-spin" aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}</div>
+            <div>{item.documentId ? <a href={`/api/inbox/${item.documentId}`} target="_blank" rel="noreferrer">{item.name}<ArrowUpRight size={11} aria-hidden="true" /></a> : <strong>{item.name}</strong>}<small>{item.message || (item.status === 'done' ? document?.evidence?.document_kind.replaceAll('_', ' ') || 'Read' : item.status === 'reading' ? 'Reading…' : 'Queued')}</small></div>
+          </li>;
+        })}</ul>
+        <p className={styles.sessionNote}>Keep this tab open until you save your cases.</p>
+      </aside>
+      <div className={styles.results}>
+        <div className={styles.resultsHeading}><div><h2>From files to next steps</h2><p>Confirm complete cases. Spend your attention on the exceptions.</p></div><span className={styles.caseCount}>{summaries.length} receipt {summaries.length === 1 ? 'case' : 'cases'}</span></div>
+        {!!summaries.length && <div className={styles.outcomes} aria-label="Intake outcomes">
+          <div><span className={styles.greenDot} /><strong>{summaries.filter(s => s.summary.state === 'ready').length}</strong>ready to confirm</div>
+          <div><span className={styles.redDot} /><strong>{summaries.filter(s => s.summary.state === 'issue').length}</strong>amount to resolve</div>
+          <div><span className={styles.amberDot} /><strong>{summaries.filter(s => s.summary.state === 'attention').length}</strong>need details</div>
+        </div>}
+        {busy && !summaries.length && <div className={styles.waiting}><Link2 size={28} aria-hidden="true" /><h3>Reading the evidence</h3><p>Each finished file appears on the left. Suggested cases appear when the batch is read.</p></div>}
+        {summaries.map(({ receipt, summary }) => {
+          const draft = drafts[receipt.id], selected = linked(receipt.id);
+          const update = (field: keyof Draft, value: string) => { setDrafts(previous => ({ ...previous, [receipt.id]: { ...previous[receipt.id], [field]: value } })); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); };
+          return <article key={receipt.id} className={styles.case} data-state={summary.state} aria-label={`Case for ${receipt.evidence?.facts.names[0] || 'unknown traveler'}: ${receipt.filename}`}>
+            <details>
+              <summary className={styles.caseSummary}>
+                <div className={styles.personIcon}>{(receipt.evidence?.facts.names[0] || '?').slice(0, 1)}</div>
+                <div className={styles.caseIdentity}><h3>{receipt.evidence?.facts.names[0] || 'Confirm traveler'}</h3><p>{receipt.evidence?.facts.vendor || 'Unknown merchant'}{receipt.evidence?.facts.amount_minor != null ? ` · ${money(receipt.evidence.facts.amount_minor, receipt.evidence.facts.currency || 'USD')}` : ''}</p><small>{receipt.filename} + {selected.length} supporting {selected.length === 1 ? 'file' : 'files'}</small></div>
+                <div className={styles.caseOutcome}><span className={styles.badge}>{summary.label}</span><small>{summary.state === 'issue' && summary.delta !== null ? `${money(Math.abs(summary.delta))} ${summary.delta > 0 ? 'above' : 'below'} receipt` : 'Review case'}</small></div><ChevronDown size={16} className={styles.chevron} aria-hidden="true" />
+              </summary>
+              <div className={styles.caseDetail}>
+                <p className={styles.finding}>{summary.explanation}</p>
+                {summary.state === 'issue' && <div className={styles.comparison}><div><small>Requested</small><strong>{money(requestCents(draft.amount)!)}</strong><span>{selected.find(d => d.evidence?.request.amount_requested_minor === requestCents(draft.amount))?.filename || 'Your edited request'}</span></div><ArrowRight aria-hidden="true" /><div><small>Receipt supports</small><strong>{money(receipt.evidence!.facts.amount_minor!)}</strong><span>{receipt.filename}</span></div></div>}
+                <div className={styles.evidenceChain} aria-label="Linked evidence"><div><h4>Receipt</h4><Evidence document={receipt} /></div>{selected.map(document => <div key={document.id}><h4>{document.evidence?.document_kind === 'email' ? 'Request email' : 'Supporting evidence'}</h4><Evidence document={document} /><div className={styles.connectionReason}><Link2 size={12} aria-hidden="true" />{suggestions.find(s => s.document_id === document.id)?.candidates.find(c => c.receipt_id === receipt.id)?.reasons.join(' · ') || 'Manually linked — verify this connection'}</div></div>)}</div>
+                {summary.warnings.map(w => <p key={w} className={styles.warning}>{w}</p>)}
+                <form onSubmit={event => void confirm(event, receipt)}>
+                  <fieldset disabled={!!busy}>
+                    <details className={styles.requestFields} open={summary.missing.length > 0}><summary>{summary.missing.length ? 'Complete request details' : 'Edit request details'}</summary>
+                      <div className={styles.fieldGrid}>
+                        <div><Label htmlFor={`name-${receipt.id}`}>Attendee name</Label><Input id={`name-${receipt.id}`} value={draft.attendee_name} onChange={event => update('attendee_name', event.target.value)} required maxLength={200} /></div>
+                        <div><Label htmlFor={`email-${receipt.id}`}>Email</Label><Input id={`email-${receipt.id}`} type="email" value={draft.email} onChange={event => update('email', event.target.value)} required maxLength={254} /></div>
+                        <div><Label htmlFor={`amount-${receipt.id}`}>Requested amount · USD</Label><Input id={`amount-${receipt.id}`} value={draft.amount} onChange={event => update('amount', event.target.value)} required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" placeholder="Confirm requested amount" /></div>
+                        <div><Label htmlFor={`category-${receipt.id}`}>Category</Label><select id={`category-${receipt.id}`} required value={draft.category} onChange={event => update('category', event.target.value)} className={selectClass}><option value="">Choose category</option>{['flight','hotel','train','bus','other'].map(c => <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>)}</select></div>
+                        <div><Label htmlFor={`origin-${receipt.id}`}>Traveling from</Label><Input id={`origin-${receipt.id}`} value={draft.origin_location} onChange={event => update('origin_location', event.target.value)} required maxLength={200} /></div>
+                        <Button type="button" variant="outline" onClick={() => { setDrafts(previous => ({ ...previous, [receipt.id]: defaults(receipt, selected) })); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); }}>Refresh from linked request</Button>
+                      </div>
+                      {summary.amountConflict && <p className={styles.warning}>Linked requests disagree on the amount. Check the sources and enter the correct requested amount.</p>}
+                      <p className={styles.muted}>Receipt totals are never used as the requested amount. Refresh replaces your edits using the linked request.</p>
+                    </details>
+                    <div className={styles.confirmRow}><label><input type="checkbox" required checked={!!confirmations[receipt.id]} onChange={event => setConfirmations(previous => ({ ...previous, [receipt.id]: event.target.checked }))} />I checked the documents, traveler, and requested amount.</label><Button type="submit" disabled={!!busy || selected.length > 8 || !confirmations[receipt.id]}>Confirm & send for review <ArrowRight size={15} aria-hidden="true" /></Button></div>
+                    <p className={styles.muted}>This creates a claim for Sift’s policy and duplicate checks. It does not approve or pay it.</p>
+                  </fieldset>
+                </form>
+                <details className={styles.organize}><summary>Change document connections</summary>
+                  {supporting.filter(d => d.evidence && !d.error).map(document => <div key={document.id}><Label htmlFor={`case-assign-${receipt.id}-${document.id}`}>{document.filename}</Label><select id={`case-assign-${receipt.id}-${document.id}`} value={assignments[document.id] || ''} disabled={!!busy} onChange={event => assign(document.id, event.target.value)} className={selectClass}><option value="">Unassigned</option>{receipts.map(r => <option key={r.id} value={r.id}>{r.filename}</option>)}</select></div>)}
+                  <Button variant="ghost" disabled={!!busy} onClick={() => { setAnchors(previous => previous.filter(id => id !== receipt.id)); setAssignments(previous => Object.fromEntries(Object.entries(previous).map(([id, target]) => [id, target === receipt.id || id === receipt.id ? '' : target]))); setDrafts(previous => { const next = { ...previous }; delete next[receipt.id]; return next; }); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); }}>Use this receipt as supporting evidence</Button>
+                </details>
+              </div>
+            </details>
+          </article>;
+        })}
+        {!!ambiguous.length && <section className={styles.needsConnection} aria-labelledby="connection-heading"><h3 id="connection-heading"><CircleHelp size={18} aria-hidden="true" />Connections that need your help</h3><p>The evidence supports more than one match. Keep the question open until you know.</p>
+          {ambiguous.map(document => {
+            const suggestion = suggestions.find(s => s.document_id === document.id)!;
+            const candidates = receipts.filter(r => suggestion.candidates.some(c => c.receipt_id === r.id));
+            return <article key={document.id} className={styles.ambiguousCard}><Evidence document={document} /><div className={styles.candidateList}>{candidates.map(r => <div key={r.id}><FileText size={15} aria-hidden="true" /><span>{r.filename}<small>Receipt {r.evidence?.facts.receipt_number || 'number unknown'}</small></span><strong>{r.evidence?.facts.amount_minor != null ? money(r.evidence.facts.amount_minor, r.evidence.facts.currency || 'USD') : 'Unknown total'}</strong></div>)}</div>
+              <p className={styles.warning}>Possible match — choose a receipt after checking the evidence.</p>
+              {suggestion.candidates.flatMap(c => c.warnings).filter((w, i, all) => all.indexOf(w) === i).map(w => <p className={styles.warning} key={w}>{w}</p>)}
+              <div className={styles.connectionActions}><div><Label htmlFor={`assign-${document.id}`}>Attach to receipt</Label><select id={`assign-${document.id}`} value={assignments[document.id] || ''} disabled={!!busy} onChange={event => assign(document.id, event.target.value)} className={selectClass}><option value="">Unassigned</option>{receipts.map(r => <option key={r.id} value={r.id}>{r.filename}</option>)}</select></div><Button variant="outline" onClick={() => { setComposer({ documentId: document.id, text: clarificationDraft(document, candidates) }); setCopied(false); }}>Prepare clarification <Mail size={15} aria-hidden="true" /></Button></div>
+            </article>;
+          })}
+        </section>}
+        {composer && <section className={styles.composer} aria-label="Clarification draft"><div className={styles.railHeading}><h3>Ask for the missing detail</h3><Button variant="ghost" size="icon" aria-label="Close clarification draft" onClick={() => setComposer(null)}><X size={16} /></Button></div><p>Draft only · nothing is sent. {documents.find(d => d.id === composer.documentId)?.evidence?.request.email && <>To: {documents.find(d => d.id === composer.documentId)?.evidence?.request.email}</>}</p><Label htmlFor="clarification">Message</Label><textarea id="clarification" value={composer.text} onChange={event => { setComposer({ ...composer, text: event.target.value }); setCopied(false); }} /><Button variant="outline" onClick={() => void run(async () => { await navigator.clipboard.writeText(composer.text); setCopied(true); })}><Copy size={14} aria-hidden="true" />{copied ? 'Copied' : 'Copy draft'}</Button></section>}
+        {!!unmatched.length && <details className={styles.unmatched}><summary><Paperclip size={15} aria-hidden="true" />{unmatched.length} {unmatched.length === 1 ? 'file without' : 'files without'} a supported connection</summary><p>No evidence is discarded. Leave unrelated files here, or connect them after checking the original.</p>{unmatched.map(document => <div key={document.id} className={styles.unmatchedRow}><Evidence document={document} />{document.error ? <p className={styles.error}>{document.error}</p> : <><Label htmlFor={`unmatched-${document.id}`}>Attach to receipt</Label><select id={`unmatched-${document.id}`} value={assignments[document.id] || ''} disabled={!!busy} onChange={event => assign(document.id, event.target.value)} className={selectClass}><option value="">Unassigned</option>{receipts.map(r => <option key={r.id} value={r.id}>{r.filename}</option>)}</select><Button variant="ghost" disabled={!!busy || !document.evidence} onClick={() => { setAnchors(previous => [...previous, document.id]); assign(document.id, ''); setDrafts(previous => ({ ...previous, [document.id]: defaults(document, []) })); }}>Use as receipt instead</Button></>}</div>)}</details>}
+        {!!results.length && <section aria-label="Saved claims" className={styles.saved}>{results.map(result => <div key={result.submission_id}><CheckCircle2 size={20} aria-hidden="true" /><div><h3>Claim sent to the review queue</h3><p>Receipt and {result.supporting_count} supporting documents saved.</p><a href={`/business-demo?claim=${encodeURIComponent(result.submission_id)}`}>Open saved claim <ArrowRight size={14} aria-hidden="true" /></a></div></div>)}</section>}
+      </div>
+    </div>}
   </div>;
 }

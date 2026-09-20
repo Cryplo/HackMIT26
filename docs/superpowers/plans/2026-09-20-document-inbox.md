@@ -16,3 +16,12 @@
 - [x] Add `/import` with multi-file selection, bounded concurrent extraction, editable per-receipt drafts, document assignment, source preview, missing-field prompts, and links to saved claims. Add workspace navigation.
 - [x] Add a synthetic sample pack and an end-to-end browser test exercising actual upload, deterministic suggestions, corrected ambiguity, saved originals/supporting evidence, amount discrepancy, and unchanged repeat-confirm behavior. Run focused tests, typecheck, and build.
 - [x] Update project context and runbook with exact demo limits and measured verification. Leave changes isolated on `feat/document-inbox`.
+
+## Visual demo second pass
+
+- [x] Add dashboard source cards and primary paperwork navigation in the feature worktree.
+- [x] Replace uniform PDFs with a designed mixed PDF/PNG pack: complete case, discrepancy, ambiguous email, duplicate, and unrelated agenda.
+- [x] Present compact cases with original links, matching reasons, amount comparisons, and an unsent clarification draft. Suppress duplicate reads by content hash.
+- [x] Add a fresh isolated demo launcher with explicit optional live reading and simulated review.
+- [x] Verify 19 backend checks, desktop/mobile browser flow, two live browser scenarios, TypeScript, and production build. Record real timings and the corrected test-only locator failure in the runbook.
+- [x] Keep main untouched; publish only the feature branch for review.

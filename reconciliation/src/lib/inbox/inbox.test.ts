@@ -19,7 +19,7 @@ import type { InboxDocument } from './schema';
 
 function request(bytes: Uint8Array, name = 'unlinked.pdf', origin = 'http://localhost:3199') {
   const body = new FormData();
-  body.set('file', new File([new Uint8Array(bytes)], name, { type: 'application/pdf' }));
+  body.set('file', new File([new Uint8Array(bytes)], name, { type: bytes[0] === 137 ? 'image/png' : 'application/pdf' }));
   return new Request('http://localhost:3199/api/inbox', { method: 'POST', headers: { origin }, body });
 }
 const sampleDocs = (): InboxDocument[] => inboxSamples().map(s => ({ id: randomUUID(), filename: s.name, evidence: s.evidence, file_type: 'application/pdf', sha256: '', error: null, provenance: 'simulated', latency_ms: null }));

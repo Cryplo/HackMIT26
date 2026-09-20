@@ -29,6 +29,9 @@ export function AppShell({ view, onViewChange, preview, children }: {
         <Link href={preview ? "/overview?preview=1" : "/overview"} className={investigationStyles.navLink} aria-current={view === "overview" ? "page" : undefined} onClick={() => setMenuOpen(false)}>
           <LayoutDashboard aria-hidden="true" /> Audit overview
         </Link>
+        <Link href="/import" className={investigationStyles.navLink} onClick={() => setMenuOpen(false)}>
+          <Files aria-hidden="true" /> Paperwork
+        </Link>
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>
           <ReceiptText aria-hidden="true" /> Reimbursements
         </button>
@@ -40,7 +43,6 @@ export function AppShell({ view, onViewChange, preview, children }: {
         </Link>
       </nav>
       <div className={styles.sidebarBottom}>
-        <Link href="/import"><Files aria-hidden="true" /> Import paperwork <ArrowUpRight aria-hidden="true" /></Link>
         <Link href="/submit"><ReceiptText aria-hidden="true" /> Submit a claim <ArrowUpRight aria-hidden="true" /></Link>
         <div className={styles.workspaceIdentity}><span aria-hidden="true">H</span><div>HackMIT 2026<small>Organizer workspace</small></div></div>
       </div>
@@ -55,7 +57,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className={styles.mobileNavigation}>
-              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, reimbursements, learned rules, and investigations.</SheetDescription></SheetHeader>
+              <SheetHeader className="sr-only"><SheetTitle>Workspace navigation</SheetTitle><SheetDescription>Switch between the audit overview, paperwork, reimbursements, learned rules, and investigations.</SheetDescription></SheetHeader>
               {navigation}
             </SheetContent>
           </Sheet>

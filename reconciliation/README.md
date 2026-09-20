@@ -31,7 +31,7 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 
 ## Import loose paperwork
 
-The `feat/document-inbox` extension adds `/import`: upload loose receipts, bookings, and email PDFs; inspect suggested links; confirm draft request details; then use ordinary review. Select **Try sample paperwork** for six fictional files, clear/ambiguous matches, and a preserved $10 discrepancy. See [Document inbox](docs/DOCUMENT_INBOX.md) for the single-server demo limits and tests.
+The `feat/document-inbox` extension adds `/import`: upload loose receipts, bookings, and email PDFs; inspect suggested links; confirm draft request details; then use ordinary review. The dashboard’s **Paperwork sources** panel leads to visual cases, source links, and clarification drafts. Run `npm run demo:inbox -- --port 3017` for an empty isolated store; **Try sample paperwork** imports ten mixed PDF/PNG files, including a duplicate, a complete case, an ambiguous request, and a preserved $10 discrepancy. See [Document inbox](docs/DOCUMENT_INBOX.md) for the single-server demo limits and tests.
 
 ## Pages and workflow
 
