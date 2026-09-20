@@ -13,7 +13,7 @@ import type { IntakeStore } from '../../intake/store';
 test('live operations require a fresh exact schema version; old or unavailable schemas never reach a mutation', async t => {
   const store = new SupabaseStore('https://schema.example.invalid', 'synthetic-test-key');
   const paths: string[] = [];
-  let version: unknown = 3;
+  let version: unknown = 4;
   let missing = false;
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const path = new URL(new Request(input, init).url).pathname;
@@ -25,7 +25,7 @@ test('live operations require a fresh exact schema version; old or unavailable s
   await store.snapshot();
   await store.correct(input);
   assert.equal(paths.filter(p=>p.endsWith('/core_platform_version')).length, 2);
-  for (const invalid of [1, 2, null, '3', {version:3}]) {
+  for (const invalid of [1, 2, 3, null, '4', {version:4}]) {
     version = invalid;
     const before = paths.length;
     await assert.rejects(store.correct(input), {code:'SCHEMA_MISMATCH',status:503});
@@ -47,7 +47,7 @@ test('live snapshots read one atomic projection that keeps rules and knowledge r
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const path = new URL(new Request(input, init).url).pathname;
     paths.push(path);
-    if (path.endsWith('/core_platform_version')) return Response.json(3);
+    if (path.endsWith('/core_platform_version')) return Response.json(4);
     if (overloads-- > 0) return Response.json({message:'canceling statement due to statement timeout'}, {status:544});
     return Response.json(projection);
   });
@@ -87,6 +87,20 @@ test('a read requested after a completed correction never joins the pre-write sn
   assert.notEqual(refreshed, inflight);
   settle();
   assert.equal((await refreshed).submissions.find(s=>s.id===DEMO_IDS[0])!.status, 'rejected');
+});
+
+test('concurrent schema checks share one request but the next operation verifies again', async t => {
+  const store = new SupabaseStore('https://schema.example.invalid', 'synthetic-test-key');
+  let checks = 0, version = 4;
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    if (String(input).endsWith('/core_platform_version')) { checks++; return Response.json(version); }
+    return Response.json(demoSnapshot());
+  });
+  await Promise.all([store.snapshot(), store.snapshot(), store.snapshot()]);
+  assert.equal(checks, 1);
+  version = 2;
+  await assert.rejects(store.snapshot(), { code: 'SCHEMA_MISMATCH' });
+  assert.equal(checks, 2);
 });
 
 test('public reviews omit raw provider payloads, preserve useful evidence and expose expired operations for retry', async () => {

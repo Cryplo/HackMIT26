@@ -20,8 +20,9 @@ async function database(){
  await db.exec(await readFile(new URL('seed.sql',root),'utf8'));
  await db.exec(await readFile(new URL('migrations/202609200002_platform.sql',root),'utf8'));
  await db.exec(await readFile(new URL('migrations/202609200003_investigations.sql',root),'utf8'));
+ await db.exec(await readFile(new URL('migrations/202609200004_communications.sql',root),'utf8'));
  const json=v=>JSON.stringify(v);
- const store={supporting:cmd=>scalar(db,'select core_supporting($1)',[json(cmd)]),investigation:cmd=>scalar(db,'select core_investigation($1)',[json(cmd)]),procedure:cmd=>scalar(db,'select core_procedure($1)',[json(cmd)]),snapshot:()=>scalar(db,'select core_snapshot()'),begin:id=>scalar(db,'select core_begin_run($1)',[id]),finish:(id,ds,status)=>scalar(db,'select core_finish_run($1,$2,$3)',[id,json(ds),status]),fail:(id,error)=>scalar(db,'select core_fail_run($1,$2)',[id,error]),correct:input=>scalar(db,'select core_correct($1)',[json(input)]),rule:cmd=>scalar(db,'select core_rule($1)',[json(cmd)]),usage:async()=>{throw new Error('No paid calls in SQL tests');},beginExtraction:(id,rev)=>scalar(db,'select core_begin_extraction($1,$2)',[id,rev]),finishExtraction:(id,r)=>scalar(db,'select core_finish_extraction($1,$2)',[id,json(r)]),receiptHash:(id,hash)=>scalar(db,'select core_receipt_hash($1,$2)',[id,hash])};
+ const store={messages:cmd=>scalar(db,'select core_messages($1)',[json(cmd)]),supporting:cmd=>scalar(db,'select core_supporting($1)',[json(cmd)]),investigation:cmd=>scalar(db,'select core_investigation($1)',[json(cmd)]),procedure:cmd=>scalar(db,'select core_procedure($1)',[json(cmd)]),snapshot:()=>scalar(db,'select core_snapshot()'),begin:id=>scalar(db,'select core_begin_run($1)',[id]),finish:(id,ds,status)=>scalar(db,'select core_finish_run($1,$2,$3)',[id,json(ds),status]),fail:(id,error)=>scalar(db,'select core_fail_run($1,$2)',[id,error]),correct:input=>scalar(db,'select core_correct($1)',[json(input)]),rule:cmd=>scalar(db,'select core_rule($1)',[json(cmd)]),usage:async()=>{throw new Error('No paid calls in SQL tests');},beginExtraction:(id,rev)=>scalar(db,'select core_begin_extraction($1,$2)',[id,rev]),finishExtraction:(id,r)=>scalar(db,'select core_finish_extraction($1,$2)',[id,json(r)]),receiptHash:(id,hash)=>scalar(db,'select core_receipt_hash($1,$2)',[id,hash])};
  return {db,store,core:new CoreService(store,new DatabaseRetrieval(),new SimulatedJev(),true,undefined,undefined,intelligence)};
 }
 async function input(store,id,verdict='approved'){
@@ -88,7 +89,7 @@ test('SQL initial extraction cannot overwrite retry and replacement of active so
 });
 test('SQL readiness marker is service-only and atomic read projections retain stored audit evidence',async()=>{
  const {db,store,core}=await database();try{
- assert.equal(await scalar(db,'select core_platform_version()'),3);
+ assert.equal(await scalar(db,'select core_platform_version()'),4);
  await core.reconcile([ids[0]]);
  await db.exec("update decisions set evidence_json=evidence_json||'{\"provider_response\":{\"private_diagnostic\":\"audit-sentinel\"}}'::jsonb where check_method='jev'");
  const stored=await scalar(db,"select jsonb_build_object('runs',(select jsonb_agg(evidence_snapshot) from reconciliation_runs),'decisions',(select jsonb_agg(jsonb_build_object('state',state_snapshot_json,'evidence',evidence_json)) from decisions))");
@@ -109,9 +110,8 @@ test('SQL readiness marker is service-only and atomic read projections retain st
 
 test('SQL v3 persists private supporting evidence, awaited tool progress, reviewed procedure lifecycle and source invalidation',async()=>{
  const {db,store,core}=await database();try{
- const {fixture}=require('./investigation-fixtures.ts');const {backendEvaluator}=require('./procedure-fixtures.ts');
  const {investigateClaim}=require('../investigations.ts');const {uploadSupporting}=require('../../intake/supporting-documents.ts');const {proposeProcedure,changeProcedure}=require('../procedures.ts');
- const f=fixture();core.investigationMode='simulated';
+ core.investigationMode='simulated';
  await db.query("update receipts set raw_extracted_text=$1 where submission_id=$2",['Merchant: SYN HBR 042\nBooking reference: TRIP-01\nGuest: Sam Example',ids[2]]);
  let rev=(await store.snapshot()).submissions.find(s=>s.id===ids[2]).review_revision;
  let extracted=0;const original={put:async()=>{},read:async()=>null};
@@ -120,7 +120,7 @@ test('SQL v3 persists private supporting evidence, awaited tool progress, review
  assert.equal(doc.document.extraction_status,'succeeded');assert.equal(doc.row.assessment_status,null);
  await assert.rejects(uploadSupporting(core,ids[2],{...upload,revision:doc.row.review_revision},original,async()=>{extracted++;throw new Error('must not extract');},signal()),/DOCUMENT_EXISTS/);assert.equal(extracted,1);
  await core.reconcile([ids[2]]);
- core.intelligence={...f.port,...backendEvaluator,async investigate(input,tools,options){
+ core.intelligence={...intelligence,async investigate(input,tools,options){
  const receipt=await tools.read_receipt();const docs=await tools.read_supporting_documents();
  assert.equal(await scalar(db,'select count(*)::int from investigation_steps'),2);
  const state=await store.snapshot();const {deriveCandidate}=require('../evidence.ts');

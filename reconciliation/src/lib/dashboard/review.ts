@@ -5,6 +5,10 @@ export const normalizeVendor = (value: string) => value.trim().toLowerCase().rep
 export const approvalFields = ["currency", "amount", "policy", "receipt_date", "policy_cap", "duplicate"];
 const labels: Record<string, string> = { currency: "Currency", amount: "Amount", policy: "Policy coverage", receipt_date: "Receipt date", policy_cap: "Policy limit", duplicate: "Duplicate receipt" };
 export const machineChecks = (row: ReviewRow) => row.decisions.filter(c => c.check_method !== "human" && c.field_checked !== "overall_status");
+export function investigationFailure(row: ReviewRow) {
+  const check = machineChecks(row).find(check => check.verdict === "fail" && approvalFields.includes(check.field_checked));
+  return check ? `${labels[check.field_checked]} failed. Resolve the known discrepancy and recheck before investigating.` : null;
+}
 export function passes(row: ReviewRow, field: string) {
   const checks = machineChecks(row).filter(c => c.field_checked === field);
   return checks.length > 0 && checks.every(c => c.verdict === "pass");

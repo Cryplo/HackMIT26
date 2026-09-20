@@ -5,5 +5,5 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 export async function POST(request: Request) {
-  try { return json(await getCore().reconcile(reconcileInput(await mutationBody(request)))); } catch (error) { return errorResponse(error); }
+  try { return json(await getCore().reconcile(reconcileInput(await mutationBody(request)), request.signal)); } catch (error) { return errorResponse(error); }
 }

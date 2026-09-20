@@ -1,3 +1,5 @@
+import { mutateFeedback, type FeedbackCommand, type FeedbackResult } from './feedback-learning-state';
+import { mutateMessages, guardCommunication, cancelObsoleteMessages, type ClaimMessage, type MessageDeliveryEvent, type MessageCommand, type MessageResult } from './communications-state';
 import type { InvestigationRun } from '../review-contracts';
 import { beforeAssessment, pendingClaim, type StoredDocument, type SupportingCommand, type InvestigationCommand } from './investigation-state';
 import { mutateProcedure, invalidateProcedures, type StoredProcedure, type ProcedureAttempt, type ProcedureCommand } from './procedure-state';
@@ -7,8 +9,8 @@ import { decision, deterministic } from './checks';
 import { workspaceRows } from './projection';
 import { assertApprovable, confirmedDuplicates, latestCorrection, reviewRevision, samePurchase } from './safety';
 import { activeAliases, invalidateSource, mutateRule, type StoredRule, type RuleAttempt, type RuleCommand } from './rule-state';
-export interface Snapshot { supporting_documents?:StoredDocument[]; investigations?:InvestigationRun[]; procedures?:StoredProcedure[]; procedure_history?:StoredProcedure[]; procedure_tests?:ProcedureAttempt[]; knowledge_revision?: number; rules?: StoredRule[]; rule_history?: StoredRule[]; rule_tests?: RuleAttempt[]; extraction_history?: Receipt[]; submissions: Submission[]; receipts: Receipt[]; policies: PolicyRule[]; decisions: Decision[]; corrections: Correction[]; runs: ReconciliationRun[] }
-export interface Store { supporting(command:SupportingCommand):Promise<{document:StoredDocument;lease:string}>; investigation(command:InvestigationCommand):Promise<InvestigationRun>; procedure(command:ProcedureCommand):Promise<{procedure:StoredProcedure;knowledge_revision:number}>; snapshot(): Promise<Snapshot>; begin(id: string): Promise<string>; finish(run: string, ds: Decision[], status: SubmissionStatus): Promise<void>; fail(run: string, message: string): Promise<void>; correct(input: CorrectionInput): Promise<{ correction_id: string; status: SubmissionStatus }>; usage(call: ModelCall): Promise<void>; rule(command: RuleCommand): Promise<{rule:StoredRule;knowledge_revision:number}>; beginExtraction(id:string, revision:number):Promise<string>; finishExtraction(lease:string, receipt:Receipt):Promise<void>; receiptHash(id:string, hash:string):Promise<void> }
+export interface Snapshot { claim_messages?:ClaimMessage[]; message_delivery_events?:MessageDeliveryEvent[]; supporting_documents?:StoredDocument[]; investigations?:InvestigationRun[]; procedures?:StoredProcedure[]; procedure_history?:StoredProcedure[]; procedure_tests?:ProcedureAttempt[]; knowledge_revision?: number; rules?: StoredRule[]; rule_history?: StoredRule[]; rule_tests?: RuleAttempt[]; extraction_history?: Receipt[]; submissions: Submission[]; receipts: Receipt[]; policies: PolicyRule[]; decisions: Decision[]; corrections: Correction[]; runs: ReconciliationRun[] }
+export interface Store { feedbackLearning(command:FeedbackCommand):Promise<FeedbackResult>; messages(command:MessageCommand):Promise<MessageResult>; supporting(command:SupportingCommand):Promise<{document:StoredDocument;lease:string}>; investigation(command:InvestigationCommand):Promise<InvestigationRun>; procedure(command:ProcedureCommand):Promise<{procedure:StoredProcedure;knowledge_revision:number}>; snapshot(): Promise<Snapshot>; begin(id: string): Promise<string>; finish(run: string, ds: Decision[], status: SubmissionStatus): Promise<void>; fail(run: string, message: string): Promise<void>; correct(input: CorrectionInput): Promise<{ correction_id: string; status: SubmissionStatus }>; usage(call: ModelCall): Promise<void>; rule(command: RuleCommand): Promise<{rule:StoredRule;knowledge_revision:number}>; beginExtraction(id:string, revision:number):Promise<string>; finishExtraction(lease:string, receipt:Receipt):Promise<void>; receiptHash(id:string, hash:string):Promise<void> }
 export function validateCorrectionContext(input: CorrectionInput, state: Snapshot) {
   const s = state.submissions.find(s => s.id === input.submission_id);
   if (!s) throw new CoreError('NOT_FOUND', 'Submission not found.', 404);
@@ -19,7 +21,7 @@ export function validateCorrectionContext(input: CorrectionInput, state: Snapsho
 export class MemoryStore implements Store {
   calls: ModelCall[] = [];
   constructor(public state: Snapshot) {
-    state.supporting_documents??=[];state.investigations??=[];state.procedures??=[];state.procedure_history??=[];state.procedure_tests??=[];state.knowledge_revision??=0;state.rules??=[];state.rule_history??=[];state.rule_tests??=[];state.extraction_history??=[];
+    state.claim_messages??=[];state.message_delivery_events??=[];state.supporting_documents??=[];state.investigations??=[];state.procedures??=[];state.procedure_history??=[];state.procedure_tests??=[];state.knowledge_revision??=0;state.rules??=[];state.rule_history??=[];state.rule_tests??=[];state.extraction_history??=[];
     for(const s of state.submissions){s.review_revision??=reviewRevision(state,s.id);s.evidence_revision??=0;s.decision_status??=latestCorrection(state,s.id)?.human_verdict??'pending';}
   }
   /** Idempotent server-only metadata bridge. Bytes remain in Module 1's private LocalStore.
@@ -63,8 +65,11 @@ export class MemoryStore implements Store {
     const run = this.state.runs.find(r => r.id === id);
     if (run?.status === 'running') { run.status = 'failed'; run.error = message; run.completed_at = new Date().toISOString(); const s = this.state.submissions.find(s => s.id === run.submission_id)!; if(run.operation!=='investigation')s.status = s.decision_status!=='pending'?s.decision_status!:'needs_review'; s.updated_at = run.completed_at; const inv=this.state.investigations?.find(x=>x.run_id===id);if(inv){inv.status='failed';inv.error=message;inv.completed_at=run.completed_at;inv.outcome=null;inv.after_assessment=null;for(const step of inv.steps)if(step.status==='running'){step.status='failed';step.error=message;step.completed_at=run.completed_at;}} }
   }
-  async correct(raw: CorrectionInput) {
+  async messages(command:MessageCommand) { return mutateMessages(this.state,command,(input,keepId)=>this.correctNow(input,keepId)); }
+  async correct(raw: CorrectionInput) { return this.correctNow(raw); }
+  private correctNow(raw: CorrectionInput, keepMessageId?:string) {
     const input=correctionInput(raw);const s=validateCorrectionContext(input,this.state);
+    guardCommunication(this.state,s.id);
     if(reviewRevision(this.state,s.id)!==input.expected_review_revision)throw new CoreError('STALE_REVIEW','This claim changed. Review the updated evidence.',409);
     if(this.state.runs.some(r=>r.submission_id===s.id&&r.status==='running'))throw new CoreError('RUN_ACTIVE','An operation is already active.',409);
     if(input.human_verdict==='approved'){
@@ -74,10 +79,11 @@ export class MemoryStore implements Store {
       if(confirmedDuplicates(this.state,s.id).length||this.state.submissions.some(x=>x.id!==s.id&&latestCorrection(this.state,x.id)?.human_verdict==='approved'&&samePurchase(receipt,this.state.receipts.find(r=>r.submission_id===x.id))))throw new CoreError('APPROVAL_BLOCKED','This purchase has already been claimed.',409);
     }
     const now=new Date().toISOString();const correction:Correction={...structuredClone(input),review_revision:reviewRevision(this.state,s.id)+1,id:crypto.randomUUID(),corrected_at:now};
-    invalidateSource(this.state,s.id);this.state.corrections.push(correction);
+    cancelObsoleteMessages(this.state,s.id,keepMessageId);invalidateSource(this.state,s.id);this.state.corrections.push(correction);
     if(!s.latest_run_id){s.latest_run_id=crypto.randomUUID();this.state.runs.push({id:s.latest_run_id,submission_id:s.id,status:'completed',started_at:now,completed_at:now,error:null,evidence_revision:s.evidence_revision});}
     const d=decision(s,s.latest_run_id,'overall_status',input.human_verdict==='approved'?'pass':'fail',input.human_verdict,input.human_note,{correction_id:correction.id,correction_type:input.correction_type,one_time_override:true});d.check_method='human';this.state.decisions.push(d);
     s.status=input.human_verdict;s.decision_status=input.human_verdict;s.updated_at=now;s.review_revision=(s.review_revision??0)+1;
+    mutateFeedback(this.state,{action:'enqueue',correction_id:correction.id});
     return {correction_id:correction.id,status:s.status};
   }
   private evidence(){return {supporting_documents:this.state.supporting_documents,active_procedures:this.state.procedures?.filter(p=>p.state==='active'),active_aliases:activeAliases(this.state),check_configuration:'mandatory-v1',receipts:this.state.receipts,policies:this.state.policies,claims:this.state.submissions.map(({id,attendee_name,amount_requested_minor,currency,category,submitted_at})=>({id,attendee_name,amount_requested_minor,currency,category,submitted_at}))};}
@@ -151,14 +157,20 @@ export class MemoryStore implements Store {
     Object.assign(inv,{status:'completed',outcome:status==='approved'?'resolved':status==='flagged'?'discrepancy_found':'needs_human',headline:cmd.result.headline,summary:cmd.result.summary,unresolved_question:cmd.result.unresolved_question,findings:structuredClone(cmd.result.findings),proposed_learning:structuredClone(cmd.result.proposed_learning),model:cmd.result.model,completed_at:run.completed_at,error:null,after_assessment:beforeAssessment(this.state,inv.claim_id)});
     return structuredClone(inv);
   }
+  async feedbackLearning(command:FeedbackCommand){return mutateFeedback(this.state,command);}
   async procedure(cmd:ProcedureCommand){return mutateProcedure(this.state,cmd);}
 
   async usage(call: ModelCall) { this.calls.push(structuredClone(call)); }
 }
 export class SupabaseStore implements Store {
+  private schemaCheck: Promise<unknown> | null = null;
   constructor(private url: string, private key: string) {}
   async assertSchema() {
-    if (await this.request('rpc/core_platform_version', {}) !== 3) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
+    // Concurrent workers share only the in-flight check; completed checks are never cached.
+    const pending = this.schemaCheck ??= this.request('rpc/core_platform_version', {});
+    try {
+      if (await pending !== 4) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
+    } finally { if (this.schemaCheck === pending) this.schemaCheck = null; }
   }
   /** Reads and the schema probe are idempotent, so an overload response is retried rather than
    * surfaced as an outage. Writes are sent once: only the database knows whether they applied. */
@@ -187,14 +199,16 @@ export class SupabaseStore implements Store {
       if (path === 'rpc/core_platform_version' && ['PGRST202', '42883'].includes(e.code)) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
       const known: Record<string, [string, number]> = { 'RUN_ACTIVE': ['A run is already active.', 409], 'STALE_RUN': ['Run was superseded by reviewer action.', 409], 'NOT_FOUND': ['Submission not found.', 404], 'STALE_DECISION': ['Decision is stale or belongs to another submission.', 409], 'INVALID_SCOPE': ['Alias scope does not match receipt.', 400] };
       const key = typeof e.message === 'string' ? e.message : '';
-      for(const code of ['STALE_REVIEW','STALE_RULE','STALE_RULE_TEST','APPROVAL_BLOCKED','RULE_CONFLICT','RULE_SOURCE_REQUIRED','RETRY_BLOCKED','RECEIPT_CONFLICT','REVIEW_LIMIT','INVALID_INPUT','LEGACY_ALIAS_DISABLED','STALE_RUN','DOCUMENT_EXISTS','DOCUMENT_LIMIT','DOCUMENT_CONFLICT','EVIDENCE_LOCKED','ASSESSMENT_REQUIRED','INVESTIGATION_NOT_NEEDED','PROCEDURE_SOURCE_REQUIRED','INVESTIGATION_LIMIT'])known[code]=[code==='LEGACY_ALIAS_DISABLED'?'Use the reviewed /api/rules workflow.':code.replaceAll('_',' '),code==='LEGACY_ALIAS_DISABLED'?410:code==='INVALID_INPUT'?400:409];
+      for(const code of ['STALE_FEEDBACK','STALE_MESSAGE','MESSAGE_CONFLICT','MESSAGE_ALREADY_CONFIRMED','COMMUNICATION_IN_FLIGHT','DELIVERY_RECONCILIATION_REQUIRED','STALE_REVIEW','STALE_RULE','STALE_RULE_TEST','APPROVAL_BLOCKED','RULE_CONFLICT','RULE_SOURCE_REQUIRED','RETRY_BLOCKED','RECEIPT_CONFLICT','REVIEW_LIMIT','INVALID_INPUT','LEGACY_ALIAS_DISABLED','STALE_RUN','DOCUMENT_EXISTS','DOCUMENT_LIMIT','DOCUMENT_CONFLICT','EVIDENCE_LOCKED','ASSESSMENT_REQUIRED','INVESTIGATION_NOT_NEEDED','PROCEDURE_SOURCE_REQUIRED','INVESTIGATION_LIMIT'])known[code]=[code==='LEGACY_ALIAS_DISABLED'?'Use the reviewed /api/rules workflow.':code.replaceAll('_',' '),code==='LEGACY_ALIAS_DISABLED'?410:code==='INVALID_INPUT'?400:409];
       if (known[key]) throw new CoreError(key, known[key][0], known[key][1]);
       throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
     }
     const text = await res.text(); return text ? JSON.parse(text) : undefined;
   }
+  messages(command:MessageCommand):Promise<MessageResult>{return this.request('rpc/core_messages',{p_input:command});}
   supporting(command:SupportingCommand){return this.request('rpc/core_supporting',{p_input:command});}
   investigation(command:InvestigationCommand){return this.request('rpc/core_investigation',{p_input:command});}
+  feedbackLearning(command:FeedbackCommand):Promise<FeedbackResult>{return this.request('rpc/core_feedback_learning',{p_input:command});}
   procedure(command:ProcedureCommand){return this.request('rpc/core_procedure',{p_input:command});}
   /** One transactional projection: rules, knowledge revision and review revisions must be read together. */
   snapshot(): Promise<Snapshot> { return this.request('rpc/core_snapshot', {}); }

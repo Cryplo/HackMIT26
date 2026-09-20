@@ -1,0 +1,157 @@
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 14px 0 20px; }
+.header h1 { font-size: 28px; line-height: 36px; font-weight: 600; letter-spacing: -.7px; }
+.header p { margin-top: 6px; color: var(--muted-foreground); font-size: 13px; line-height: 21px; }
+.refresh { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.refresh > span { color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
+.demoNote { color: var(--muted-foreground); font-size: 12px; margin: -4px 0 16px; }
+.notice, .error { padding: 12px 14px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted); font-size: 13px; line-height: 21px; overflow-wrap: anywhere; }
+.error { color: var(--status-bad); background: var(--status-bad-bg); }
+.summary { margin-bottom: 24px; }
+.summary dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.summary dl > div { min-width: 0; border-left: 1px solid var(--border); padding-left: 24px; }
+.summary dl > div:first-child { border-left: 0; padding-left: 0; }
+.summary dt { font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
+.summary .metric { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.5px; font-variant-numeric: tabular-nums; margin: 5px 0 2px; overflow-wrap: anywhere; }
+.summary .metric span { color: var(--muted-foreground); font-size: 17px; font-weight: 400; }
+.metricDetail { color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
+.nextAction { display: flex; align-items: center; gap: 16px; padding: 22px 24px; margin-bottom: 32px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--accent); }
+.actionIcon { color: var(--primary); flex-shrink: 0; }
+.actionIcon svg { width: 28px; height: 28px; stroke-width: 1.6; }
+.actionCopy { flex: 1; min-width: 0; }
+.actionCopy h2 { font-size: 18px; line-height: 26px; font-weight: 600; letter-spacing: -.3px; }
+.actionCopy p { max-width: 65ch; color: var(--muted-foreground); font-size: 13px; line-height: 21px; margin-top: 4px; }
+.primaryAction { min-height: 44px; padding: 0 18px; gap: 10px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 24px; }
+.backgroundActivity { border-top: 1px solid var(--border); padding: 12px 0; font-size: 13px; color: var(--muted-foreground); }
+.backgroundActivity > summary { cursor: pointer; padding: 8px 0; }
+.backgroundActivity .activity ul { display: flex; flex-wrap: wrap; gap: 16px 48px; }
+.backgroundActivity .activity li { margin: 0; max-width: 280px; }
+.backgroundActivity .textLink { margin-right: 20px; }
+.queue, .side { min-width: 0; }
+.sectionHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sectionHeading h2, .insights h2 { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: -.2px; }
+.sectionHeading h2 span { color: var(--muted-foreground); margin-left: 6px; font-size: 13px; font-weight: 400; }
+.sectionHeading p { margin-top: 4px; font-size: 12px; color: var(--muted-foreground); line-height: 19px; }
+.claims { list-style: none; padding: 0; margin: 18px 0 0; }
+.claims > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 20px; padding: 20px 0; border-top: 1px solid var(--border); }
+.claimTop { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.claimTop > div { min-width: 0; }
+.claimName { font-size: 14px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.claimTop p { margin-top: 3px; font-size: 12px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.amount { font-size: 14px; font-weight: 550; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.reason { margin-top: 10px; }
+.reason p { max-width: 80ch; font-size: 13px; line-height: 21px; overflow-wrap: anywhere; }
+.status { display: inline-block; border-radius: var(--radius-chip); padding: 2px 7px; background: var(--muted); font-size: 12px; line-height: 18px; }
+.status[data-tone="flagged"], .status[data-tone="failed"] { color: var(--status-bad); background: var(--status-bad-bg); }
+.status[data-tone="needs_review"] { color: var(--status-review); background: var(--status-review-bg); }
+.status[data-tone="passed"] { color: var(--status-good); background: var(--status-good-bg); }
+.claimActions { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 4px; margin-top: 10px; }
+.claimActions > button { min-height: 36px; }
+.queueFooter { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--border); padding: 16px 0; font-size: 12px; line-height: 19px; color: var(--muted-foreground); }
+.queueFooter a, .textLink { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); white-space: nowrap; text-decoration: underline; text-underline-offset: 3px; }
+.queueFooter svg, .textLink svg { width: 13px; height: 13px; }
+.side { border-left: 1px solid var(--border); padding-left: 26px; }
+.side section + section { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 24px; }
+.machineQueue > p { font-size: 13px; line-height: 21px; margin-top: 12px; }
+.machineQueue > :last-child { margin-top: 16px; }
+.machineQueue .sectionHeading > span { padding: 2px 7px; background: var(--muted); border-radius: var(--radius-chip); font-size: 12px; }
+.small { color: var(--muted-foreground); font-size: 12px !important; line-height: 19px !important; }
+.activity > .small { margin-top: 4px; }
+.activity ul { padding: 0; margin: 20px 0; list-style: none; }
+.activity li { display: flex; gap: 10px; margin-top: 20px; }
+.activity li > svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; color: var(--muted-foreground); }
+.activity li > div { min-width: 0; }
+.activity li strong { font-size: 13px; font-weight: 550; }
+.activity li span { display: block; margin-top: 2px; font-size: 12px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.activity li p { margin-top: 5px; font-size: 12px; line-height: 19px; }
+.activity button, .lastStep button { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; text-align: left; overflow-wrap: anywhere; font-size: 12px; }
+.lastStep { border-left: 2px solid var(--border); padding-left: 12px; margin: 20px 0; }
+.lastStep > span { display: block; font-size: 12px; color: var(--muted-foreground); margin-bottom: 5px; }
+.lastStep p { margin-top: 5px; font-size: 12px; line-height: 19px; }
+.lastStep small { color: var(--muted-foreground); font-size: 12px; }
+.textLink { font-size: 12px; }
+.insights ul { list-style: none; padding: 0; margin: 12px 0; }
+.insights button { display: flex; align-items: flex-start; gap: 8px; color: var(--primary); text-align: left; font-size: 12px; line-height: 20px; padding: 8px 0; text-decoration: underline; text-underline-offset: 3px; }
+.insights button[aria-pressed="true"] { font-weight: 600; }
+.insights svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; }
+.empty { min-height: 210px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 10px; font-size: 13px; color: var(--muted-foreground); padding: 24px 0; }
+.empty h3 { font-weight: 500; color: var(--foreground); font-size: 15px; }
+.empty > svg { width: 24px; height: 24px; }
+@media (max-width: 1200px) { .nextAction { flex-wrap: wrap; } .actionCopy { flex-basis: calc(100% - 44px); } .primaryAction { margin-left: 44px; } }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .side { border-left: 0; border-top: 1px solid var(--border); padding: 22px 0 0; } }
+@media (max-width: 600px) { .header { flex-wrap: wrap; padding-top: 4px; gap: 10px; } .header h1 { font-size: 25px; } .refresh { flex-direction: row; align-items: center; gap: 8px; } .summary dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } .summary dl > div { padding-left: 16px; } .summary dl > div:last-child { grid-column: 1 / -1; border: 0; border-top: 1px solid var(--border); padding: 12px 0 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; } .summary dl > div:last-child .metricDetail { flex-basis: 100%; } .summary .metric { font-size: 21px; } .summary dl > div:last-child .metric { font-size: 16px; margin: 0; } .summary dl > div:last-child .metric span { font-size: 14px; } .nextAction { padding: 18px; gap: 12px; margin-bottom: 26px; } .actionIcon { display: none; } .actionCopy { flex-basis: 100%; } .primaryAction { width: 100%; margin-left: 0; } .sectionHeading { flex-wrap: wrap; } .claims > li { display: block; } .claimActions { flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-top: 14px; } .activity button, .textLink, .queueFooter a { min-height: 44px; align-items: center; } }
+
+.summaryProgress { display: block; width: 100%; height: 6px; margin-top: 10px; accent-color: var(--primary); }
+.runningBanner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 10px 14px; border-radius: var(--radius); background: var(--muted); color: var(--muted-foreground); font-size: 12px; line-height: 20px; }
+.runningBanner svg { width: 16px; height: 16px; flex-shrink: 0; }
+@media (max-width: 600px) { .summary dl > div:last-child > dd:last-child { flex-basis: 100%; } }
+
+.sessionProgress { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; color: var(--muted-foreground); font-size: 12px; }
+.sessionProgress progress { width: 100px; height: 5px; accent-color: var(--status-good); }
+.sectionHeading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.sectionHeading h2 svg { width: 18px; height: 18px; flex-shrink: 0; }
+.amber { color: var(--status-review); }
+.red { color: var(--status-bad); }
+.green { color: var(--status-good); }
+.group { min-width: 0; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius); }
+.failureGroup { border-color: color-mix(in srgb, var(--status-bad) 25%, var(--border)); background: var(--status-bad-bg); }
+.passedGroup { border-color: color-mix(in srgb, var(--status-good) 25%, var(--border)); }
+.compactClaims { list-style: none; margin: 12px 0; padding: 0; }
+.compactClaims li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); }
+.compactClaims li > div { min-width: 0; flex: 1; }
+.compactClaims h3 { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; line-height: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.compactClaims h3 span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.compactClaims p { margin-top: 4px; color: var(--muted-foreground); font-size: 12px; line-height: 19px; overflow-wrap: anywhere; }
+.compactClaims button { flex-shrink: 0; min-height: 36px; }
+.autoSummary { display: flex; align-items: center; gap: 10px; border-radius: var(--radius); padding: 12px 16px; color: var(--status-good); background: var(--status-good-bg); font-size: 12px; line-height: 20px; }
+.autoSummary svg { width: 18px; height: 18px; flex-shrink: 0; }
+.autoSummary strong { font-weight: 600; }
+.runningBanner progress { width: 100px; height: 6px; accent-color: var(--status-bad); }
+@media (max-width: 600px) { .group { padding: 16px; } .compactClaims li { align-items: flex-start; flex-wrap: wrap; gap: 10px; } .compactClaims li > div { flex-basis: 100%; } .runningBanner { flex-wrap: wrap; } .failureGroup > button { white-space: normal; height: auto; min-height: 44px; } }
+
+.queueDetails { margin-top: 12px; border-top: 1px solid var(--border); }
+.queueDetails > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; padding: 18px 0; font-size: 13px; font-weight: 550; }
+.queueDetails > summary::before { content: "+"; color: var(--muted-foreground); }
+.queueDetails[open] > summary::before { content: "−"; }
+.queueDetails > summary > span { margin-left: auto; color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
+.queueDetails .claims, .queueDetails .compactClaims { max-height: 360px; overflow-y: auto; scrollbar-width: thin; }
+@media (max-width: 600px) { .queueDetails > summary { flex-wrap: wrap; } .queueDetails > summary > span { width: 100%; margin-left: 20px; } }
+
+.statusSummary { margin-bottom: 24px; }
+.statusCards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.statusCard { min-width: 0; border: 1px solid var(--border); border-radius: 14px; padding: 18px; background: var(--card); box-shadow: 0 2px 3px #16362904; }
+.statusCard[data-tone="approved"] { background: linear-gradient(135deg, white, var(--status-good-bg)); }
+.statusCard[data-tone="review"] { background: linear-gradient(135deg, white, var(--status-review-bg)); }
+.statusCard[data-tone="rejected"] { background: linear-gradient(135deg, white, var(--status-bad-bg)); }
+.statusCard dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 550; }
+.statusCard svg { width: 17px; height: 17px; flex-shrink: 0; }
+.statusCard[data-tone="approved"] dt { color: var(--status-good); }
+.statusCard[data-tone="review"] dt { color: var(--status-review); }
+.statusCard[data-tone="rejected"] dt { color: var(--status-bad); }
+.statusCount { margin-top: 10px; font-size: 30px; font-weight: 600; line-height: 36px; font-variant-numeric: tabular-nums; }
+.statusCount span { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
+.statusHint { color: var(--muted-foreground); font-size: 11px; line-height: 17px; margin-top: 6px; }
+.distribution { margin-top: 12px; border: 1px solid var(--border); padding: 16px 18px; border-radius: 14px; background: var(--card); }
+.distributionHeading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted-foreground); }
+.distributionHeading strong { color: var(--foreground); font-weight: 600; }
+.distributionBar { display: flex; height: 12px; margin: 12px 0; overflow: hidden; border-radius: 8px; background: var(--muted); }
+.distributionBar span { height: 100%; transition: width 300ms ease; }
+.distributionBar [data-tone="unchecked"], .distributionLegend [data-tone="unchecked"] { background: #99aaa2; }
+.distributionBar [data-tone="approved"], .distributionLegend [data-tone="approved"] { background: var(--status-good); }
+.distributionBar [data-tone="review"], .distributionLegend [data-tone="review"] { background: #d2a333; }
+.distributionBar [data-tone="rejected"], .distributionLegend [data-tone="rejected"] { background: var(--status-bad); }
+.distributionLegend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 11px; color: var(--muted-foreground); }
+.distributionLegend > span { display: inline-flex; align-items: center; gap: 6px; }
+.distributionLegend i { width: 7px; height: 7px; border-radius: 50%; }
+.completion { overflow: hidden; padding: 32px 28px; text-align: center; justify-items: center; border: 1px solid var(--border); background: #f4faf5; }
+.completion [data-slot="dialog-title"] { font-size: 24px; line-height: 30px; }
+.completion [data-slot="dialog-description"] { line-height: 22px; }
+.completion > button:last-of-type { z-index: 1; }
+.completionIcon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--status-good-bg); color: var(--status-good); }
+.completionIcon svg { width: 32px; height: 32px; }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: -16px; width: 6px; height: 10px; opacity: 0; animation: celebration 1.5s ease-out both; }
+@keyframes celebration { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(280px) rotate(310deg); } }
+@media (max-width: 1050px) { .statusCards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .statusCard { padding: 14px; } .statusCount { font-size: 26px; } .distribution { padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { .distributionBar span { transition: none; } .confetti { display: none; } }

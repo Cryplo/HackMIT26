@@ -3,6 +3,7 @@ node_modules/
 .env*
 !.env.example
 .intake-demo/
+.seed-archives/
 *.tsbuildinfo
 
 .intake-demo.backup-*/

@@ -1,4 +1,7 @@
+import { sendAutomaticApprovalNotice } from './email-actions';
+import { investigationFailure, invalidInvestigation, type InvestigationStage } from '../intelligence/investigation-errors';
 import { z } from 'zod';
+import { setTimeout as pause } from 'node:timers/promises';
 import type { CoreService } from './service';
 import type { EvidenceRef, InvestigationFinding, InvestigationRun, InvestigationRunStep, InvestigationTools, InvestigationTool, ReceiptEvidence } from '../review-contracts';
 import { CoreError } from './validation';
@@ -8,6 +11,7 @@ import { boundedEvidence, deriveCandidate, supportingFor } from './evidence';
 import { decision,overall } from './checks';
 import { DatabaseRetrieval } from './retrieval';
 import { validClaim } from '../intake/supporting-documents';
+import { automaticApproval, shouldInvestigateAutomatically } from './automation';
 const revision=z.object({expected_review_revision:z.number().safe().int().nonnegative()}).strict();
 const ref=z.object({kind:z.enum(['receipt','supporting_document','claim','policy','alias','procedure']),id:z.uuid()}).strict();
 const finding=z.object({id:z.string().max(200),check:z.string().min(1).max(80),statement:z.string().trim().min(1).max(2000),evidence_refs:z.array(ref).min(1).max(30)}).strict();
@@ -16,7 +20,6 @@ function publicReceipt(r:NonNullable<Awaited<ReturnType<CoreService['store']['sn
  const {id,submission_id,file_type,sha256,extraction_status,extraction_error,extraction_provenance,parsed_fields_json,raw_extracted_text}=r;
  return {id,submission_id,file_type,sha256:sha256??null,extraction_status,extraction_error,extraction_provenance,parsed_fields_json,raw_extracted_text};
 }
-function errorCode(e:unknown,signal:AbortSignal){return signal.aborted?'PROVIDER_TIMEOUT':e instanceof CoreError?e.code:typeof e==='object'&&e!==null&&'code' in e&&['BUDGET_EXHAUSTED','EVIDENCE_LIMIT','INVALID_PROVIDER_OUTPUT','PROVIDER_TIMEOUT','PROVIDER_UNAVAILABLE'].includes(String(e.code))?String(e.code):'INVESTIGATION_FAILED';}
 export async function investigations(core:CoreService,claimId?:string){
  if(claimId)validClaim(claimId);const state=await core.store.snapshot();
  if(claimId&&!state.submissions.some(s=>s.id===claimId))throw new CoreError('NOT_FOUND','Claim not found.',404);
@@ -32,8 +35,9 @@ export async function investigateClaim(core:CoreService,id:string,raw:unknown,re
  const outer=AbortSignal.any([requestSignal,AbortSignal.timeout(Math.min(90000,limits.totalMs))]);
  const initial=await core.store.snapshot(),row=workspaceRows(initial).find(r=>r.id===id);
  if(!row)throw new CoreError('NOT_FOUND','Claim not found.',404);
- if(trigger==='recoverable_uncertainty'&&(!row.decisions.some(d=>d.verdict==='unknown')||!supportingFor(initial,id).some(d=>d.extraction_status==='succeeded')))throw new CoreError('INVESTIGATION_NOT_NEEDED','No useful evidence is available for recoverable uncertainty.',409);
+ if(trigger==='recoverable_uncertainty'&&(!core.automationEnabled||!shouldInvestigateAutomatically(initial,row)))throw new CoreError('INVESTIGATION_NOT_NEEDED','No new eligible evidence is available for automatic investigation.',409);
  let run=await core.store.investigation({action:'start',claim_id:id,expected_review_revision:parsed.data.expected_review_revision,trigger,mode:core.investigationMode});
+ let stage:InvestigationStage='EVIDENCE';
  const inFlight=new Set<Promise<unknown>>();let stepWrites=Promise.resolve();let executed=0;let calls=0;let violation:unknown;
  try{
   const state=await core.store.snapshot(),s=state.submissions.find(s=>s.id===id)!,r=state.receipts.find(r=>r.submission_id===id);
@@ -46,8 +50,11 @@ export async function investigateClaim(core:CoreService,id:string,raw:unknown,re
    const step:InvestigationRunStep={id:crypto.randomUUID(),run_id:run.run_id,sequence:executed,tool,status:'running',started_at:new Date().toISOString(),completed_at:null,summary:`Reading ${tool.replaceAll('_',' ')}.`,evidence_refs:[],error:null};
    const start=stepWrites.then(()=>record(step));stepWrites=start.catch(()=>{});
    const work=(async()=>{
-    try{await start;plannerSignal.throwIfAborted();const data=await read();plannerSignal.throwIfAborted();step.status='completed';step.completed_at=new Date().toISOString();step.summary=data.summary;step.evidence_refs=data.refs;await record(step);data.refs.forEach(r=>observed.add(key(r)));return data.value;}
-    catch(e){violation=e;step.status='failed';step.completed_at=new Date().toISOString();step.error=errorCode(e,plannerSignal);step.summary='Evidence read failed.';await record(step);throw e;}
+    try{await start;plannerSignal.throwIfAborted();
+     // The isolated audit rehearsal gives viewers time to see persisted tool activity. Live work never waits.
+     if(core.demoMode&&core.investigationMode==='simulated'&&process.env.RECONCILIATION_AUDIT_DEMO==='true')await pause(1200,undefined,{signal:plannerSignal});
+     const data=await read();plannerSignal.throwIfAborted();step.status='completed';step.completed_at=new Date().toISOString();step.summary=data.summary;step.evidence_refs=data.refs;await record(step);data.refs.forEach(r=>observed.add(key(r)));return data.value;}
+    catch(e){violation=e;step.status='failed';step.completed_at=new Date().toISOString();step.error=investigationFailure(e,plannerSignal,'EVIDENCE');step.summary='Evidence read failed.';await record(step);throw e;}
    })();inFlight.add(work);void work.finally(()=>inFlight.delete(work)).catch(()=>{});return work;
   };
   const tools:InvestigationTools={
@@ -62,25 +69,33 @@ export async function investigateClaim(core:CoreService,id:string,raw:unknown,re
     return {value:related,refs:related.flatMap(c=>[{kind:'claim' as const,id:c.submission.id},...(c.receipt?[{kind:'receipt' as const,id:c.receipt.id}]:[])]),summary:`Read ${related.length} corroborated prior purchase candidates.`};
    }),
   };
+  stage='PLANNING';
   const result=await core.intelligence.investigate({submission:{id:s.id,attendee_name:s.attendee_name,email:s.email,amount_requested_minor:s.amount_requested_minor,currency:s.currency,category:s.category,origin_location:s.origin_location,submitted_at:s.submitted_at},checks:run.before_assessment.checks},tools,{mode:core.investigationMode,signal:plannerSignal,log_usage:async usage=>{calls++;await core.store.usage({...usage,id:crypto.randomUUID(),run_id:run.run_id,receipt_id:null,created_at:new Date().toISOString()});if(calls>3){violation=new CoreError('BUDGET_EXHAUSTED','At most three planning calls are permitted.',503);throw violation;}}});
   await Promise.allSettled([...inFlight]);plannerSignal.throwIfAborted();if(violation)throw violation;
+  stage='VALIDATION';
   if(result.status!=='completed'||result.mode!==core.investigationMode)throw new CoreError('INVESTIGATION_UNAVAILABLE','Investigator did not return a completed result.',503);
   const checked=z.array(finding).max(30).safeParse(result.findings??[]);
-  if(!checked.success||(!checked.data.length&&!(typeof result.unresolved_question==='string'&&result.unresolved_question.trim()))||checked.data.some(f=>f.evidence_refs.some(ref=>!observed.has(key(ref)))))throw new CoreError('INVALID_PROVIDER_OUTPUT','Findings must reference actual evidence read in this run.',503);
+  if(!checked.success)throw invalidInvestigation('SCHEMA','Invalid structured findings.');
+  if(!checked.data.length&&!(typeof result.unresolved_question==='string'&&result.unresolved_question.trim()))throw invalidInvestigation('EMPTY_FINDINGS','Empty findings require an unresolved question.');
+  if(checked.data.some(f=>f.evidence_refs.some(ref=>!observed.has(key(ref)))))throw invalidInvestigation('UNOBSERVED_CITATION','Findings must reference actual evidence read in this run.');
   const findings:InvestigationFinding[]=checked.data.map(f=>({...f,id:crypto.randomUUID()}));
   const candidate=deriveCandidate(state,id);
   const proposed=result.proposed_learning&&candidate&&candidate.source_evidence_refs.every(r=>observed.has(key(r)))?candidate:null;
+  stage='REASSESSMENT';
   let providerFailed=false,providerError:unknown;
   const assessSignal=AbortSignal.any([outer,AbortSignal.timeout(25000)]);
   const checks=await core.assess(state,id,run.run_id,c=>core.store.usage(c),assessSignal,e=>{providerFailed=true;providerError=e;});
   assessSignal.throwIfAborted();if(providerFailed)throw providerError;
   const status=overall(checks),question=typeof result.unresolved_question==='string'?result.unresolved_question.trim().slice(0,2000):'';
-  checks.push(decision(s,run.run_id,'overall_status',status==='approved'?'pass':status==='flagged'?'fail':'unknown',status,'Investigation reassessed stored evidence through mandatory core checks.',{investigation_run_id:run.run_id}));
-  const completed:InvestigationRun={...run,status:'completed',headline:status==='approved'?'Ready for approval':status==='flagged'?'Discrepancy found':'Needs your input',summary:typeof result.summary==='string'?result.summary.slice(0,4000):'Stored evidence reassessed.',unresolved_question:status==='needs_review'?(question||'Which additional evidence resolves the remaining unknown checks?'):null,findings,proposed_learning:proposed,model:result.model,error:null};
+  const auto_approval=automaticApproval(state,id,run.run_id,checks,core.automationEnabled);
+  checks.push(decision(s,run.run_id,'overall_status',status==='approved'?'pass':status==='flagged'?'fail':'unknown',status,'Investigation reassessed stored evidence through mandatory core checks.',{investigation_run_id:run.run_id,...(auto_approval?{auto_approval}:{})}));
+  const completed:InvestigationRun={...run,status:'completed',headline:auto_approval?'Automatically approved':status==='approved'?'Ready for approval':status==='flagged'?'Discrepancy found':'Needs your input',summary:typeof result.summary==='string'?result.summary.slice(0,4000):'Stored evidence reassessed.',unresolved_question:status==='needs_review'?(question||'Which additional evidence resolves the remaining unknown checks?'):null,findings,proposed_learning:proposed,model:result.model,error:null};
+  stage='PUBLICATION';
   run=await core.store.investigation({action:'finish',run_id:run.run_id,result:completed,decisions:checks});
  }catch(e){
   await Promise.allSettled([...inFlight]);
-  run=await core.store.investigation({action:'fail',run_id:run.run_id,error:errorCode(e,outer),superseded:e instanceof CoreError&&e.code==='STALE_RUN'});
+  run=await core.store.investigation({action:'fail',run_id:run.run_id,error:investigationFailure(e,outer,stage),superseded:e instanceof CoreError&&e.code==='STALE_RUN'});
  }
- return {run,row:workspaceRows(await core.store.snapshot()).find(r=>r.id===id)!};
+ const notice=run.status==='completed'?await sendAutomaticApprovalNotice(core,id):{};
+ return {...notice,run,row:workspaceRows(await core.store.snapshot()).find(r=>r.id===id)!};
 }

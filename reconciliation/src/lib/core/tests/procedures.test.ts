@@ -43,8 +43,8 @@ test('a linked itinerary supplies identity only under one explicit policy and no
  s.policies.find(p=>p.category==='hotel')!.claimant_identity_evidence='receipt_or_linked_itinerary';assert.ok(itineraryIdentity(s,id));
  s.supporting_documents[0].facts.booking_reference='UNRELATED';assert.equal(itineraryIdentity(s,id),null);
 });
-test('missing C procedure port remains unavailable without creating draft or spending',async()=>{
- const f=fixture();f.core.intelligence=intelligence;
+test('missing procedure capability remains unavailable without creating draft or spending',async()=>{
+ const f=fixture();f.core.intelligence={...intelligence,build_procedure_suite:undefined,evaluate_procedure:undefined};
  await assert.rejects(proposeProcedure(f.core,{run_id:crypto.randomUUID(),expected_review_revision:0}),{code:'PROCEDURE_UNAVAILABLE'});assert.equal(f.store.state.procedures!.length,0);
 });
 

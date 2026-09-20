@@ -5,7 +5,23 @@ import { investigateClaim,investigations } from '../investigations';
 import { workspaceRows } from '../projection';
 import { investigationConfig } from '../investigation-config';
 import { responsesConfig } from '../../providers/responses';
+import { investigationFailure, investigationFailureDetails, invalidInvestigation } from '../../intelligence/investigation-errors';
+import { CoreError } from '../validation';
 const rev=(f:ReturnType<typeof fixture>)=>workspaceRows(f.store.state)[0].review_revision;
+test('audit rehearsal exposes a running tool and cancellation; live mode never receives rehearsal pacing',async()=>{
+ const prior=process.env.RECONCILIATION_AUDIT_DEMO;process.env.RECONCILIATION_AUDIT_DEMO='true';
+ try{
+  const f=fixture();await f.core.reconcile([f.id]);
+  let started!:()=>void;const ready=new Promise<void>(resolve=>started=resolve),abort=new AbortController();
+  const original=f.store.investigation.bind(f.store);
+  f.store.investigation=async input=>{const result=await original(input);if(input.action==='step'&&input.step.status==='running')started();return result;};
+  const work=investigateClaim(f.core,f.id,{expected_review_revision:rev(f)},abort.signal);
+  await ready;assert.equal((await investigations(f.core,f.id)).runs[0].steps[0].status,'running');
+  abort.abort();assert.equal((await work).run.status,'failed');assert.equal(f.calls(),1);
+  const live=fixture();await live.core.reconcile([live.id]);live.core.investigationMode='live';live.core.demoMode=false;
+  assert.equal((await investigateClaim(live.core,live.id,{expected_review_revision:rev(live)},AbortSignal.timeout(500))).run.status,'completed');
+ }finally{if(prior===undefined)delete process.env.RECONCILIATION_AUDIT_DEMO;else process.env.RECONCILIATION_AUDIT_DEMO=prior;}
+});
 test('one persisted investigation reads stored tools, reassesses once, resolves without approval or knowledge writes',async()=>{
  const f=fixture();await f.core.reconcile([f.id]);assert.equal(workspaceRows(f.store.state)[0].assessment_status,'needs_review');
  const out=await investigateClaim(f.core,f.id,{expected_review_revision:rev(f)},signal());
@@ -72,4 +88,20 @@ test('upstream Azure planner executes persisted core tools and reassesses once w
  f.core.intelligence={...f.port,investigate:async(input,tools,options)=>{const result=await runInvestigationPlanner(input,async(name,abort)=>{abort.throwIfAborted();return tools[name]();},options,{provider:'azure-openai',url:'https://offline.invalid/responses',key:'offline-test',model:'mock-planner'},transport);return {...result,proposed_learning:result.proposed_learning?deriveCandidate(f.store.state,f.id):null};}};
  const out=await investigateClaim(f.core,f.id,{expected_review_revision:rev(f)},signal());
  assert.equal(requests,2);assert.equal(f.store.calls.length,2);assert.equal(f.calls(),2);assert.equal(out.run.status,'completed');assert.equal(out.run.outcome,'resolved');assert.equal(out.run.steps.length,2);assert.equal(out.row.decision_status,'pending');assert.equal(out.run.model,'mock-planner');
+});
+
+
+test('investigation diagnostics persist safe stage and reason through public history',async()=>{
+ const f=fixture();await f.core.reconcile([f.id]);
+ f.core.intelligence={...f.port,async investigate(_input,tools){await tools.read_receipt();throw invalidInvestigation('SCHEMA','private provider payload and credentials');}};
+ const out=await investigateClaim(f.core,f.id,{expected_review_revision:rev(f)},signal());
+ assert.equal(out.run.error,'INVALID_PROVIDER_OUTPUT:PLANNING:SCHEMA');
+ assert.equal((await investigations(f.core,f.id)).runs[0].error,out.run.error);
+ assert.equal(out.run.steps[0].status,'completed');assert.equal(out.run.after_assessment,null);assert.equal(f.calls(),1);
+ assert.doesNotMatch(JSON.stringify(out),/private provider payload|credentials/);
+ assert.match(investigationFailureDetails(out.run.error).message,/unsupported format/);
+ assert.match(investigationFailureDetails('INVALID_PROVIDER_OUTPUT').message,/not recorded/);
+ for(const value of ['private payload','INVALID_PROVIDER_OUTPUT:PLANNING:SCHEMA::private','INVALID_PROVIDER_OUTPUT:PLANNING:private','INVALID_PROVIDER_OUTPUT::SCHEMA'])assert.equal(investigationFailureDetails(value).detail,null);
+ for(const error of [new Error('private payload'),new CoreError('private-code','private payload'),Object.assign(new CoreError('INVALID_PROVIDER_OUTPUT','private payload'),{investigationReason:'private payload'})])assert.doesNotMatch(investigationFailure(error,signal(),'PLANNING'),/private/);
+ assert.equal(investigationFailure(new DOMException('deadline','TimeoutError'),signal(),'PLANNING'),'PROVIDER_TIMEOUT:PLANNING');
 });

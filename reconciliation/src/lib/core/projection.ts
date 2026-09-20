@@ -1,9 +1,11 @@
+import { publicLearning } from './feedback-learning-state';
 import { createHash } from 'node:crypto';
 import type { ReviewRow, InvestigationRun } from '../review-contracts';
 import type { Snapshot } from './store';
 import { overall } from './checks';
 import { CoreError } from './validation';
 import { confirmedDuplicates, latestCorrection, reviewRevision } from './safety';
+import { hasAutomaticApproval } from './automation';
 
 export function publicEvidence({provider_response: _raw, ...evidence}: Record<string, unknown>) { return evidence; }
 
@@ -13,8 +15,8 @@ export function publicInvestigation(run:InvestigationRun):InvestigationRun {
  return value;
 }
 
-/** Project persisted machine checks and human corrections independently. Machine
- * status never implies a human approval, even for historical v1 records. */
+/** Only an explicit current policy marker grants automatic approval. Historical
+ * machine matches remain pending; human corrections always take precedence. */
 export function workspaceRows(state: Snapshot): ReviewRow[] {
  return state.submissions.map(s=>{
   const receipt=state.receipts.find(r=>r.submission_id===s.id);
@@ -25,14 +27,16 @@ export function workspaceRows(state: Snapshot): ReviewRow[] {
   const correction=latestCorrection(state,s.id);
   const human=correction?state.decisions.find(d=>d.check_method==='human' && d.evidence_json.correction_id===correction.id):undefined;
   const assessment_status=!evidence.length?null:overall(evidence)==='approved'?'matched':overall(evidence) as 'flagged'|'needs_review';
-  const decision_status=correction?.human_verdict||'pending';
+  const automatic=!correction&&hasAutomaticApproval(state,s.id,machineRun,checks);
+  const decision_status=correction?.human_verdict||(automatic?'approved':'pending');
+  const decision_source=correction?'human':automatic?'automatic':null;
   const running=runs.some(r=>r.status==='running');
   // The existing run lease is also used to serialize reviewer writes. Exclude
   // its cancellation record from assessment errors and completed evidence.
   const last=runs.filter(r=>r.error!=='Superseded by human correction.').sort((a,b)=>a.started_at.localeCompare(b.started_at)||a.id.localeCompare(b.id)).at(-1);
   const decisions=[...checks,...(human?[human]:[])].map(({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json})=>({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json:publicEvidence(evidence_json)}));
-  return {...s,review_revision:reviewRevision(state,s.id),
-   latest_run_id:machineRun?.id||null,assessment_status,decision_status,assessment_knowledge_revision:machineRun?machineRun.knowledge_revision ?? -1:null,
+  return {...s,...(correction?{learning:publicLearning(state,correction)}:{}),review_revision:reviewRevision(state,s.id),
+   latest_run_id:machineRun?.id||null,assessment_status,decision_status,decision_source,assessment_knowledge_revision:machineRun?machineRun.knowledge_revision ?? -1:null,
    processing_status:running?'running':last?.status==='failed'?'failed':'idle',processing_error:last?.status==='failed'?last.error:null,
    status:decision_status!=='pending'?decision_status:assessment_status==='matched'?'approved':assessment_status||'pending',
    receipt:receipt?{id:receipt.id,file_type:receipt.file_type,sha256:receipt.sha256??null,extraction_provenance:receipt.extraction_provenance??'historical fixture / unknown',extraction_status:receipt.extraction_status,extraction_error:receipt.extraction_error,parsed_fields_json:receipt.parsed_fields_json}:null,

@@ -1,23 +1,30 @@
 import { z } from 'zod';
-import type { ReviewRow, ReviewsResponse, SearchRow, SearchResponse } from '../review-contracts';
+import type { DecisionResponse, ReviewRow, ReviewsResponse, SearchRow, SearchResponse } from '../review-contracts';
 import type { CoreService } from './service';
 import { CoreError, correctionInput } from './validation';
 import { workspaceRows, workspaceSnapshot } from './projection';
 export { workspaceRows, workspaceSnapshot } from './projection';
 export { assertApprovable } from './safety';
 import { search } from '../intelligence/search';
+import { automaticDecisionEmail } from './email-actions';
+import { emailCapabilities } from '../email/config';
 
 export async function workspaceReviews(core:CoreService):Promise<ReviewsResponse> {
+ await core.mutate(()=>core.store.feedbackLearning({action:'expire'}));
  const state=await core.readSnapshot();const snapshot=workspaceSnapshot(state);
  const rows=snapshot.rows;
- return {contract_version:2,snapshot_token:snapshot.token,knowledge_revision:state.knowledge_revision??0,capabilities:{supporting_documents:true,investigations:core.investigationMode!=='disabled',resolution_procedures:!!core.intelligence?.build_procedure_suite&&!!core.intelligence?.evaluate_procedure,rule_learning:!!core.intelligence,extraction_retry:true,export:true,custom_checks:false,duplicate_links:true,knowledge_revisions:true},coverage:{complete:true,returned:snapshot.rows.length,total:snapshot.rows.length},submissions:rows,demo_mode:core.demoMode,
+ const email=emailCapabilities();
+ const demoReset=process.env.RECONCILIATION_SYNTHETIC_ONLY==='true'&&(core.demoMode?process.env.RECONCILIATION_INTAKE_MODE==='demo':process.env.RECONCILIATION_ALLOW_DEMO_RESET==='true');
+ return {contract_version:2,snapshot_token:snapshot.token,knowledge_revision:state.knowledge_revision??0,capabilities:{demo_reset:demoReset,automatic_processing:core.automationEnabled,automatic_decision_emails:email.decision_email_drafts,decision_email_drafts:email.decision_email_drafts,decision_emails:email.decision_emails,email_mode:email.email_mode,email_error:email.error,supporting_documents:true,investigations:core.investigationMode!=='disabled',resolution_procedures:!!core.intelligence?.build_procedure_suite&&!!core.intelligence?.evaluate_procedure,rule_learning:!!core.intelligence,extraction_retry:true,export:true,custom_checks:false,duplicate_links:true,knowledge_revisions:true},coverage:{complete:true,returned:snapshot.rows.length,total:snapshot.rows.length},submissions:rows,demo_mode:core.demoMode,
  summary:{approved_amount_minor:rows.filter(r=>r.decision_status==='approved').reduce((a,r)=>a+r.amount_requested_minor,0),pending_review_count:rows.filter(r=>r.decision_status==='pending').length,matched_count:rows.filter(r=>r.assessment_status==='matched').length,flagged_count:rows.filter(r=>r.assessment_status==='flagged').length,needs_review_count:rows.filter(r=>r.assessment_status==='needs_review').length},
  execution:{extraction:'See each receipt extraction provenance',decisions:core.execution?.decisions||'unknown',retrieval:core.execution?.retrieval||'stored candidates',storage:core.execution?.storage||'unknown',investigation:core.execution?.investigation||core.investigationMode}};
 }
-export async function workspaceDecide(core:CoreService,raw:unknown){
+export async function workspaceDecide(core:CoreService,raw:unknown):Promise<DecisionResponse>{
  const input=correctionInput(raw);
+ const automatic=await automaticDecisionEmail(core,raw);
+ if(automatic)return automatic;
  const result=await core.correct(input);
- return {correction_id:result.correction_id,row:workspaceRows(await core.store.snapshot()).find(r=>r.id===input.submission_id)!};
+ return {correction_id:result.correction_id,row:workspaceRows(await core.store.snapshot()).find(r=>r.id===input.submission_id)!,email_error:emailCapabilities().email_mode==='disabled'?null:'Decision saved without a notice. An applicant-facing reason is required when no failed check explains the rejection.'};
 }
 const searchSchema=z.object({query:z.string().trim().min(1).max(500),snapshot_token:z.string().regex(/^[a-f0-9]{64}$/),filters:z.object({category:z.enum(['flight','hotel','train','bus','other']).optional(),assessment_status:z.enum(['matched','flagged','needs_review']).optional(),decision_status:z.enum(['pending','approved','rejected']).optional()}).strict()}).strict();
 export async function workspaceSearch(core:CoreService,raw:unknown,signal:AbortSignal):Promise<SearchResponse>{

@@ -62,7 +62,7 @@ test('a tested draft can be activated and rechecked without approving related cl
   await page.goto('/business-demo?preview=1');
   const navigation = page.getByRole('navigation', { name: 'Workspace', exact: true });
   await navigation.getByRole('button', { name: 'Learned rules', exact: true }).click();
-  const rule = page.getByRole('article', { name: 'SYN HBR042 rule', exact: true });
+  const rule = page.getByRole('article', { name: 'Harbor Reservations rule', exact: true });
   await expect(rule.getByRole('button', { name: 'Activate', exact: true })).toBeDisabled();
   await rule.getByRole('button', { name: 'Test rule', exact: true }).click();
   await expect(rule.getByText('Simulated test', { exact: true })).toBeVisible();

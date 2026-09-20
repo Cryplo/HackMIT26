@@ -25,7 +25,7 @@ export class DashboardError extends Error {
 export async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method: body === undefined ? "GET" : "POST", credentials: "same-origin", cache: "no-store", signal,
-    ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    ...(body === undefined ? {} : body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) throw new DashboardError(
