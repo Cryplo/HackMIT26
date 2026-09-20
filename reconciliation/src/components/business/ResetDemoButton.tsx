@@ -14,7 +14,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  if (preview || !data?.capabilities?.demo_reset) return null;
+  if (!data || (!preview && !data.capabilities?.demo_reset)) return null;
   const active = audit.status === "running" || audit.status === "stopping" || data.submissions.some(row =>
     row.processing_status === "running" || row.receipt?.extraction_status === "pending" || row.latest_investigation?.status === "running");
 
@@ -22,6 +22,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
     if (lock.current || active) return;
     lock.current = true; setBusy(true); onBusy(true); setError("");
     try {
+      if (preview) { window.location.reload(); return; }
       const response = await fetch("/api/workspace/demo-reset", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshot_token: token, ...(live ? { confirmation: "reset-live-demo" } : {}) }),
@@ -39,15 +40,15 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   }
 
   return <>
-    <Button variant="outline" disabled={busy || active || !data.snapshot_token} title={active ? "Finish active work before resetting." : "Archive this demo and restore 14 unchecked claims"}
-      onClick={() => { setError(""); if (data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
+    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : "Archive this demo and restore fresh unchecked demo claims"}
+      onClick={() => { setError(""); if (preview || data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
       {busy ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <RotateCcw aria-hidden="true" />}{busy ? "Resetting…" : "Reset demo"}
     </Button>
     {error && !confirmation && <p role="alert" className="max-w-sm text-sm text-destructive">{error}</p>}
     <Dialog open={!!confirmation} onOpenChange={open => { if (!open && !busy) { setConfirmation(null); setError(""); } }}>
       <DialogContent showCloseButton={!busy} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
         <DialogHeader><DialogTitle>Reset the live demo?</DialogTitle><DialogDescription>
-          Archive the current {confirmation?.count ?? 0} claims and their results in Supabase, clear the active demo data, and restore 14 unchecked claims. Decisions, investigations, and learned rules will start fresh. Original documents stay archived.
+          Archive the current {confirmation?.count ?? 0} claims and their results in Supabase, clear the active demo data, and restore fresh unchecked demo claims. Decisions, investigations, and learned rules will start fresh. Original documents stay archived.
         </DialogDescription></DialogHeader>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setConfirmation(null)}>Cancel</Button>

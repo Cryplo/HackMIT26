@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { showcaseFixture } from '../demo/showcase';
+import { LIVE_SHOWCASE_COUNT, showcaseFixture } from '../demo/showcase';
 import { workspaceSnapshot } from './projection';
 import type { CoreService } from './service';
 import { SupabaseStore } from './store';
@@ -41,7 +41,7 @@ export async function resetLiveDemo(core: CoreService, expectedToken: string): P
   if (bucketInfo.error || !bucketInfo.data || bucketInfo.data.public) {
     throw new CoreError('PRIVATE_BUCKET_REQUIRED', 'A readable private evidence bucket is required.', 503);
   }
-  const fixture = showcaseFixture(), bucket = client.storage.from(bucketName);
+  const fixture = showcaseFixture(LIVE_SHOWCASE_COUNT), bucket = client.storage.from(bucketName);
   const originals = [...fixture.originals.map(({ receipt, bytes }) => ({ original: receipt, bytes })),
     ...fixture.supporting.map(({ document, bytes }) => ({ original: document, bytes }))];
   for (const { original, bytes } of originals) {
