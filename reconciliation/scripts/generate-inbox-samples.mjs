@@ -1,7 +1,7 @@
 /** Regenerate committed fictional inbox originals. Requires installed Playwright/Chrome and sharp. */
 import { chromium } from '@playwright/test';
 import sharp from 'sharp';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const output = fileURLToPath(new URL('../src/lib/inbox/fixtures/', import.meta.url));
@@ -41,6 +41,8 @@ try {
     }
     manifest.push({ name: spec.name, asset: spec.duplicate ? 'IMG_2048.png' : spec.name, file_type: spec.png || spec.duplicate ? 'image/png' : 'application/pdf', evidence: { ...spec.evidence, raw_extracted_text: raw } });
   }
+  const previous = JSON.parse(await readFile(`${output}manifest.json`, 'utf8'));
+  manifest.push(...previous.filter(sample => sample.file_type === 'text/csv'));
   await writeFile(`${output}manifest.json`, JSON.stringify(manifest, null, 2) + '\n');
 } finally { await browser.close(); }
-console.log(`Generated ${manifest.length} entries: 8 PDF originals, 1 PNG original, 1 exact-byte duplicate.`);
+console.log(`Generated ${manifest.length} entries: 8 PDF originals, 1 PNG original, 1 exact-byte duplicate, and retained CSV samples.`);

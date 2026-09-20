@@ -33,3 +33,13 @@ User-directed design: label navigation and entry panel Data sources; show Google
 - [x] Rename the source panel and add explicit demo input cards with working local destinations.
 - [x] Add the sources graph node and route it into Waiting at desktop/tablet/mobile widths.
 - [x] Update existing geometry/browser checks, inspect screenshots, and run typecheck/build. Keep work on the feature branch.
+
+## Dedicated sources and observable parsing
+
+User-directed refinement: remove the top overview panel and per-card demo badges, use recognizable service icons, make `/import` a connection mockup + dropzone + sample browser, and show actual source activity in the graph. Keep one clear sample-workspace disclosure and expose extraction provenance.
+
+- [x] Move connection cards to the sources page, preserve working file upload, and browse form/email/folder originals beside returned fields.
+- [x] Add a real CSV response fixture and bounded UTF-8 CSV/TXT/EML intake using the existing Responses extractor.
+- [x] Record bounded browser-local upload, parsing, failure, and confirmation activity; show it across tabs and animate confirmed handoff.
+- [x] Preserve edited drafts/manual links while allowing later receipts to connect to earlier requests.
+- [x] Check 20 backend tests, connector geometry, three browser tests, a paid two-source live check, and production build. Correct the observed CSV amount-copy error and document its limits.

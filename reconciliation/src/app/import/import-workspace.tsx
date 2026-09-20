@@ -8,9 +8,12 @@ import { Label } from "@/components/ui/label";
 import type { InboxDocument, InboxSuggestion, ImportResult } from "@/lib/inbox/schema";
 
 import { caseSummary, clarificationDraft, defaultDraft as defaults, money, requestCents, type Draft } from "@/lib/inbox/presentation";
+import { SourceWorkbench, type SourceSample } from './source-workbench';
+import { recordSourceActivity } from '@/lib/inbox/activity';
+import { SourceIcon, type SourceKind } from '@/components/business/SourceIcon';
 import styles from "./import.module.css";
 
-type UploadItem = { id: string; name: string; status: "queued" | "reading" | "done" | "error"; documentId?: string; duplicateOf?: string; message?: string };
+type UploadItem = { source: SourceKind; id: string; name: string; status: "queued" | "reading" | "done" | "error"; documentId?: string; duplicateOf?: string; message?: string };
 const selectClass = styles.select;
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -49,6 +52,8 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
   const [composer, setComposer] = useState<{ documentId: string; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const lock = useRef(false);
+  const manuallyAssigned = useRef(new Set<string>());
+  const editedDrafts = useRef(new Set<string>());
   const available = documents.filter(d => !consumed.includes(d.id));
   const receipts = available.filter(d => anchors.includes(d.id));
   const supporting = available.filter(d => !anchors.includes(d.id));
@@ -60,6 +65,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
   const finished = uploads.filter(u => u.status === "done" || u.status === "error").length;
 
   function assign(documentId: string, receiptId: string) {
+    manuallyAssigned.current.add(documentId);
     setAssignments(previous => ({ ...previous, [documentId]: receiptId }));
     setConfirmations(previous => ({ ...previous, [assignments[documentId] || ""]: false, [receiptId]: false }));
   }
@@ -73,42 +79,44 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
     // Preserve deliberate assignments, including an explicit Unassigned selection.
     const next = { ...assignments };
     for (const suggestion of data.suggestions) {
-      if (!(suggestion.document_id in next)) next[suggestion.document_id] = suggestion.suggested_receipt_id && receiptIds.includes(suggestion.suggested_receipt_id) ? suggestion.suggested_receipt_id : "";
+      if (!manuallyAssigned.current.has(suggestion.document_id)) next[suggestion.document_id] = suggestion.suggested_receipt_id && receiptIds.includes(suggestion.suggested_receipt_id) ? suggestion.suggested_receipt_id : "";
     }
     setAssignments(next);
     setConfirmations({});
     setDrafts(previous => {
       const updated = { ...previous };
       for (const receipt of all.filter(d => receiptIds.includes(d.id))) {
-        updated[receipt.id] ??= defaults(receipt, all.filter(d => next[d.id] === receipt.id));
+        if (!editedDrafts.current.has(receipt.id)) updated[receipt.id] = defaults(receipt, all.filter(d => next[d.id] === receipt.id));
       }
       return updated;
     });
   }
 
-  async function upload(files: File[]) {
+  async function upload(files: File[], sources: SourceKind[] = []) {
     if (!files.length) return;
     if (uploads.length + files.length > 12) throw new Error("This inbox supports up to 12 files per session. Refresh to start another batch after saving your claims.");
-    const items = files.map(file => ({ id: crypto.randomUUID(), name: file.name, status: "queued" as const }));
+    const items = files.map((file, index) => ({ source: sources[index] || "upload" as SourceKind, id: crypto.randomUUID(), name: file.name, status: "queued" as const }));
     setUploads(previous => [...previous, ...items]);
     setUploadOpen(false);
     const pendingHashes = new Map(documents.map(document => [document.sha256, Promise.resolve(document)]));
     const added: InboxDocument[] = [];
     let cursor = 0;
-    setBusy("Reading paperwork…");
+    setBusy("Reading source files…");
     async function worker() {
       while (cursor < files.length) {
         const index = cursor++;
         const file = files[index], item = items[index];
         const update = (patch: Partial<UploadItem>) => setUploads(previous => previous.map(u => u.id === item.id ? { ...u, ...patch } : u));
         update({ status: "reading" });
+        recordSourceActivity({ id: item.id, name: item.name, source: item.source, status: "reading", at: Date.now() });
         try {
-          if (!file.size || file.size > 8 * 1024 * 1024 || !["application/pdf", "image/png", "image/jpeg"].includes(file.type)) throw new Error("Use a PDF, PNG, or JPG up to 8 MB.");
+          if (!file.size || file.size > 8 * 1024 * 1024 ) throw new Error("Choose a file up to 8 MB. Text exports must be under 100 KB.");
           const contentHash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), b => b.toString(16).padStart(2, '0')).join('');
           const duplicate = pendingHashes.get(contentHash);
           if (duplicate) {
             const document = await duplicate;
             update({ status: document.error ? 'error' : 'done', message: document.error || 'Repeated copy · counted once', duplicateOf: document.id, documentId: document.id });
+            recordSourceActivity({ id: item.id, name: item.name, source: item.source, status: document.error ? "failed" : "parsed", at: Date.now() });
             continue;
           }
           const body = new FormData();
@@ -116,10 +124,11 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
           const reading = json<InboxDocument>("/api/inbox", { method: "POST", body });
           pendingHashes.set(contentHash, reading);
           const document = await reading;
+          recordSourceActivity({ id: item.id, name: item.name, source: item.source, status: document.error ? "failed" : "parsed", at: Date.now() });
           added.push(document);
           setDocuments(previous => [...previous, document]);
           update({ status: document.error ? "error" : "done", documentId: document.id, message: document.error || undefined });
-        } catch (e) { update({ status: "error", message: e instanceof Error ? e.message : "Upload failed." }); }
+        } catch (e) { update({ status: "error", message: e instanceof Error ? e.message : "Upload failed." }); recordSourceActivity({ id: item.id, name: item.name, source: item.source, status: "failed", at: Date.now() }); }
       }
     }
     await Promise.all([worker(), worker()]);
@@ -145,15 +154,14 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
     finally { lock.current = false; setBusy(""); }
   }
 
-  async function samples() {
-    setBusy("Loading sample paperwork…");
-    const { samples } = await json<{ samples: { name: string; url: string; file_type?: string }[] }>("/api/inbox/samples");
+  async function samples(samples: SourceSample[]) {
+    setBusy("Loading source inputs…");
     const files = await Promise.all(samples.map(async sample => {
       const response = await fetch(sample.url);
-      if (!response.ok) throw new Error("Could not load sample paperwork.");
-      return new File([await response.blob()], sample.name, { type: sample.file_type || response.headers.get("content-type") || "application/pdf" });
+      if (!response.ok) throw new Error("Could not load sample inputs.");
+      return new File([await response.blob()], sample.name, { type: sample.file_type });
     }));
-    await upload(files);
+    await upload(files, samples.map(sample => sample.source));
   }
 
   async function confirm(event: FormEvent<HTMLFormElement>, receipt: InboxDocument) {
@@ -171,6 +179,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
         body: JSON.stringify({ receipt_id: receipt.id, supporting_ids: selected.map(d => d.id), confirmed: true,
           submission: { attendee_name: draft.attendee_name, email: draft.email, amount_requested_minor: String(cents), currency: "USD", category: draft.category, origin_location: draft.origin_location } }),
       });
+      for (const item of uploads.filter(item => [receipt.id, ...selected.map(d => d.id)].includes(item.documentId || ""))) recordSourceActivity({ id: item.id, name: item.name, source: item.source, status: "confirmed", at: Date.now() });
       setResults(previous => [...previous, result]);
       setConsumed(previous => [...previous, receipt.id, ...selected.map(d => d.id)]);
       setAnchors(previous => previous.filter(id => id !== receipt.id));
@@ -184,22 +193,23 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
       <span data-active={!!documents.length && !results.length}><Link2 aria-hidden="true" />Understand the connections</span><ArrowRight className={styles.journeyArrow} aria-hidden="true" />
       <span data-active={!!results.length}><CheckCircle2 aria-hidden="true" />Take the next step</span>
     </div>
-    <details className={styles.uploadDisclosure} open={uploadOpen} onToggle={event => setUploadOpen(event.currentTarget.open)}><summary><Upload size={15} aria-hidden="true" />{uploads.length ? "Add more paperwork" : "Add source files"}<span>Photos · bookings · email PDFs</span><ChevronDown size={14} aria-hidden="true" /></summary>
+    <SourceWorkbench documents={documents} busy={!!busy} onRead={selected => void run(() => samples(selected))}>
+    <details className={styles.uploadDisclosure} open={uploadOpen} onToggle={event => setUploadOpen(event.currentTarget.open)}><summary><Upload size={15} aria-hidden="true" />{uploads.length ? "Add more files" : "Add source files"}<span>Documents · photos · exports</span><ChevronDown size={14} aria-hidden="true" /></summary>
     <section className={styles.uploadPanel} aria-labelledby="upload-heading">
       <div className={styles.uploadIntro}>
-        <h2 id="upload-heading">Bring the whole paper trail.</h2>
-        <p>Receipt photos, bookings, and email PDFs can arrive together. No renaming or sorting needed.</p>
+        <h2 id="upload-heading">Drop in your files.</h2>
+        <p>Add receipts, form exports, messages, and booking documents together. Sift reads the evidence and finds the connections.</p>
       </div>
       <div className={`${styles.dropZone} ${dragging ? styles.dragging : ''}`} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); if (!busy && mode !== 'unconfigured') void run(() => upload(Array.from(event.dataTransfer.files))); }}>
         <Upload size={22} aria-hidden="true" />
-        <Label htmlFor="paperwork">Drop paperwork here, or choose files</Label>
-        <input id="paperwork" type="file" multiple accept="application/pdf,image/png,image/jpeg" disabled={!!busy || mode === "unconfigured" || uploads.length >= 12} aria-label="Upload receipts, bookings, or email PDFs" aria-describedby="paperwork-help" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; void run(() => upload(files)); }} />
-        <p id="paperwork-help">PDF, PNG, JPG · 8 MB each · up to 12 files · fictional data only</p>
+        <Label htmlFor="paperwork">Drop files here, or choose files</Label>
+        <input id="paperwork" type="file" multiple disabled={!!busy || mode === "unconfigured" || uploads.length >= 12} aria-label="Upload source files" aria-describedby="paperwork-help" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; void run(() => upload(files)); }} />
+        <p id="paperwork-help">PDF, PNG, JPG, CSV, TXT, EML · up to 12 files · 8 MB each (text: 100 KB) · fictional data</p>
       </div>
-      <div className={styles.sampleAction}><Button variant="outline" disabled={!!busy || mode === "unconfigured" || uploads.length > 0} onClick={() => void run(samples)}>Try sample paperwork</Button><small>Mixed sources, a repeated attachment, and real questions to resolve.</small></div>
     </section></details>
+    </SourceWorkbench>
     {error && <div role="alert" className={styles.error}>{error}</div>}
-    <div className={styles.progressLine} role="status" aria-live="polite">
+    <div className={styles.progressLine} id="source-results" role="status" aria-live="polite">
       {busy ? <><LoaderCircle className="motion-safe:animate-spin" size={16} aria-hidden="true" />{busy} <span>{finished} of {uploads.length} files read</span></> : documents.length ? <><CheckCircle2 size={16} aria-hidden="true" />{available.length} unique documents in this inbox{duplicates > 0 && <span>{duplicates} repeated {duplicates === 1 ? 'copy' : 'copies'} counted once</span>}</> : <>Your files stay together. Claims are created only when you confirm.</>}
     </div>
     {!!uploads.length && <div className={styles.board}>
@@ -210,7 +220,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
           const document = documents.find(d => d.id === (item.duplicateOf || item.documentId));
           const Icon = item.name.match(/\.(png|jpe?g)$/i) ? FileImage : document?.evidence?.document_kind === 'email' ? Mail : FileText;
           return <li key={item.id} data-failed={item.status === 'error'} data-duplicate={!!item.duplicateOf}>
-            <div className={styles.fileIcon}>{item.status === 'reading' ? <LoaderCircle size={18} className="motion-safe:animate-spin" aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}</div>
+            <div className={styles.fileIcon}>{item.source !== "upload" && item.status !== "reading" ? <SourceIcon source={item.source} size={20} /> : item.status === 'reading' ? <LoaderCircle size={18} className="motion-safe:animate-spin" aria-hidden="true" /> : <Icon size={18} aria-hidden="true" />}</div>
             <div>{item.documentId ? <a href={`/api/inbox/${item.documentId}`} target="_blank" rel="noreferrer">{item.name}<ArrowUpRight size={11} aria-hidden="true" /></a> : <strong>{item.name}</strong>}<small>{item.message || (item.status === 'done' ? document?.evidence?.document_kind.replaceAll('_', ' ') || 'Read' : item.status === 'reading' ? 'Reading…' : 'Queued')}</small></div>
           </li>;
         })}</ul>
@@ -226,7 +236,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
         {busy && !summaries.length && <div className={styles.waiting}><Link2 size={28} aria-hidden="true" /><h3>Reading the evidence</h3><p>Each finished file appears on the left. Suggested cases appear when the batch is read.</p></div>}
         {summaries.map(({ receipt, summary }) => {
           const draft = drafts[receipt.id], selected = linked(receipt.id);
-          const update = (field: keyof Draft, value: string) => { setDrafts(previous => ({ ...previous, [receipt.id]: { ...previous[receipt.id], [field]: value } })); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); };
+          const update = (field: keyof Draft, value: string) => { editedDrafts.current.add(receipt.id); setDrafts(previous => ({ ...previous, [receipt.id]: { ...previous[receipt.id], [field]: value } })); setConfirmations(previous => ({ ...previous, [receipt.id]: false })); };
           return <article key={receipt.id} className={styles.case} data-state={summary.state} aria-label={`Case for ${receipt.evidence?.facts.names[0] || 'unknown traveler'}: ${receipt.filename}`}>
             <details>
               <summary className={styles.caseSummary}>

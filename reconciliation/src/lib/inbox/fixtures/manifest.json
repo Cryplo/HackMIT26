@@ -104,7 +104,7 @@
         "category": null,
         "origin_location": null
       },
-      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket A\nNew York → Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90A\n\nDeparture: 09:10 / September 18, 2026\n1 adult / seat 12A\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket A\nNew York \u2192 Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90A\n\nDeparture: 09:10 / September 18, 2026\n1 adult / seat 12A\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
     }
   },
   {
@@ -131,7 +131,7 @@
         "category": null,
         "origin_location": null
       },
-      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket B\nNew York → Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90B\n\nDeparture: 14:30 / September 18, 2026\n1 adult / seat 18B\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket B\nNew York \u2192 Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90B\n\nDeparture: 14:30 / September 18, 2026\n1 adult / seat 18B\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
     }
   },
   {
@@ -265,6 +265,33 @@
         "origin_location": null
       },
       "raw_extracted_text": "COMMUNITY BUILD WEEKEND\nWeekend agenda\n\nDraft v3 / activities and room assignments\n\nBring your laptop and your curiosity.\nAll sessions take place in the main event hall.\nTime\tActivity\n09:00\tDoors open and breakfast\n10:00\tProject introductions\n12:30\tLunch and team check-ins\n17:00\tProject demonstrations\n\nThis is an event schedule, not a purchase record or reimbursement request.\n\nPlease leave the event hall tidy. Questions? Visit the welcome table.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "event-form-response.csv",
+    "asset": "event-form-response.csv",
+    "file_type": "text/csv",
+    "evidence": {
+      "document_kind": "other",
+      "facts": {
+        "vendor": "Harbor Hotel",
+        "booking_reference": "STAY-AVA-901",
+        "receipt_number": null,
+        "names": [
+          "Ava Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": null
+      },
+      "request": {
+        "attendee_name": "Ava Demo",
+        "email": "ava@example.invalid",
+        "amount_requested_minor": 19000,
+        "category": "hotel",
+        "origin_location": "Providence"
+      },
+      "raw_extracted_text": "Name,Email,Category,Traveling from,Merchant,Purchase date,Booking reference,Receipt number,Requested amount,Currency\nAva Demo,ava@example.invalid,hotel,Providence,Harbor Hotel,2026-09-18,STAY-AVA-901,HH-901,190.00,USD\n"
     }
   }
 ]

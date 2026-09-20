@@ -6,24 +6,30 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   page.on('request', r => { if (r.url().endsWith('/api/inbox') && r.method() === 'POST') uploadCalls++; });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/overview');
-  const sources = page.getByRole('region', { name: 'Data sources' });
-  await expect(sources.getByRole('link', { name: /Google Forms/ })).toBeVisible();
-  await expect(sources.getByRole('link', { name: /Dropbox folder/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Data sources', exact: true })).toHaveCount(0);
   await expect(page.getByText('Loading saved claims…')).not.toBeVisible();
-  await expect(sources).toContainText('no accounts connected');
-  await expect(sources.getByRole('link', { name: /Google Forms/ })).toHaveAttribute('href', '/submit');
-  await expect(page.getByRole('region', { name: 'Sources into the audit' })).toBeVisible();
+  const flow = page.getByRole('region', { name: 'Sources into the audit' });
+  await expect(flow).toBeVisible();
   await expect(page.locator('[data-flow-edge="sources-waiting"]')).toHaveCount(1);
   await expect(page.locator('[data-flow-edge]')).toHaveCount(9);
   await page.screenshot({ path: test.info().outputPath('sources-dashboard.png'), fullPage: true });
-  await sources.getByRole('link', { name: 'Explore sample inputs' }).click();
-  await expect(page.getByRole('heading', { name: 'From scattered inputs to review-ready cases.' })).toBeVisible();
-  await page.getByRole('button', { name: 'Try sample paperwork' }).click();
-  await expect(page.getByRole('status').first()).toContainText('9 unique documents', { timeout: 30000 });
+  await flow.getByRole('link', { name: 'Manage sources' }).click();
+  await expect(page.getByRole('heading', { name: 'Your sources. One place to make sense of them.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Connect', exact: true })).toHaveCount(3);
+  await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+  await expect(page.getByRole('dialog')).toContainText('Account connection is not enabled');
+  await page.getByRole('button', { name: 'Explore sample data' }).click();
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await expect(page.getByText('event-form-response.csv', { exact: true }).last()).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('source-explorer-before.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 30000 });
   await expect(page.getByRole('status').first()).toContainText('1 repeated copy counted once');
-  expect(uploadCalls).toBe(9);
+  expect(uploadCalls).toBe(10);
   await expect(page.getByLabel('Intake outcomes')).toContainText('1ready to confirm');
   await expect(page.getByLabel('Intake outcomes')).toContainText('1amount to resolve');
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 190.00');
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('Receipt total');
   const ava = page.getByRole('article', { name: 'Case for Ava Demo: scan-017.pdf', exact: true });
   const maya = page.getByRole('article', { name: 'Case for Maya Demo: IMG_2048.png', exact: true });
   await expect(ava.getByText('Amount differs', { exact: true })).toBeVisible();
@@ -54,7 +60,7 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   await ava.locator('summary').first().click();
   await expect(ava.getByText('$190.00', { exact: true })).toBeVisible();
   await expect(ava.getByText('$180.00', { exact: true })).toBeVisible();
-  await expect(ava.getByText('Booking STAY-AVA-901')).toHaveCount(3);
+  await expect(ava.getByText('Booking STAY-AVA-901')).toHaveCount(4);
   await ava.getByText('Edit request details', { exact: true }).click();
   await expect(ava.getByLabel('Requested amount · USD')).toHaveValue('190.00');
   await ava.getByRole('checkbox').check();
@@ -81,7 +87,7 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   expect(saved.decision_status).toBe('pending');
   expect(saved.decisions.find((d: { field_checked: string }) => d.field_checked === 'amount').verdict).toBe('fail');
   const support = await (await request.get(`/api/submissions/${result.submission_id}/supporting-documents`)).json();
-  expect(support.documents).toHaveLength(2);
+  expect(support.documents).toHaveLength(3);
   const receipt = await request.get(`/api/receipts/${result.receipt_id}`);
   expect(receipt.status()).toBe(200); expect((await receipt.body()).subarray(0, 5).toString()).toBe('%PDF-');
 
@@ -95,22 +101,25 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   await expect(page.getByRole('link', { name: 'Open saved claim' })).toHaveCount(2);
   await page.getByRole('link', { name: 'Open saved claim' }).first().click();
   await expect(page).toHaveURL(new RegExp(`claim=${result.submission_id}`));
+  await page.goto('/overview');
+  await expect(page.getByRole('region', { name: 'Sources into the audit' })).toContainText('source files linked to saved cases');
+  await page.screenshot({ path: test.info().outputPath('sources-dashboard-after.png'), fullPage: true });
   expect(errors).toEqual([]);
 });
 
 test('mobile sources and results fit; unknown formats and unlinked files stay visible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/overview');
-  await expect(page.getByRole('region', { name: 'Data sources' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Sources into the audit' })).toBeVisible();
   await expect(page.locator('[data-flow-edge="sources-waiting"]')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('sources-mobile.png'), fullPage: true });
   await page.goto('/import');
-  await page.getByLabel('Upload receipts, bookings, or email PDFs').setInputFiles({ name: 'mail.eml', mimeType: 'message/rfc822', buffer: Buffer.from('From: demo@example.invalid') });
-  await expect(page.getByText('Use a PDF, PNG, or JPG up to 8 MB.')).toBeVisible();
+  await page.getByLabel('Upload source files').setInputFiles({ name: 'archive.zip', mimeType: 'application/zip', buffer: Buffer.from('not a zip') });
+  await expect(page.getByText('Supported formats: PDF, PNG, JPG, CSV, TXT, and EML. This file could not be read.')).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Try sample paperwork' }).click();
-  await expect(page.getByRole('status').first()).toContainText('9 unique documents', { timeout: 30000 });
+  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 30000 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByText('1 file without a supported connection').click();
   await expect(page.getByRole('link', { name: 'weekend-agenda-v3.pdf', exact: true }).last()).toBeVisible();
@@ -119,4 +128,33 @@ test('mobile sources and results fit; unknown formats and unlinked files stay vi
   await expect(maya.getByRole('img')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('inbox-mobile.png'), fullPage: true });
+  await page.setViewportSize({ width: 820, height: 1000 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('source reading is visible across tabs and later receipts link to earlier requests', async ({ page, context }) => {
+  await page.goto('/import');
+  const overview = await context.newPage();
+  await overview.goto('/overview');
+  let release: (() => void) | undefined;
+  await page.route('**/api/inbox', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.continue(); });
+  await page.getByRole('button', { name: 'Parse this input' }).click();
+  const flow = overview.getByRole('region', { name: 'Sources into the audit' });
+  try { await expect(flow).toContainText('Reading 1 input'); await expect.poll(() => typeof release).toBe('function'); }
+  finally { release?.(); }
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 190.00');
+  await expect(flow).toContainText('1 parsed');
+  await expect(page.getByRole('button', { name: 'Read remaining inputs' })).toBeEnabled();
+  await page.getByRole('group', { name: 'Sample source' }).getByRole('button', { name: 'File upload' }).click();
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 190.00');
+  await page.unroute('**/api/inbox');
+  await page.getByRole('group', { name: 'Sample source' }).getByRole('button', { name: 'Dropbox' }).click();
+  await page.getByRole('button', { name: 'scan-017.pdf PDF', exact: true }).click();
+  await page.getByRole('button', { name: 'Parse this input' }).click();
+  const ava = page.getByRole('article', { name: 'Case for Ava Demo: scan-017.pdf', exact: true });
+  await expect(ava).toContainText('1 supporting file');
+  await expect(ava.getByText('Amount differs', { exact: true })).toBeVisible();
+  await ava.locator('summary').first().click();
+  await expect(ava.getByText('$190.00', { exact: true })).toBeVisible();
+  await expect(ava.getByText('$180.00', { exact: true })).toBeVisible();
 });

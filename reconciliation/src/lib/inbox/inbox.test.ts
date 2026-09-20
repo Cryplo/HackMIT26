@@ -4,6 +4,7 @@ import { mkdtemp, rm, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { inboxFileType } from './file-types';
 import { inboxSamples } from './samples';
 import { suggestLinks } from './matching';
 import { confirmImport, stageUpload, inboxOriginal } from './service';
@@ -19,7 +20,7 @@ import type { InboxDocument } from './schema';
 
 function request(bytes: Uint8Array, name = 'unlinked.pdf', origin = 'http://localhost:3199') {
   const body = new FormData();
-  body.set('file', new File([new Uint8Array(bytes)], name, { type: bytes[0] === 137 ? 'image/png' : 'application/pdf' }));
+  body.set('file', new File([new Uint8Array(bytes)], name, { type: name.endsWith('.csv') ? 'text/csv' : bytes[0] === 137 ? 'image/png' : 'application/pdf' }));
   return new Request('http://localhost:3199/api/inbox', { method: 'POST', headers: { origin }, body });
 }
 const sampleDocs = (): InboxDocument[] => inboxSamples().map(s => ({ id: randomUUID(), filename: s.name, evidence: s.evidence, file_type: 'application/pdf', sha256: '', error: null, provenance: 'simulated', latency_ms: null }));
@@ -56,7 +57,7 @@ test('real private upload → match → confirm → review preserves discrepancy
   process.env.RECONCILIATION_APP_ORIGIN = 'http://localhost:3199';
   try {
     const staged: InboxDocument[] = [];
-    for (const sample of inboxSamples()) staged.push(await stageUpload(request(sample.bytes), 'demo', path.join(dir, 'inbox')));
+    for (const sample of inboxSamples()) staged.push(await stageUpload(request(sample.bytes, sample.name), 'demo', path.join(dir, 'inbox')));
     assert.ok(staged.every(s => !s.error && s.evidence));
     assert.equal(staged[0].evidence!.request.amount_requested_minor, null, 'receipt total must not fabricate requested amount');
     assert.deepEqual((await inboxOriginal(staged[0].id, path.join(dir, 'inbox'))).bytes, inboxSamples()[0].bytes);
@@ -126,7 +127,23 @@ test('live extraction uses inbox schema, keeps request amount separate, and expo
       return Response.json({ status: 'completed', model: 'mock', usage: { input_tokens: 10, output_tokens: 20 }, output: [{ content: [{ type: 'output_text', text: JSON.stringify(sample.evidence) }] }] });
     }, { inbox: true });
     assert.equal(calls, 1); assert.equal(result.inbox!.request.amount_requested_minor, 19000); assert.equal(result.inbox!.facts.amount_minor, null);
+    const csv = inboxSamples().find(sample => sample.file_type === 'text/csv')!;
+    const text = await extractReceipt(csv.bytes, 'text/csv', randomUUID(), 'live', async (_url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      assert.equal(payload.input[0].content[1].type, 'input_text');
+      assert.equal(payload.input[0].content[1].text, csv.bytes.toString());
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(csv.evidence) }] }] });
+    }, { inbox: true });
+    assert.equal(text.inbox!.request.amount_requested_minor, 19000);
+    assert.equal(text.inbox!.facts.amount_minor, null);
     const failed = await extractReceipt(sample.bytes, 'application/pdf', randomUUID(), 'live', async () => Response.json({}, { status: 503 }), { inbox: true });
     assert.ok(failed.error); assert.equal(failed.inbox, undefined);
   } finally { keys.forEach((k, i) => { if (prior[i] === undefined) delete process.env[k]; else process.env[k] = prior[i]; }); }
+});
+
+test('text sources validate UTF-8, size, and email headers before extraction', () => {
+  assert.equal(inboxFileType(Buffer.from('Name,Amount\nAva,190'), 'application/octet-stream', 'response.csv'), 'text/csv');
+  assert.equal(inboxFileType(Buffer.from('From: ava@example.invalid\nSubject: Receipt\n\nPlease reimburse 190 USD.'), '', 'thread.eml'), 'message/rfc822');
+  assert.equal(inboxFileType(Buffer.from('Travel note'), '', 'note.txt'), 'text/plain');
+  for (const [bytes, name] of [[Buffer.from([255, 0]), 'a.csv'], [Buffer.from('x'.repeat(100001)), 'a.txt'], [Buffer.from('No mail headers'), 'a.eml'], [Buffer.from('PK binary'), 'a.zip']] as const) assert.throws(() => inboxFileType(bytes, '', name), { code: 'unsupported_file' });
 });

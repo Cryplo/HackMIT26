@@ -2,6 +2,34 @@ import { test, expect } from '@playwright/test';
 import { textPdf } from '../../src/lib/demo/samples';
 import type { InboxDocument } from '../../src/lib/inbox/schema';
 
+test('live CSV and email text sources preserve requested amounts', async ({ page }) => {
+  test.skip(process.env.INBOX_LIVE_SMOKE !== '1', 'Paid live extraction requires INBOX_LIVE_SMOKE=1');
+  test.setTimeout(60000);
+  await page.goto('/import');
+  await expect(page.getByText('Live AI reading · simulated review sandbox')).toBeVisible();
+  const csvRead = page.waitForResponse(response => response.url().endsWith('/api/inbox'));
+  await page.getByRole('button', { name: 'Parse this input' }).click();
+  const csv: InboxDocument = await (await csvRead).json();
+  expect(csv.error).toBeNull();
+  expect(csv.provenance).not.toMatch(/simulated/i);
+  expect(csv.evidence?.request.amount_requested_minor).toBe(19000);
+  expect(csv.evidence?.facts.amount_minor).toBeNull();
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 190.00');
+  await page.locator('summary').filter({ hasText: 'Add more files' }).click();
+  const emailRead = page.waitForResponse(response => response.url().endsWith('/api/inbox'));
+  await page.getByLabel('Upload source files').setInputFiles({ name: 'forwarded-request.eml', mimeType: 'message/rfc822', buffer: Buffer.from('From: Nora Trial <nora@example.invalid>\nTo: expenses@example.invalid\nSubject: Juniper Rail reimbursement NORA-731\nContent-Type: text/plain; charset=utf-8\n\nSynthetic fictional example. I request USD 57.00 for my train from Portland on 2026-09-19. Booking NORA-731, receipt JNR-731. The receipt total is USD 55.00. Thanks, Nora Trial.') });
+  const email: InboxDocument = await (await emailRead).json();
+  expect(email.error).toBeNull();
+  expect(email.evidence?.document_kind).toBe('email');
+  expect(email.evidence?.request.amount_requested_minor).toBe(5700);
+  expect(email.evidence?.facts.amount_minor).toBe(5500);
+  await page.getByRole('group', { name: 'Sample source' }).getByRole('button', { name: 'File upload' }).click();
+  await page.getByRole('button', { name: 'forwarded-request.eml Text export', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 57.00');
+  console.log('Live text-source readings', JSON.stringify([csv,email].map(d => ({ name:d.filename, provider:d.provenance, latency_ms:d.latency_ms }))));
+  await page.screenshot({ path: test.info().outputPath('live-form-fields.png'), fullPage: true });
+});
+
 // Explicit paid opt-in. Run only against scripts/inbox-demo.ts --live-extraction.
 test('live mixed originals become grounded cases', async ({ page, request }) => {
   test.skip(process.env.INBOX_LIVE_SMOKE !== '1', 'Paid live extraction requires INBOX_LIVE_SMOKE=1');
@@ -15,12 +43,12 @@ test('live mixed originals become grounded cases', async ({ page, request }) => 
   await page.goto('/import');
   await expect(page.getByText('Live AI reading · simulated review sandbox')).toBeVisible();
   const start = Date.now();
-  await page.getByRole('button', { name: 'Try sample paperwork' }).click();
-  await expect(page.getByRole('status').first()).toContainText('9 unique documents', { timeout: 120000 });
+  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 120000 });
   await expect(page.getByRole('status').first()).toContainText('1 repeated copy counted once');
   const documents = await Promise.all(readings);
   console.log('Live sample batch', JSON.stringify({ elapsed_ms: Date.now() - start, documents: documents.map(d => ({ filename: d.filename, provenance: d.provenance, latency_ms: d.latency_ms, kind: d.evidence?.document_kind, error: d.error })) }));
-  expect(documents).toHaveLength(9);
+  expect(documents).toHaveLength(10);
   for (const doc of documents) { expect(doc.error).toBeNull(); expect(doc.provenance).not.toMatch(/simulated/i); }
   const ava = page.getByRole('article', { name: 'Case for Ava Demo: scan-017.pdf', exact: true });
   const maya = page.getByRole('article', { name: 'Case for Maya Demo: IMG_2048.png', exact: true });
@@ -62,7 +90,7 @@ test('unseen live documents preserve discrepancy', async ({ page }) => {
   });
   await page.goto('/import');
   await expect(page.getByText('Live AI reading · simulated review sandbox')).toBeVisible();
-  await page.getByLabel('Upload receipts, bookings, or email PDFs').setInputFiles([
+  await page.getByLabel('Upload source files').setInputFiles([
     { name: 'random-scan-731.pdf', mimeType: 'application/pdf', buffer: textPdf(['SYNTHETIC DEMO RECEIPT - FICTIONAL', 'Juniper Rail', 'Traveler: Nora Trial', 'Date: 2026-09-19', 'Receipt: JNR-731; booking: NORA-731', 'Train from Portland. Total paid: USD 55.00']) },
     { name: 'forwarded-note.pdf', mimeType: 'application/pdf', buffer: textPdf(['SYNTHETIC DEMO EMAIL - FICTIONAL', 'From: Nora Trial <nora@example.invalid>', 'To: event organizer', 'Subject: Reimbursement for Juniper Rail booking NORA-731', 'Please reimburse USD 57.00 for my train from Portland.', 'Travel date: 2026-09-19. Receipt JNR-731 attached.', 'Thanks, Nora Trial']) },
   ]);

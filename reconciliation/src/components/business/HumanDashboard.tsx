@@ -19,7 +19,6 @@ import { LearningStatus } from "./ProcedurePanel";
 import { ReviewSheet } from "./ReviewSheet";
 import { AuditClaimsDialog } from "./AuditClaimsDialog";
 import { AuditFlow } from "./AuditFlow";
-import { PaperworkSources } from "./PaperworkSources";
 import styles from "./human-dashboard.module.css";
 
 export default function HumanDashboard({ preview = false }: { preview?: boolean }) {
@@ -127,7 +126,6 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
     </header>
     {preview && <p className={styles.notice}>Synthetic preview. Claims, agent activity, and decisions here are simulated.</p>}
     {!preview && data?.demo_mode && <p className={styles.demoNote}>Demo workspace · Fictional claims and simulated checks</p>}
-    <PaperworkSources />
     {error && <p role="alert" className={styles.error}>{error} Use Refresh to try again.</p>}
     {notice && <p role="status" className={styles.notice}>{notice}</p>}
     {batchError && <p role="alert" className={styles.error}>{batchError}</p>}

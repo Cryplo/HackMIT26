@@ -6,7 +6,8 @@ import path from 'node:path';
 import { z } from 'zod';
 import { extractReceipt, type ExtractionResult } from '../intake/extract';
 import { boundedMultipart } from '../intake/http';
-import { detectType, IntakeError, MAX_FILE_BYTES, type Claim, type Receipt } from '../intake/schema';
+import { IntakeError, MAX_FILE_BYTES, type Claim, type Receipt } from '../intake/schema';
+import { inboxFileType } from './file-types';
 import type { IntakeStore } from '../intake/store';
 import { uploadSupporting, type SupportingOriginals } from '../intake/supporting-documents';
 import type { CoreService } from '../core/service';
@@ -51,7 +52,7 @@ export async function stageUpload(request: Request, mode: 'demo' | 'live', dir =
   const file = form.get('file');
   if (!(file instanceof File) || !file.size || file.size > MAX_FILE_BYTES) throw new IntakeError('invalid_file', 'Choose a nonempty PDF, PNG, or JPG up to 8 MiB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const fileType = detectType(bytes, file.type), id = randomUUID();
+  const fileType = inboxFileType(bytes, file.type, file.name), id = randomUUID();
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await writeFile(filename(dir, id, 'bin'), bytes, { mode: 0o600, flag: 'wx' });
   const extraction = await extract(bytes, fileType, id, mode, fetch, { inbox: true, signal: request.signal });

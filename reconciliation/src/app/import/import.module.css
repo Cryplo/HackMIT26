@@ -10,7 +10,7 @@
 .uploadPanel { display: grid; grid-template-columns: .9fr 1.1fr; gap: 14px 32px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 26px; }
 .uploadIntro { align-self: center; }
 .uploadIntro p { max-width: 350px; margin-top: 10px; line-height: 1.7; font-size: 13px; color: var(--muted); }
-.uploadIntro .mode { display: inline-block; margin-top: 14px; padding: 5px 9px; background: #f0f5f1; border-radius: 4px; font-size: 10px; }
+.workspace > .mode { display: inline-block; margin-top: 14px; padding: 5px 9px; background: #f0f5f1; border-radius: 4px; font-size: 10px; }
 .dropZone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border: 1px dashed #a8c3b2; border-radius: 10px; padding: 18px; background: #f7faf7; min-width: 0; transition: background .15s; }
 .dragging { background: #e3f2e8; outline: 2px solid var(--green); }
 .dropZone > label { font-size: 12px; text-align: center; }

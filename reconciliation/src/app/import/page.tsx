@@ -16,8 +16,8 @@ export default function ImportPage() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
         <div className="mb-7 max-w-2xl">
           <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><Files className="size-4" aria-hidden="true" />Data sources</p>
-          <h1 className="text-3xl font-semibold tracking-tight">From scattered inputs to review-ready cases.</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">Preview email and Dropbox folder inputs with sample files, or upload your own synthetic documents. Organize the evidence, confirm cases, and send them into the audit.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Your sources. One place to make sense of them.</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Connect the places your work lives, or drop in files. Explore sample inputs and watch them become linked evidence and review-ready cases.</p>
         </div>
         <ImportWorkspace simulatedReview={process.env.RECONCILIATION_MODE === "simulated"} mode={mode === "demo" ? "demo" : mode === "live" ? "live" : "unconfigured"} />
       </div>

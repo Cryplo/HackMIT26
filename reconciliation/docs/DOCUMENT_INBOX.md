@@ -1,6 +1,6 @@
 # Document inbox demo
 
-The `/import` page accepts up to 12 synthetic PDFs/PNGs/JPGs, at most 8 MiB each. Email chains must be exported as PDFs. It reads two files at a time, classifies them, suggests links, and creates ordinary Sift claims only after the reviewer confirms the documents and request details.
+The `/import` Data sources page accepts up to 12 synthetic PDFs/PNGs/JPGs (8 MiB each) and UTF-8 CSV/TXT/EML exports (100 KB each). The picker accepts any file selection; unsupported formats fail visibly. It reads two files at a time, classifies them, suggests links, and creates ordinary Sift claims only after the reviewer confirms the documents and request details.
 
 ## Run the isolated demonstration
 
@@ -10,11 +10,11 @@ Use Node 22.18+ (verified with Node 24.19). From `reconciliation/`:
 npm run demo:inbox -- --port 3017
 ```
 
-Open `http://127.0.0.1:3017/overview`, choose **Explore sample inputs** in the dashboard’s **Data sources** panel, and select **Try sample paperwork**. The launcher creates a fresh private empty claim store, strips provider/database credentials, and leaves existing stores untouched. The sample button downloads ten fictional files (nine unique originals) and uploads them through the normal inbox API. In this demo command, extraction is **simulated, exact-byte authored fixtures**, not OCR. Files with different contents fail visibly rather than inventing extracted facts. Filenames do not drive matching.
+Open `http://127.0.0.1:3017/overview`, choose **Data sources** in the sidebar or **Manage sources** in the audit graph, and select **Read all sample inputs**. The launcher creates a fresh private empty claim store, strips provider/database credentials, and leaves existing stores untouched. The sample button downloads eleven fictional files (ten unique originals) and uploads them through the normal inbox API. In this demo command, extraction is **simulated, exact-byte authored fixtures**, not OCR. Files with different contents fail visibly rather than inventing extracted facts. Filenames do not drive matching.
 
 The pack contains:
 
-- Ava's $180 hotel receipt and matching booking reference; a separate email requests $190. Both documents are suggested for Ava's case. Confirm it and open the saved claim: ordinary checks flag the $10 discrepancy.
+- Ava's $180 hotel receipt and matching booking reference; a separate email and a CSV form response request $190. These three supporting sources are suggested for Ava's case. Confirm it and open the saved claim: ordinary checks flag the $10 discrepancy.
 - Two distinct $120 Maple Rail receipts for Ben on the same date. His email lacks a receipt/reference identifier, so it stays unassigned with two possible matches. Choose the intended receipt, expand the case, then select **Refresh from linked request** before confirming. **Prepare clarification** drafts a source-grounded question naming both receipt numbers; copying it sends nothing.
 
 - Maya’s photographed PNG bus receipt and request email produce a complete $42 case. A renamed copy of the same PNG is counted once, with no second extraction call.
@@ -32,7 +32,7 @@ The server saves extraction and original bytes before confirmation. Confirmation
 
 ## Deliberate demo limits
 
-- No Dropbox/Gmail connector, mailbox sync, raw `.eml`, ZIP, or multi-expense splitting. A PDF should describe one purchase/request; ambiguous fields remain unknown.
+- No Dropbox/Gmail/Forms account connection, mailbox sync, ZIP/Office parsing, or multi-expense splitting. CSV should contain one response; EML supports readable text exports, not MIME attachment decoding. Each document should describe one purchase/request; ambiguous fields remain unknown.
 - The inbox is private server-local staging under the system temp directory (override `RECONCILIATION_INBOX_DIR` with a private absolute path). Claim storage still uses the existing local/Supabase configuration. Multiple replicas/serverless instances need shared staging before this feature can be used there.
 - Keep the import tab open. Unsaved grouping/form edits are browser memory; originals/extraction are on disk, but there is no inbox history/recovery UI or automatic cleanup. This is synthetic data only.
 - Exclusive per-document reservations prevent double confirmation without a global lock. A process killed mid-confirmation leaves that specific attempt reserved for inspection; unrelated imports can continue. A caught partial save marks the primary receipt failed when storage is available. A partial import is not silently retried or reported as success.
@@ -49,7 +49,7 @@ npm run typecheck
 npm run build
 ```
 
-Use only an isolated synthetic demo server for browser tests. These tests upload additional claims; they never reset a store. Backend coverage includes exact source bytes, private permissions, saved supporting evidence, amount mismatch, ambiguous matching, repeated confirmation, partial failure reservation, invalid files/origin, and provider failure. Browser tests cover dashboard entry, mixed sources, nine calls for ten files, clarification copy, grouping, correcting ambiguity, confirmation acknowledgement invalidation, ordinary review, loaded PNG evidence, and mobile overflow.
+Use only an isolated synthetic demo server for browser tests. These tests upload additional claims; they never reset a store. Backend coverage includes exact source bytes, private permissions, saved supporting evidence, amount mismatch, ambiguous matching, repeated confirmation, partial failure reservation, invalid files/origin, and provider failure. Browser tests cover dashboard entry, mixed sources, ten calls for eleven files, clarification copy, grouping, correcting ambiguity, confirmation acknowledgement invalidation, ordinary review, loaded PNG evidence, and mobile overflow.
 
 An optional **paid** live smoke check makes three synthetic extraction calls without writing claims or connecting to the database:
 
@@ -66,22 +66,26 @@ NEXT_DIST_DIR=.next-paperwork-live node --env-file=.env.local --conditions=react
 INBOX_LIVE_SMOKE=1 DASHBOARD_BASE_URL=http://127.0.0.1:3021 npx playwright test tests/ui/inbox-live.spec.ts
 ```
 
-This makes eleven extraction calls: nine mixed sample originals, then two newly authored documents outside the fixture pack. It saves synthetic claims locally and tests the ordinary simulated review handoff; it does not validate live financial assessment. Live labels and failures remain visible. Run once against a fresh server to avoid repeat-upload duplicate assessments. Restarting the launcher creates a new isolated store; do not use the dashboard’s general **Reset demo**, which seeds the separate 14-claim showcase.
+The complete opt-in live suite makes fourteen extraction calls: ten mixed originals, two newly authored PDFs, and two CSV/EML reads. Use `--grep "CSV and email"` for only the two text-source reads. It saves synthetic claims locally and tests the ordinary simulated review handoff; it does not validate live financial assessment. Live labels and failures remain visible. Run once against a fresh server to avoid repeat-upload duplicate assessments. Restarting the launcher creates a new isolated store; do not use the dashboard’s general **Reset demo**, which seeds the separate 14-claim showcase.
 
 ## Demo data-source routes
 
-The dashboard previews Google Forms, Email, and a Dropbox folder with explicit demo badges and “no accounts connected.” Google Forms opens Sift’s existing synthetic claim form; Email and Dropbox open the same sample-file inbox. These are working demo destinations, not OAuth connections or background sync. The audit diagram shows a static source-input node feeding Waiting after evidence organization and confirmation; queue counts and downstream animations still come only from actual application state. Confirmation can advance a case through Waiting quickly because review starts automatically.
+The top overview source panel has been removed. `/import` is the source-connection page: Google Forms, Gmail, and Dropbox cards use service icons and open connection mockups. A single sample-workspace note makes clear that accounts are not connected. The sample browser presents a form response, email exports, folder PDFs, and a receipt image beside extraction output. **Parse this input** and **Read all sample inputs** run the real inbox API; the extracted-fields panel displays the actual returned provider and latency, or an explicit authored-simulation label. Preview associations use byte hashes rather than filenames. **Read remaining inputs** works after a single-file read.
+
+The overview graph now contains incoming source cards instead of a second source section. Browser-local activity records uploads, parsing, failures, and saved sources; storage events update another overview tab on the same origin. Source-to-Waiting animation follows a successful case save, with no fabricated model stages. This is a bounded recent-activity view (24 items, one hour), not connector sync or durable audit history. It contains filenames/statuses only. A timed-out reading is shown as needing attention. Confirmation can advance a case through Waiting quickly because review starts automatically.
+
+The extractor remains Azure/OpenAI because the existing Jev adapter consumes already-parsed claim evidence for merchant, identity, and duplicate decisions. Text formats use Responses `input_text`; PDFs and photos retain the existing file/image path. Matching is still deterministic.
 
 ## Two-minute judge walkthrough
 
-1. Start at **Data sources**: “After an event, the evidence arrives as scans, bookings, and forwarded conversations.” Open import and show the original sample files.
-2. Run the batch. Point out nine unique documents and one repeated attachment. The filenames are irrelevant; content connects the evidence.
+1. Start at **Data sources**: “After an event, the evidence arrives as scans, bookings, and forwarded conversations.” Open the source page and browse the form, email, and folder samples before reading them.
+2. Run the batch. Point out ten unique documents and one repeated attachment. The filenames are irrelevant; content connects the evidence.
 3. Open Ava: the email asks for $190, the receipt supports $180, and the booking reference connects the sources. Show both original links. Confirm it and open the saved review to show the preserved discrepancy.
 4. Open Maya: a photographed receipt and request email become a complete $42 claim with no form typing. Confirm it to the existing policy review.
 5. Show Ben: two plausible receipts, no invented answer. **Prepare clarification** turns the unresolved connection into a concrete, unsent follow-up.
 6. Close: “Scattered files become evidence-backed cases, visible exceptions, and the next question to ask.”
 
-This demonstrates the Dropbox brief’s digital-chaos-to-action theme; there is no Dropbox connection. Email inputs are PDFs exported from email, not mailbox sync. See the [sponsor brief](https://docs.google.com/document/d/1JxZA0eiX2iWj_-B5xtCo59FylUDlv3I35n5n8W0aIVs/edit?tab=t.0).
+This demonstrates the Dropbox brief’s digital-chaos-to-action theme; there is no Dropbox connection. Email inputs can be exported PDFs or readable EML files; there is no mailbox sync. See the [sponsor brief](https://docs.google.com/document/d/1JxZA0eiX2iWj_-B5xtCo59FylUDlv3I35n5n8W0aIVs/edit?tab=t.0).
 
 ## Verification recorded September 20, 2026
 
@@ -92,3 +96,5 @@ A first three-file Azure `gpt-5.6-luna` extraction run read amounts correctly bu
 The visual second pass made 20 paid Azure `gpt-5.6-luna` calls: nine mixed originals twice and two newly authored PDFs once. The first mixed run completed all extraction and both claim saves, then hit a test-only exact-text locator error; the corrected mixed test passed. The nine-file batches took 15.4 and 18.0 seconds wall time (two reads concurrently); individual reads took 1.85–5.08 seconds. The new Nora receipt/email pair took 1.95 and 3.45 seconds, matched by content, and preserved $57 requested versus $55 paid. The corrected browser test verified the PNG case, the $10 discrepancy, ambiguous email abstention, duplicate suppression, and ordinary local claim saves. Review remained simulated and no shared database was written. The unrelated agenda was classified as `other` in one run and `itinerary` in another, but remained unlinked; classifications are model output, not a fixed accuracy guarantee.
 
 Data-source visual refinement: connector geometry check, desktop/mobile browser flow, TypeScript, and production build passed. No additional paid extraction calls were needed for this presentation change.
+
+Source-explorer pass: 20 focused inbox/intake checks, connector geometry, three desktop/mobile/cross-tab browser tests, TypeScript, and production build passed. The incremental browser check reads a form first, then a receipt, and verifies that the earlier request links automatically without erasing manual assignments or edited drafts. Three paid Azure calls were made: the initial CSV check exposed an incorrectly copied request amount in the receipt-total field; after clarifying the extraction instruction in both directions, the CSV and unseen EML tests passed at 2,233 ms and 2,691 ms. This verifies those two reads, not general extraction accuracy. Existing PDF/image live results above remain dated evidence; the full live suite was not rerun for this pass.

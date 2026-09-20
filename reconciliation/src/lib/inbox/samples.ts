@@ -9,7 +9,8 @@ import type { InboxEvidence } from './schema';
 export function inboxSamples() {
   return manifest.map(sample => ({
     name: sample.name,
-    file_type: sample.file_type as 'application/pdf' | 'image/png',
+    source: sample.file_type === 'text/csv' ? 'forms' as const : sample.evidence.document_kind === 'email' ? 'email' as const : 'dropbox' as const,
+    file_type: sample.file_type as 'application/pdf' | 'image/png' | 'text/csv',
     bytes: readFileSync(join(process.cwd(), 'src/lib/inbox/fixtures', sample.asset)),
     evidence: InboxExtraction.parse(sample.evidence),
   }));

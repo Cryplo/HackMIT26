@@ -60,7 +60,7 @@ export function useFlowActivity(items: Activity[]) {
 
 const beginMotion = (node: SVGElement | null) => { (node as SVGAnimationElement | null)?.beginElement(); };
 
-export function FlowConnectors({ graph, events }: { graph: RefObject<HTMLDivElement | null>; events: FlowEvent[] }) {
+export function FlowConnectors({ graph, events, sourceArrivalAt = 0 }: { graph: RefObject<HTMLDivElement | null>; events: FlowEvent[]; sourceArrivalAt?: number }) {
   const marker = useId();
   const [layout, setLayout] = useState<{ width: number; height: number; edges: FlowEdge[]; investigation: [number, number] } | null>(null);
   useEffect(() => {
@@ -88,6 +88,10 @@ export function FlowConnectors({ graph, events }: { graph: RefObject<HTMLDivElem
   return <svg className={styles.graphConnectors} width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-hidden="true">
     <defs><marker id={marker} viewBox="0 0 6 6" refX="6" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L6 3L0 6" className={styles.arrowhead} /></marker></defs>
     {layout.edges.map(edge => <path key={`${edge.from}-${edge.to}`} data-flow-edge={`${edge.from}-${edge.to}`} d={pathOf(edge.points)} className={styles.graphEdge} markerEnd={`url(#${marker})`} />)}
+    {sourceArrivalAt > 0 && Date.now() - sourceArrivalAt < 15000 && <circle key={sourceArrivalAt} r="4" className={styles.destinationDot} data-source-arrival="true">
+      <animateMotion ref={beginMotion} begin="indefinite" dur="1.5s" fill="freeze" path={pathOf(layout.edges.find(edge => edge.from === 'sources')!.points)} />
+      <animate attributeName="opacity" values="1;1;0" dur="1.5s" fill="freeze" />
+    </circle>}
     {events.map(event => {
       if (event.from === event.to) return <circle key={event.id} cx={layout.investigation[0]} cy={layout.investigation[1]} r="5" className={styles.stepPulse} style={{ animationDuration: `${event.duration}ms` }} />;
       const edge = layout.edges.find(edge => edge.from === event.from && edge.to === event.to);
