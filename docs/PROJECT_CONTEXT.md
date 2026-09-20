@@ -27,6 +27,8 @@ Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` do
 
 The user now prefers Ramp-inspired compact components with a black-and-white base: white cards, neutral-gray chrome, charcoal text, fine borders, and restrained corners. Use black primary actions, yellow review/inconclusive highlights, green passed/approved states, and red failures/rejections, spinners while work is running, and minimal jargon. Shared colors and radii live in `src/app/theme.css`; do not restore broad sage backgrounds. Summary values remain informational; their headings open expanded claim lists. Audit flow headers also expand, including investigation activity. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
 
+The generated Sift logo is served from `reconciliation/public/sift-logo.png` through the shared `SiftLogo` component in desktop/mobile navigation and the submission header. CSS frames the original transparent artwork. This replacement passed TypeScript checking; browser visual verification remains outstanding.
+
 ## Statuses: keep these separate
 
 | Concept | Meaning |
@@ -95,7 +97,7 @@ Paths below are relative to `reconciliation/`.
 
 Read the caller and shared helper before fixing a symptom. In particular, do not implement another independent count calculation or decision path to patch one page.
 
-Semantic search sends each filtered claim to Jev independently in parallel (up to 100), returning match/no-match without an intent gate or confidence cutoff. It runs on explicit submission, not every keystroke. Rate-limit/provider errors remain visible.
+Semantic search sends each filtered claim to Jev independently in parallel (up to 100), returning match/no-match without an intent gate or confidence cutoff. It runs on explicit submission, not every keystroke. Explicit HTTP 429 responses in search and reconciliation retry up to three times, respecting Retry-After seconds/dates or using exponential backoff with jitter. Retries share the existing request deadline, honor cancellation, and log each attempt (unreported usage stays null). Exhausted rate limits and other provider errors remain visible; search never returns a partial match set.
 
 ## Verification and remaining work
 

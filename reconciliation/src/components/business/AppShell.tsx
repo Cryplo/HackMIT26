@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, LayoutDashboard, Menu, ReceiptText, ScanLine, SearchCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, LayoutDashboard, Menu, ReceiptText, SearchCheck, SlidersHorizontal } from "lucide-react";
+import { SiftLogo } from "@/components/SiftLogo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import styles from "./business.module.css";
@@ -22,7 +23,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
   const navigation = (
     <>
       <Link href={preview ? "/overview?preview=1" : "/overview"} className={styles.brand}>
-        <ScanLine aria-hidden="true" /> Sift
+        <SiftLogo />
       </Link>
       <div className={styles.workspaceLabel}>HackMIT · Travel</div>
       <nav aria-label="Workspace" className={styles.navigation}>
@@ -59,7 +60,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
               {navigation}
             </SheetContent>
           </Sheet>
-          <span>Sift</span>
+          <SiftLogo />
         </div>
         <main id="workspace" className={styles.main} tabIndex={-1}>{children}</main>
       </div>

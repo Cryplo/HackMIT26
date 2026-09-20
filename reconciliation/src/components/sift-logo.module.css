@@ -1,0 +1,19 @@
+/* Frame the original artwork without its transparent outer padding. */
+.logo {
+  position: relative;
+  display: inline-block;
+  width: 132px;
+  height: 51px;
+  flex-shrink: 0;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.image {
+  position: absolute;
+  width: 216px;
+  max-width: none;
+  height: 108px;
+  left: -41px;
+  top: -27px;
+}
