@@ -167,8 +167,8 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
         <details className={styles.modeDetails}>
           <summary>{preview ? "Preview — synthetic data" : data?.demo_mode ? "Demo environment" : "API workspace"}</summary>
           <div className={styles.modePopover}>
-            {preview ? <p>Six fictional claims. Changes stay in this tab and reset on reload. Search and rule tests are simulated.</p> : data ? <dl>{Object.entries(data.execution).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl> : <p>Waiting for the v2 review API. No preview data is used automatically.</p>}
-            <Link href={preview ? "/business-demo" : "/business-demo?preview=1"}>{preview ? "Open API workspace" : "Open synthetic preview"} <ArrowUpRight aria-hidden="true" /></Link>
+            {preview ? <p>Six fictional claims. Changes stay in this tab and reset on reload. Search and rule tests are simulated.</p> : data ? <dl>{Object.entries(data.execution).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl> : <p>Connecting to your claims.</p>}
+
           </div>
         </details>
       </div>
@@ -176,7 +176,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
         <div><h1 tabIndex={-1} data-review-focus-fallback>{view === "reviews" ? "Reimbursements" : "Learned rules"}</h1><p>{view === "reviews" ? "Review claims, compare receipts, and make a clear decision." : "Test and manage the merchant names your team has confirmed."}</p></div>
         {view === "reviews" && <Button asChild><Link href="/submit"><Plus aria-hidden="true" /> New claim</Link></Button>}
       </header>
-      {error && <div role="alert" className={`${styles.error} motion-enter`}><AlertCircle aria-hidden="true" /><div><strong>{error}</strong><p>{data ? "Showing the last successful snapshot. Your selection and open claim are preserved." : "The full review workflow requires the v2 API. You can search stored claims now or explore the synthetic preview."}</p><div className={styles.inlineActions}><Button variant="outline" onClick={() => void refresh().catch(() => {})}>Retry connection</Button><Link href="/search">Search stored claims</Link>{!preview && <Link href="/business-demo?preview=1">Open synthetic preview <ArrowUpRight aria-hidden="true" /></Link>}</div></div></div>}
+      {error && <div role="alert" className={`${styles.error} motion-enter`}><AlertCircle aria-hidden="true" /><div><strong>{error}</strong><p>{data ? "Showing the last successful snapshot. Your selection and open claim are preserved." : "Check the connection and retry. Your stored claims have not been changed."}</p><div className={styles.inlineActions}><Button variant="outline" onClick={() => void refresh().catch(() => {})}>Retry connection</Button></div></div></div>}
       {actionError && <div className={`${styles.error} motion-enter`} role="alert"><AlertCircle aria-hidden="true" /><span>{actionError}</span></div>}
       {notice && <div className={`${styles.notice} motion-enter`} role="status"><span>{notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss update" onClick={() => setNotice("")}><X /></Button></div>}
       <div key={view} className="motion-enter">

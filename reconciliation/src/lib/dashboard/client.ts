@@ -7,10 +7,10 @@ export function createDashboardClient(mode: "api" | "preview"): DashboardClient 
   if (mode === "preview") return createPreviewClient();
   return {
     mode: "api",
-    getReviews: async signal => validateReviews(await api<ReviewsResponse>("/api/reviews", undefined, signal)),
+    getReviews: async signal => validateReviews(await api<ReviewsResponse>("/api/workspace/reviews", undefined, signal)),
     getRules: signal => api("/api/rules", undefined, signal),
-    reconcile: input => api("/api/reconcile", input),
-    decide: input => api("/api/corrections", input),
+    reconcile: input => api("/api/workspace/reconcile", input),
+    decide: input => api("/api/workspace/decisions", input),
     proposeRule: input => api("/api/rules", input),
     testRule: (id, input) => api(`/api/rules/${encodeURIComponent(id)}/test`, input),
     activateRule: (id, input) => api(`/api/rules/${encodeURIComponent(id)}/activate`, input),

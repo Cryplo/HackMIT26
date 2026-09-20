@@ -28,13 +28,13 @@ export function AppShell({ view, onViewChange, preview, children }: {
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>
           <ReceiptText aria-hidden="true" /> Reimbursements
         </button>
-        <button type="button" aria-current={view === "rules" ? "page" : undefined} onClick={() => navigate("rules")}>
+        {preview && <button type="button" aria-current={view === "rules" ? "page" : undefined} onClick={() => navigate("rules")}>
           <SlidersHorizontal aria-hidden="true" /> Learned rules
-        </button>
+        </button>}
       </nav>
       <div className={styles.sidebarBottom}>
-        <Link href="/search"><ReceiptText aria-hidden="true" /> Search stored claims <ArrowUpRight aria-hidden="true" /></Link>
-        <Link href="/demo"><BookOpen aria-hidden="true" /> Demo guide <ArrowUpRight aria-hidden="true" /></Link>
+
+        <Link href="/submit"><ReceiptText aria-hidden="true" /> Submit a claim <ArrowUpRight aria-hidden="true" /></Link>
         <div className={styles.workspaceIdentity}><span aria-hidden="true">H</span><div>HackMIT 2026<small>Organizer workspace</small></div></div>
       </div>
     </>

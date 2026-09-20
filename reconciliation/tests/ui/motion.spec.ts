@@ -10,14 +10,14 @@ test('motion follows real pending work and reduced motion preserves review focus
       if (event.target instanceof HTMLElement && event.target.getAttribute('role') === 'dialog') motion.dialogs.push(event.animationName);
     });
   });
-  await page.route('**/api/reviews', (route) => route.fulfill({ json: fixtureReviews }));
+  await page.route('**/api/workspace/reviews', (route) => route.fulfill({ json: fixtureReviews }));
   await page.route('**/api/receipts/*', (route) => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><text x="10" y="30">Synthetic receipt</text></svg>' }));
 
   for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await page.emulateMedia({ reducedMotion });
     let release!: () => void;
     const responseReady = new Promise<void>((resolve) => { release = resolve; });
-    await page.route('**/api/reconcile', async (route) => {
+    await page.route('**/api/workspace/reconcile', async (route) => {
       await responseReady;
       const row = fixtureReviews.submissions[0];
       await route.fulfill({ json: { results: [{ submission_id: row.id, run_id: row.latest_run_id, assessment_status: row.assessment_status, decision_status: row.decision_status, review_revision: row.review_revision }] } });
@@ -74,6 +74,6 @@ test('motion follows real pending work and reduced motion preserves review focus
     await expect(page.getByRole('dialog', { name: 'Jordan Lee', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Maya Chen', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    await page.unroute('**/api/reconcile');
+    await page.unroute('**/api/workspace/reconcile');
   }
 });

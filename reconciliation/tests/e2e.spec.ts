@@ -49,3 +49,19 @@ test('real intake saves evidence and the existing backend detects a duplicate up
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('stored claims can be reviewed, approved with a note, and rechecked without losing approval',async({page,request,baseURL})=>{
+ const headers={Origin:new URL(baseURL!).origin};
+ const initial=await (await request.get('/api/workspace/reviews')).json();const id=initial.submissions[0].id;
+ await request.post('/api/workspace/reconcile',{headers,data:{submission_ids:[id]}});
+ await page.goto('/business-demo');await page.getByRole('button',{name:/Alex Demo/}).first().click();
+ await page.getByRole('button',{name:'Approve',exact:true}).click();
+ await page.getByLabel('Decision reason').fill('Verified the original synthetic receipt.');
+ await page.getByRole('button',{name:'Confirm approval',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Approved',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Recheck',exact:true}).click();
+ await expect(page.getByText('Recheck finished. The human decision is preserved.')).toBeVisible();
+ const after=await (await request.get('/api/workspace/reviews')).json();const row=after.submissions.find((r:{id:string})=>r.id===id);
+ expect(row.decision_status).toBe('approved');expect(row.assessment_status).toBe('matched');
+ await page.reload();await page.getByRole('tab',{name:/^Approved/}).click();await expect(page.getByRole('button',{name:/Alex Demo/}).first()).toBeVisible();
+});

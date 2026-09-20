@@ -1,6 +1,10 @@
 # Sift: hackathon reimbursements
 
-Current UI branch: `feat/ramp-ui`. See [the current build instructions](../BUILD_INSTRUCTIONS.md) and open `/business-demo?preview=1` for the new review workspace. The v2 backend integration is still pending; preview data and learning results are simulated. The backend behavior and setup described below refer to the existing v1 implementation.
+The app has two main pages: `/business-demo` for the real review queue and integrated
+Jev search, and `/submit` for claim uploads. `/search`, `/demo`, and `/` redirect to
+`/business-demo`. The queue reads the existing Supabase/local records through a
+server projection that keeps machine assessments and persisted human corrections
+separate. No extra database migration is needed for this integration.
 
 Integrated intake, reconciliation, and organizer review. A reviewer can correct a merchant alias and improve a later claim without changing financial rules. **Synthetic data only: no authentication or payments.** Approved means approved for reimbursement, not paid. The older browser prototype remains untouched outside this directory. Integration branch: `codex/reconciliation-integrated`.
 
@@ -13,7 +17,7 @@ npm ci
 npm run demo
 ```
 
-Open **http://127.0.0.1:3000/demo** for the walkthrough, **/business-demo** for the organizer, and **/submit** for intake. Use the exact hostname: mutations enforce same origin. For another port: `npm run demo -- --port 3002`.
+Open **http://127.0.0.1:3000/business-demo** for review and search, and **/submit** for intake. Use the exact hostname: mutations enforce same origin. For another port: `npm run demo -- --port 3002`.
 
 This command disables live services even when keys exist. Five fictional claims and PDF receipts initialize automatically. Uploads, decisions, runs, and corrections persist in ignored `.intake-demo/`. Local storage uses atomic snapshots and a cross-process lock on one machine; use Supabase for deployment. Interrupted runs expire after five minutes and can then be retried.
 
@@ -93,32 +97,33 @@ SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase har
 - Before real users: authentication/authorization, retention controls, upload abuse limits, and background jobs/retries. No payments, DOCX, currency conversion, or independent auditor.
 - Hosting must support private durable storage, 8 MiB uploads, extraction requests up to 90 seconds, and reconciliation batches up to 300 seconds. Some serverless platforms need direct storage uploads and background workers. No deployment has been performed.
 
-## Live claim search (no Elasticsearch)
+## Integrated review and search (no Elasticsearch)
 
-Open `/search` or choose **Search stored claims** in the workspace. This reads the
-actual local/Supabase ledger, independently of the still-pending v2 review workflow.
-Start `npm run demo:jev` with your Gateway/TypeSafe key to try `hotel claims` or
-`claims above $200`. OpenAI is not needed for search. `npm run demo` deliberately
-disables paid search and returns an explicit error instead of simulated matches.
+The business page displays real stored claims, original receipts, machine checks,
+and the latest human approval/rejection note. Machine passes appear as **Matched**
+with the human decision still **Pending**. Human corrections persist across reruns.
+Approvals require successful extraction, a completed assessment, passing financial
+and duplicate checks, and a reviewer note. An existing database run lease serializes
+reviewer writes against reconciliation; stale revisions return an explicit error.
 
-An exact category filter runs first. Jev rejects unsupported aggregate/action
-queries, then evaluates up to 100 rows in batches of ten (three concurrent calls).
-Low-confidence answers appear as possible matches. Missing/invalid responses or
-provider failures fail the whole search. Snapshot checks reject changed data;
-each paid call logs provider usage. A search does not mutate claims or approvals.
-This scans a small demo corpus, not a large-scale search index.
+Use the existing search box and **AI search** for questions such as `hotel claims`
+or `claims above $200`. Decision/category/assessment filters run first; Jev then
+classifies up to 100 claims in batches of ten. Uncertain matches are separate.
+Provider failures never become fabricated results. Search is read-only, checks its
+snapshot before and after evaluation, and logs usage. `demo:jev` enables real search;
+`demo` deliberately disables paid search. Azure/OpenAI is not needed for search.
 
-`GET /api/claim-search` returns projected stored facts and a snapshot token.
-`POST /api/claim-search` accepts `{query, snapshot_token, category?}` with same-origin
-JSON. This temporary v1 adapter is separate from the frozen v2 `/api/search` contract.
-`src/lib/intelligence/search.ts` implements the v2 `IntelligencePort.search` signature
-for later composition; investigation and rule activation are still pending.
+The workspace uses `/api/workspace/reviews`, `/api/workspace/reconcile`,
+`/api/workspace/decisions`, and `/api/search`. Legacy APIs remain for existing scripts.
+The independent search page has been removed; its old URL redirects to the workspace.
+The explicit `?preview=1` fixture mode remains for automated UI tests but is not linked
+from the real workflow. Unimplemented learning/investigation controls are not offered
+in the live UI; failed extraction directs users to submit a replacement document.
 
-Reconciliation now uses `DatabaseRetrieval` in both local and Supabase modes.
-It retrieves prior candidate receipts by receipt number, amount, vendor or date,
-then supplies the evidence to Jev. No Elasticsearch account/index is required.
-It fails explicitly above 1000 stored claims rather than silently dropping evidence.
-Exact byte-hash duplicate enforcement remains part of the pending v2 platform work.
+Candidate retrieval scans authoritative stored receipt fields and needs no external
+search service. It rejects corpora above 1000 claims rather than truncating evidence.
+Exact file-hash duplicate enforcement, autonomous investigations, tested rule
+activation, and extraction retry still need their broader platform implementation.
 
 ## Azure OpenAI
 

@@ -1,9 +1,9 @@
 # Testing Sift together
 
-**Current search update:** `/search` works against the stored v1 ledger with live Jev.
+**Current integration:** `/business-demo` displays stored claims, original receipts, machine assessments, human decisions, and live Jev search. `/submit` handles uploads. `/search` and `/demo` redirect to the workspace.
 Run `npm run demo:jev`; try “hotel claims” and “claims above $200”.
 Elasticsearch is no longer required: candidate retrieval uses stored receipt fields.
-The older v2 handoff below is still pending for investigations, decisions and learning.
+The older handoff below is historical; investigations and tested rule learning remain pending. Human decisions and the real queue are now connected.
 
 
 This is the team runbook. The [Devin benchmark plan](superpowers/plans/2026-09-19-sift-benchmark.md) is prepared; it has not been dispatched or implemented by this handoff.
@@ -19,7 +19,7 @@ There are two separate existing datasets:
 | Six UI examples | `/business-demo?preview=1` | Browser memory; resets on reload; simulated search and rule results, including 8/10 → 10/10 |
 | Five backend sample claims and PDFs | `npm run demo`, `/api/reviews`, `/submit` | Stored in ignored `.intake-demo/`; real local intake/storage, simulated providers |
 
-The v2 UI currently rejects the v1 backend with a compatibility message. Uploads are not added to the six-row UI preview. B/C integration is required for a complete live reviewer/learning walkthrough.
+The real queue now adapts stored records through `/api/workspace/reviews`. New uploads appear there. The six-row preview remains isolated for UI tests. Learning/investigation features in the historical handoff remain pending.
 
 On each computer, from `reconciliation/`:
 
