@@ -103,7 +103,7 @@ export function build_rule_suite(rule: MerchantRule): EvaluationCase[] {
 export async function evaluate_rule(input: RuleEvaluationInput, assess: AssessExample): Promise<RuleTestReport> {
   const { rule, examples, signal } = input;
   const suite = build_rule_suite(rule);
-  if (rule.state !== 'draft' || !Number.isSafeInteger(input.knowledge_revision) || input.knowledge_revision < 0 ||
+  if (!rule.source_correction_id || rule.prepared_demo || rule.state !== 'draft' || !Number.isSafeInteger(input.knowledge_revision) || input.knowledge_revision < 0 ||
       !['live', 'simulated'].includes(input.mode) || !Array.isArray(input.active_aliases)) {
     throw new CoreError('INVALID_INPUT', 'Evaluation requires a draft rule, knowledge revision, provider mode and active aliases.');
   }

@@ -99,7 +99,7 @@ export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simu
 
   if (!enabled) return <>{learning}<section aria-label="Learned merchant rules"><p className="py-6 text-sm text-muted-foreground">Merchant rule learning is unavailable on this backend. Claim review remains available.</p></section></>;
 
-  return <>{learning}<details><summary className="cursor-pointer py-3 text-sm text-muted-foreground">Merchant name rules</summary><section className={`${styles.rules} space-y-5`} aria-label="Learned merchant rules">
+  return <>{learning}<details open={data?.rules.some(rule => rule.prepared_demo === true)}><summary className="cursor-pointer py-3 text-sm text-muted-foreground">Merchant name rules</summary><section className={`${styles.rules} space-y-5`} aria-label="Learned merchant rules">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Merchant rules</h2><p className="mt-1 text-sm text-muted-foreground">Confirm a merchant name to create a draft. Test it before activation.</p></div><Button variant="outline" size="lg" disabled={loading || !!busy} aria-busy={loading} onClick={() => { setError(null); void load().catch((failure) => setError(message(failure))); }}><RotateCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh rules"}</Button></div>
     {client.mode === "preview" && <div className="flex items-start gap-2 text-sm text-muted-foreground"><FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><p>Preview — synthetic data. Tests below are simulated examples, not measured live AI accuracy.</p></div>}
     {error && <p role="alert" className="motion-enter rounded border border-destructive/20 bg-[var(--status-bad-bg)] p-3 text-sm text-destructive">{error}</p>}
@@ -110,6 +110,11 @@ export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simu
     {data?.rules.map((rule) => {
       const report = rule.latest_test;
       const source = rows.find((row) => row.id === rule.source_submission_id);
+      if (rule.prepared_demo === true) return <article key={rule.id} aria-label={`${rule.payload.observed_vendor} prepared rule`} className="border-t py-5">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words font-semibold">{rule.payload.observed_vendor}</h3><ArrowRight className="size-4 text-muted-foreground" aria-label="maps to" /><span className="break-words font-medium">{rule.payload.canonical_vendor}</span></div><p className="mt-2 text-xs text-muted-foreground">Scope: {statusLabel(rule.payload.scope.category)} · {rule.payload.scope.currency} · Exact merchant name</p></div><Badge variant="secondary" className="h-6 rounded">Prepared example · Inactive</Badge></div>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">This authored demo example has no human approval or completed test. It does not affect claim decisions.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Source claim: {source ? <button type="button" className="min-h-11 text-foreground underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" onClick={() => onOpenClaim(source.id)}>{source.attendee_name}</button> : <span>{rule.source_submission_id} (not loaded)</span>}</p>
+      </article>;
       const approvedSource = source?.decision_status === "approved";
       const denied = activationDenied.includes(rule.id);
       const block = activationBlock(rule, rows, revision, client.mode, simulatedEnvironment);

@@ -227,7 +227,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
       if (!result.row) {
         setDecision(null); setSavingVerdict(null);
         setNotice("Decision saved.");
-        setError("The updated claim could not be loaded. Refresh the claim and its applicant communication before continuing.");
+        setError("The updated claim could not be loaded. Refresh the claim and its Emails section before continuing.");
         await refresh(true);
         return;
       }
@@ -235,7 +235,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
       setCommunicationRefresh(value => value + 1);
       const notificationProblem = result.email_error || (emailEnabled && !result.message ? "Notification could not be prepared." : null);
       setNotice(`${result.row.decision_status === "approved" ? "Approval saved. No payment was made." : "Rejection saved."}${result.message ? " Notification saved for sending." : ""}`);
-      if (notificationProblem) setError(`Decision saved. ${notificationProblem} Review Applicant communication before sending notifications.`);
+      if (notificationProblem) setError(`Decision saved. ${notificationProblem} Open Emails in the claim details before sending notifications.`);
       if (await refresh(true) && !notificationProblem) {
         try { await onDecisionSaved?.(result.row); }
         catch (failure) { setError(`Your decision was saved, but the next claim could not open. ${message(failure)}`); }
@@ -348,7 +348,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
           {row.investigation && !(capabilities?.investigations === true && shownInvestigation) && <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Investigation details</summary><p className="mt-2 leading-6">{row.investigation.summary || "The investigation did not return a summary."}</p>{row.investigation.status === "unavailable" && <p className="mt-2 text-xs text-destructive">Investigation unavailable. Review the receipt and checks directly.</p>}<ol className="mt-3 space-y-3 text-xs">{row.investigation.steps.map((step, index) => <li key={`${step.tool}-${index}`}><p className="font-medium">{statusLabel(step.tool)}</p><p className="mt-1 leading-5 text-muted-foreground">{step.summary}</p><p className="mt-1 break-all text-muted-foreground">{step.evidence_refs.join(", ")}</p></li>)}</ol></details>}
 
           <ClaimEvidence row={row} rows={rows} client={client} capabilities={capabilities} knowledgeRevision={knowledgeRevision} simulatedEnvironment={simulatedEnvironment} busy={!!busy} onBusyChange={onEvidenceBusyChange} onRunChange={setShownInvestigation} onRowChange={setUpdated} onChanged={onChanged} onOpenClaim={onOpenClaim} />
-          {client.getMessages && <CommunicationHistory claimId={row.id} client={client} revision={row.review_revision + communicationRefresh} />}
+          {client.getMessages && <CommunicationHistory key={row.id} claimId={row.id} client={client} revision={row.review_revision + communicationRefresh} />}
 
           {capabilities?.rule_learning && merchantException && <details className="border-t pt-3 text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Remember this merchant name</summary><p className="mt-2 text-muted-foreground">Link {parsed?.vendor} to its full name for future {row.category} claims. Test the draft before using it.</p><form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); void propose(); }}><Label htmlFor="canonical-vendor">Full merchant name</Label><Input id="canonical-vendor" value={canonical} onChange={(event) => setCanonical(event.target.value)} maxLength={120} required disabled={actionsBusy} placeholder="Full merchant name" /><Button type="submit" variant="outline" size="lg" aria-busy={busy === "proposal"} disabled={actionsBusy || !canonical.trim() || canonical.trim().length > 120 || normalize(canonical) === normalize(parsed?.vendor || "")}>{busy === "proposal" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "proposal" ? "Saving draft…" : "Create draft rule"}</Button></form></details>}
 

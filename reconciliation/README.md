@@ -57,6 +57,8 @@ Decisions and policy approvals create held applicant notices without sending. **
 
 ## Learning from review reasons
 
+The live seed includes one **Prepared example · Inactive** merchant rule: **Harbor Reservations → Harbor Hotel**, scoped to hotel/USD and linked to Sam Mercer’s synthetic evidence. It has no invented approval or test report, cannot affect assessments, and does not change the audit’s knowledge revision. Live reset restores this example. Actual review feedback still follows the tested learning flow below.
+
 A human decision saves first; background learning then classifies its internal reason, derives a supported evidence check, tests twelve fixed safety cases, and activates only a current passing candidate. Failed learning does not reverse the decision. The UI exposes status, source evidence, test reports, disabling a check, and retrying eligible failures.
 
 The supported automatic pattern is **hotel billing descriptor → hotel identity**, corroborated by each claim's own receipt and booking confirmation: reference, guest, purchase date, amount, and currency must agree. Financial, identity, policy, and duplicate checks remain mandatory. One-time exceptions and policy changes do not become automatic rules. This saves evidence-check logic; it does **not train or fine-tune a model**.
@@ -73,6 +75,8 @@ Do not add `--audit-ready`, which reenables automation. Review Sam Mercer, choos
 ## Live setup
 
 The live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The earlier expansion appended 66 unchecked claims while preserving the original 14 records. The new live-reset baseline is designed to restore **70 prepared checked claims plus 10 unchecked claims**, rather than starting the entire ledger unchecked. It requires `202609210015_live_demo_baseline_70.sql` (applied to the configured demo) and an explicit guarded reset. Migration application and the requested reset were confirmed through the application API. The reset also archives and clears custom checks so each run begins with the same configuration.
+
+Live reset now copies a saved baseline inside Supabase. Apply migration `202609210018_saved_demo_baseline.sql`, then run `npm run demo:prepare-live-reset` **once**. That command verifies the existing 100 private originals and saves the synthetic baseline; it does not reset the current audit, send messages, or call a model. Prepared runs reference that shared evidence copy rather than duplicating the full ledger 70 times. Later resets reuse that immutable copy, archive the old audit, and advance revisions. They do not regenerate assessments, redownload receipts, or upload the 13 MB seed. An existing backup is reused; a missing or mismatched backup produces an explicit setup error. The authorized September 20 live reset returned successfully in 13.3 seconds and restored the expected 70/10 split. The prior audit was retained in its archive; this timing includes database archival and is not an instant-reset guarantee.
 
 The prepared 70 are **59 approved, seven rejected, and four inconclusive claims needing review**. The application API verified these counts after the September 20 reset. These are clearly marked authored demo history, not live assessments, actual reviewer decisions, investigations, or sent notices. Cached receipt and supporting-document transcriptions are also authored fixtures, not OCR results.
 
@@ -99,6 +103,8 @@ Apply all files in [supabase/migrations](supabase/migrations), in this order:
 15. `202609210014_live_demo_baseline.sql` — historical prepared 60-checked/20-unchecked live-reset baseline.
 16. `202609210015_live_demo_baseline_70.sql` — current prepared 70-checked/10-unchecked live-reset baseline.
 17. `202609210016_held_notifications.sql` — hold decision notices until explicit batch confirmation, including bounded failed-delivery retries (applied to the configured demo).
+18. `202609210017_prepared_demo_rule.sql` — service-only installation of an inactive prepared merchant-rule example; guarded live resets restore it (applied and explicitly seeded in the configured demo).
+19. `202609210018_saved_demo_baseline.sql` — private saved baseline and a guarded database-local restore RPC; run `npm run demo:prepare-live-reset` once afterward (applied and prepared in the configured demo).
 
 The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
 
