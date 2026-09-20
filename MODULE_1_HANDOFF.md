@@ -1,5 +1,7 @@
 # Module 1 handoff — intake
 
+> Historical module delivery. For the integrated app, current setup, and known gaps, read [Project context](docs/PROJECT_CONTEXT.md) and [the app README](reconciliation/README.md). Branch/status/verification claims below apply to the original delivery.
+
 Branch: `codex/reconciliation-intake`
 
 Implementation commit: `23329a8a88b76d802982c6174ed675672a349271` (this handoff follows in a documentation commit).

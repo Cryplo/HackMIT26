@@ -1,5 +1,7 @@
 # Module 3 — organizer reimbursement dashboard
 
+> Historical module delivery. For the integrated app, current setup, and known gaps, read [Project context](docs/PROJECT_CONTEXT.md) and [the app README](reconciliation/README.md). Branch/status/verification claims below apply to the original delivery.
+
 Branch: `codex/reconciliation-dashboard`
 
 Implementation commit: `cbecb844fc269d0a827da2618131edeb63a663ca`.

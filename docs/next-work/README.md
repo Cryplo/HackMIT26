@@ -1,6 +1,6 @@
-# Build Sift's investigation and reviewed learning workflow
+# Historical assignment: investigation and reviewed learning
 
-Prepared 2026-09-20 against `main` at `9f3d593`. **This is the active build assignment, not a claim that the new features are implemented.** It replaces the [previous instruction pack](../archive/2026-09-20-review-workflow/README.md). Older files under `docs/superpowers/plans/` and `docs/SIFT_TESTING.md` are historical background; their scope, setup and implementation-state assertions do not override this pack. Existing uncommitted edits to those older documents are preserved.
+Prepared 2026-09-20 against `main` at `9f3d593`. **Historical assignment; superseded for current status by [Project context](../PROJECT_CONTEXT.md).** The integrated implementation now includes automatic policy approvals and reason-driven learning. The manual-only flow and pending implementation claims below describe the original assignment, not today’s product. It replaces the [previous instruction pack](../archive/2026-09-20-review-workflow/README.md). Older files under `docs/superpowers/plans/` and `docs/SIFT_TESTING.md` are historical background; their scope, setup and implementation-state assertions do not override this pack. Existing uncommitted edits to those older documents are preserved.
 
 ## What we are making
 

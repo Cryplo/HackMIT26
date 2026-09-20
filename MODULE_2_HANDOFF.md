@@ -1,5 +1,7 @@
 # Module 2 handoff — reconciliation core
 
+> Historical module delivery. For the integrated app, current setup, and known gaps, read [Project context](docs/PROJECT_CONTEXT.md) and [the app README](reconciliation/README.md). Branch/status/verification claims below apply to the original delivery.
+
 Branch: `codex/reconciliation-core`.
 
 Implementation commit: `c293a5645d84573a0d10b1c1bcbfa4e64930bb4d`. This handoff follows as a separate documentation commit; integrate both. Base/frozen contract: `1ed6e3e`.

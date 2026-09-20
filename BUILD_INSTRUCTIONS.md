@@ -1,45 +1,35 @@
-# Build instructions — Sift reimbursement review workspace
+# Build and continue Sift
 
-The `reconciliation/` app contains the new review UI and a working synthetic preview. The normal workspace targets the frozen v2 API; the checked-in backend still needs the separate platform and intelligence upgrades below.
+The integrated app is in `reconciliation/` on `main`. Begin with [Project context](docs/PROJECT_CONTEXT.md), then [the app README](reconciliation/README.md). The platform, investigation UI, and feedback-learning implementation are integrated; the old parallel-build packets are historical.
 
-## Run locally
+## Start locally
+
+Use Node >=22.18 (verified with 24.11.1):
 
 ```sh
 cd reconciliation
-nvm use
 npm ci
-npm run demo
+NEXT_DIST_DIR=.next-showcase npm run demo -- --showcase --audit-ready --port 3002
 ```
 
-Open `http://localhost:3000/business-demo?preview=1`. This mode needs no API keys. Preview decisions, rules, and search reset on reload; search and learning results are simulated. The upload form uses the actual local demo API, so uploaded claims are separate from the six preview examples.
+Open `http://127.0.0.1:3002/overview` and choose **Start audit**. This is an isolated 14-claim simulated workspace with no provider spending or real email. Use `?preview=1` only for UI fixtures, not for persistence or learning verification. See [Showcase](reconciliation/docs/SHOWCASE.md) for reset and the separate human-feedback learning rehearsal.
 
-Run `npm test`, `npm run typecheck`, `npm run build`, and `npm run test:browser` to verify the app. Browser tests use installed Chrome and an isolated local demo store on port 3100. Each teammate should install dependencies locally; do not commit `.env.local`, generated receipts, or local demo state.
+For the existing live demo, preserve `.env.local` and the database. Follow [live setup](reconciliation/README.md#live-setup); do not overwrite configuration, replay applied migrations, or reseed as a setup shortcut. Migration application and successful reads do not establish successful live model results.
 
-The shared TypeScript contract, package scripts, and shadcn setup are present on this UI branch. Commit and share that common baseline before B/C branch independently, as described in the [packet README](docs/superpowers/plans/2026-09-19-dylanli/README.md). B owns the v2 persistence/API upgrade; C owns the intelligence implementation.
+## Before changing code
 
-## Agent briefs
+1. Inspect `git status` and identify your owned files. Preserve other chats’ pitch, benchmark, and application edits.
+2. Read [repository guidance](AGENTS.md), [app guidance](reconciliation/AGENTS.md), and the installed Next.js docs relevant to your change. Use the source contracts in `src/lib/review-contracts.ts` rather than copying an old frozen planning contract.
+3. Trace the shared service/helper and its callers. Decisions, review counts, rechecks, learning, and email must remain consistent across pages.
+4. Run focused affected checks; use `npm run typecheck` for TypeScript changes. Available broader checks are listed in the app README. Do not repeatedly run broad suites or paid benchmark experiments for a small change.
+5. Update current docs for changed behavior, stage only task-owned paths, and coordinate delivery on the shared branch. Never force-push or discard someone else’s changes.
 
-- [Agent B — platform and financial correctness](docs/superpowers/plans/2026-09-19-dylanli/agent-2-platform.md)
-- [Agent C — intelligence and learning evaluation](docs/superpowers/plans/2026-09-19-dylanli/agent-3-intelligence.md)
-- [Agent A — frontend](docs/superpowers/plans/2026-09-19-dylanli/agent-1-frontend.md)
-- [Devin — reproducible 50-case benchmark](docs/superpowers/plans/2026-09-19-sift-benchmark.md)
+## UI direction
 
-The Devin benchmark handoff and [Sift testing guide](docs/SIFT_TESTING.md) are prepared instructions only: no task has been dispatched and no benchmark runner has been implemented by this handoff. Devin exclusively owns `reconciliation/evals/**`, including generator, CLI seed, benchmark/report and browser tests. C retains `src/lib/intelligence/learning.ts`, its ten-case `build_rule_suite`/`evaluate_rule` activation safety checks and intelligence tests. B retains backend scripts, stores, schema and metrics persistence. Benchmark checks use real existing APIs; report missing upstream behavior instead of changing production code solely to fake passing tests.
+Keep the light-green theme, semantic green approvals/red failures/amber uncertainty, concise evidence, and obvious actions. Summary cards are non-clickable. Technical details and tool traces are collapsible. Review moves to the next eligible claim; completion goes to review only if actions remain.
 
-Frontend implementation follows the [Ramp-style visual specification](docs/superpowers/plans/2026-09-19-dylanli/ramp-ui.md) and [parallel build plan](docs/superpowers/plans/2026-09-19-ramp-ui-build.md). Its API client targets the frozen v2 contract; the explicit `?preview=1` workspace can be used while the platform upgrade is in progress.
+Theme tokens live in `reconciliation/src/app/theme.css`; layout styles live beside the business components. Reuse installed shadcn/Radix primitives and current shared data helpers. Do not add a second status model to fix one page.
 
-## Shared instructions and contracts
+## Historical plans
 
-- [Packet README and common baseline setup](docs/superpowers/plans/2026-09-19-dylanli/README.md)
-- [Shared context and ownership](docs/superpowers/plans/2026-09-19-dylanli/context.md)
-- [API behavior and integration rules](docs/superpowers/plans/2026-09-19-dylanli/api.md)
-- [Frozen TypeScript contracts](docs/superpowers/plans/2026-09-19-dylanli/contracts.ts)
-- [Sift testing guide](docs/SIFT_TESTING.md)
-
-## Theme
-
-Edit [`reconciliation/src/app/theme.css`](reconciliation/src/app/theme.css) to customize the UI. It uses the [official shadcn neutral light defaults](https://ui.shadcn.com/docs/theming#default-theme-css), including the 0.625rem base radius, with a system sans-serif font. The existing Radix/Nova components and compact layout remain in place. `globals.css` imports the theme and maps its tokens to Tailwind/shadcn.
-
-Palette, font family, radii, popover shadow, and motion tokens (`--motion-fast`, `--motion-normal`, `--motion-panel`, `--motion-ease`) live in that one file. Change `--primary`, `--primary-foreground`, and `--ring` together when rebranding.
-
-Keep `--status-*` colors independent of the brand so approval, review, and error meanings stay consistent. `--document-paper` deliberately remains white for original receipts; changing the UI theme must not recolor the bundled synthetic SVG receipts.
+[The September 20 assignment pack](docs/next-work/README.md) records the original investigation/procedure design and ownership. [Older plans](docs/superpowers/plans/) and module handoffs document earlier stages. They are useful background, not current deployment status or instructions to rebuild completed features. Benchmark work remains separate; inspect its own checked-in findings and any uncommitted work before touching `reconciliation/evals/`.

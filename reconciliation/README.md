@@ -1,141 +1,138 @@
-# Sift: hackathon reimbursements
+# Sift: reimbursement review
 
-The app has two main pages: `/business-demo` for the real review queue and integrated
-Jev search, and `/submit` for claim uploads. `/search`, `/demo`, and `/` redirect to
-`/business-demo`. The queue reads the existing Supabase/local records through a
-server projection that keeps machine assessments and persisted human corrections
-separate. No extra database migration is needed for this integration.
+Sift is the current Next.js application for synthetic HackMIT reimbursement claims: receipt intake, policy checks, Jev assessment and search, supporting evidence, investigations, human decisions, applicant notices, and narrowly scoped learning from review reasons. Start a fresh chat with [Project context](../docs/PROJECT_CONTEXT.md), then use this guide for setup. Older plans and handoffs may describe already-delivered work as pending.
 
-Integrated intake, reconciliation, and organizer review. A reviewer can correct a merchant alias and improve a later claim without changing financial rules. **Synthetic data only: no authentication or payments.** Approved means approved for reimbursement, not paid. The older browser prototype remains untouched outside this directory. Integration branch: `codex/reconciliation-integrated`.
+**Synthetic data only. There is no authentication or payment execution.** Approval records a reimbursement decision, not a payment. Keep receipts private and credentials server-side.
 
-## Run now
+## Run the current showcase
 
-Node >=22.18, npm, and installed Google Chrome for browser tests. From this directory:
+Use Node **>=22.18.0** and npm. From `reconciliation/`:
 
 ```sh
 npm ci
-npm run demo
+NEXT_DIST_DIR=.next-showcase npm run demo -- --showcase --audit-ready --port 3002
 ```
 
-Open **http://127.0.0.1:3000/business-demo** for review and search, and **/submit** for intake. Use the exact hostname: mutations enforce same origin. For another port: `npm run demo -- --port 3002`.
+Open **http://127.0.0.1:3002/overview** and choose **Start audit**. Use the exact hostname: mutations enforce the configured origin.
 
-This command disables live services even when keys exist. Five fictional claims and PDF receipts initialize automatically. Uploads, decisions, runs, and corrections persist in ignored `.intake-demo/`. Local storage uses atomic snapshots and a cross-process lock on one machine; use Supabase for deployment. Interrupted runs expire after five minutes and can then be retried.
+This creates a fresh private temporary store containing **14 unchecked claims, 14 receipt PDFs, eight supporting PDFs, and five policies**. The command prints its store path, strips live credentials, simulates extraction/assessment/investigation, and keeps email in template/preview mode. It does not access Supabase or call providers. `--audit-ready` requires `--showcase` and explicitly enables policy-caps automation.
 
-### Real Jev using your existing key
+The audit runs the ordinary application workflow and persists simulated checks and investigation steps. Expected results are eight automatic approvals and six pending claims; Morgan and Riley receive automatic investigations that remain unresolved. Supporting evidence already lets Sam and Taylor pass the baseline. These are simulated outcomes, not live-model guarantees.
+
+For the same showcase with assessments already saved:
 
 ```sh
-npm run demo:jev
+NEXT_DIST_DIR=.next-showcase npm run demo -- --showcase --port 3002
 ```
 
-Stop the other server first, or pass `-- --port 3002`. This uses `AI_GATEWAY_API_KEY` or `TYPESAFE_API_KEY` from environment/`.env.local`; if absent, it can reuse the browser prototype's key in `../.env`. It does not print or copy keys. Real Jev calls incur provider usage. Extraction still uses sample fixtures, retrieval scans actual stored receipt fields locally, and storage stays local. The dashboard labels the execution modes. Unknown/low-confidence live results require review; the exact walkthrough numbers describe simulation.
+Each invocation creates a new temporary store. To choose its location, set `RECONCILIATION_INTAKE_DEMO_DIR` to a **nonexistent private directory with an existing parent**; seeding refuses an existing directory. Use different ports and `NEXT_DIST_DIR` values for simultaneous servers. The in-app local **Reset demo** archives the current store and restores 14 unchecked claims, subject to active-work and stale-snapshot safeguards.
 
-## Three-minute demo
+See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are real private files, but their cached transcriptions are **authored fixtures, not OCR results**. Simulated uploads recognize exact bundled PDF bytes by hash; arbitrary files keep unknown extracted fields and require review. Form values never replace receipt evidence.
 
-1. Select the five seeded rows and reconcile. In simulation: Alex's first flight passes; the duplicate is flagged; Sam, Taylor, and Jordan need review.
-2. Open the duplicate's Evidence and original PDF. Inspect the matching prior purchase.
-3. Sam Example → Evidence → Correct & teach → Reusable vendor alias. Choose Approved. Observed merchant: `SYN HBR 042`. Canonical merchant: `Synthetic Harbor Hotel`. Add a note and save. Scope is hotel/USD.
-4. Select Taylor and Jordan only; reconcile again. Taylor's hotel passes; Jordan's flight stays under review. For these five simulated rows, approved amount becomes **$615**, review rate falls from **80% to 40%**. This is scoped correction memory, not model fine-tuning or measured customer savings.
-5. Download `/api/demo/receipt/train`. Submit Alex Demo, any fictional email, $123.45, Train, New York, and that PDF. Reconcile the new row. Submit the same PDF again to see a duplicate.
+## Pages and workflow
 
-Simulated extraction recognizes only **exact bundled PDF bytes** by hash. It does not OCR arbitrary files; unknown uploads retain null fields and require review. Form input never substitutes for receipt evidence. Live OpenAI extracts actual PDF/image content.
+| Page | Purpose |
+| --- | --- |
+| `/overview` | Audit progress, automatic approvals, and human exception review |
+| `/business-demo` | Reimbursements, filters, Jev search, evidence review, export, and the Learned rules view |
+| `/investigations` | Persisted investigation runs and read-tool activity |
+| `/submit` | New synthetic claim and receipt intake |
 
-To start fresh, stop the app and run:
+`/` redirects to `/overview`; `/search` and `/demo` redirect to `/business-demo`. `?preview=1` on workspace pages is a separate UI fixture mode; it does not exercise the persisted backend or automatic learning. Use the private-store showcase for a complete simulated workflow.
+
+Checks enforce amount, currency, date, policy caps, identity, and duplicate constraints. Clean claims can be approved automatically under `RECONCILIATION_AUTOMATION_MODE=policy-caps`; `disabled` leaves approval to reviewers. Eligible uncertainty with useful supporting evidence can trigger an investigation. Missing evidence and unresolved checks remain visible for review. Supporting uploads and extraction retry are implemented, and human decisions survive reassessment.
+
+Decisions and policy approvals create saved applicant notices. Email defaults to **preview**, so no message is sent. Internal review reasons stay separate from applicant text; approval notices are generic, and discretionary rejections have a separate optional applicant message. Provider acceptance in live email mode is not proof of inbox delivery.
+
+## Learning from review reasons
+
+A human decision saves first; background learning then classifies its internal reason, derives a supported evidence check, tests twelve fixed safety cases, and activates only a current passing candidate. Failed learning does not reverse the decision. The UI exposes status, source evidence, test reports, disabling a check, and retrying eligible failures.
+
+The supported automatic pattern is **hotel billing descriptor → hotel identity**, corroborated by each claim's own receipt and booking confirmation: reference, guest, purchase date, amount, and currency must agree. Financial, identity, policy, and duplicate checks remain mandatory. One-time exceptions and policy changes do not become automatic rules. This saves evidence-check logic; it does **not train or fine-tune a model**.
+
+For a fresh human-approval example, start a separate showcase with automatic approvals disabled:
 
 ```sh
-npm run demo:reset -- --confirm
-npm run demo
+RECONCILIATION_AUTOMATION_MODE=disabled NEXT_DIST_DIR=.next-learning \
+  npm run demo -- --showcase --port 3006
 ```
 
-Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, without deleting it or touching Supabase. For a custom data directory, supply the same `RECONCILIATION_INTAKE_DEMO_DIR` to both commands. A lock left by a crashed process is recovered automatically (dead owner PID, or an unreadable owner older than a minute); a lock held by a live process is never stolen, and a request that loses its lock to recovery fails with `DEMO_BUSY` rather than overwriting the winner's state. An unreadable or incomplete `core-state.json` is reported as `DEMO_CORRUPT` and never reseeded over; an unreadable `*.receipt.json` or `*.submission.json` quarantines that one claim and is logged, leaving the rest of the ledger readable.
+Do not add `--audit-ready`, which reenables automation. Review Sam Mercer, choose **Edit reason**, and explain that Harbor Reservations identifies Harbor Hotel because his booking and receipt agree. Approve and inspect the saved learning result. Taylor must use Taylor's own evidence. Automatic approvals are not human feedback, and the simulated baseline already passes these claims: a passing before/after tie does not demonstrate improved accuracy. See [Review learning](docs/REVIEW_LEARNING.md) for the complete workflow and separate advanced manual investigation-check path.
 
-## Full live setup: manual credentials required
+## Live setup
 
-1. Create a **dedicated demo Supabase project**. Run `supabase/migrations/202609190001_reimbursement_core.sql` once in its SQL editor, then `supabase/seed.sql`. This creates service-only tables/RPCs, a private `receipts` bucket, and fictional records.
-2. No search service setup is needed. Candidate retrieval reads your stored receipt records.
-3. Obtain an OpenAI key with access to a PDF/vision Responses model. Default is `gpt-4.1-mini`.
-4. Copy `.env.example` to `.env.local`. Set all three modes to `live`. Fill Supabase, OpenAI, and one Jev provider's credentials. Gateway uses `JEV_MODEL=typesafe-ai/jev`; direct TypeSafe uses `jev-latest`. Never commit keys or expose them to browser code.
-5. Set `RECONCILIATION_APP_ORIGIN` to the exact URL you open, then:
+Use a dedicated synthetic-only Supabase project. Existing configured projects should retain their records: inspect migration history and apply only missing migrations in order. **Do not reset or reseed an existing live database as a setup step.** Migrations add schema/functions; applying the reset migrations does not itself reset claims.
+
+Apply all files in [supabase/migrations](supabase/migrations), in this order:
+
+1. `202609190001_reimbursement_core.sql`
+2. `202609200002_platform.sql`
+3. `202609200003_investigations.sql`
+4. `202609200004_communications.sql`
+5. `202609200005_demo_reset.sql`
+6. `202609200006_automatic_notices.sql`
+7. `202609200007_policy_revision_safeupdate.sql`
+8. `202609200008_readable_demo_seed.sql`
+9. `202609200009_designed_demo_seed.sql`
+10. `202609200010_feedback_learning.sql`
+
+The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
+
+Copy `.env.example` to `.env.local` only if the local file does not already exist. Configure these values there, preserving any existing settings:
+
+| Setting | Live configuration |
+| --- | --- |
+| `RECONCILIATION_SYNTHETIC_ONLY` | `true` |
+| `RECONCILIATION_INTAKE_MODE`, `RECONCILIATION_EXTRACTION_MODE`, `RECONCILIATION_MODE` | All `live` |
+| `RECONCILIATION_APP_ORIGIN` | Exact opened URL, e.g. `http://127.0.0.1:3000` |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Dedicated project credentials; keep service key server-side |
+| `SUPABASE_RECEIPTS_BUCKET` | `receipts` by default; must be private |
+| `AI_GATEWAY_API_KEY` **or** `TYPESAFE_API_KEY` | One Jev provider; `JEV_MODEL=typesafe-ai/jev` for Gateway or `jev-latest` for direct TypeSafe |
+| `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` | All three together; HTTPS resource root or `/openai/v1` endpoint |
+| `OPENAI_API_KEY`, `OPENAI_EXTRACTION_MODEL` | Alternative to Azure for extraction; model defaults to `gpt-4.1-mini` |
+| `RECONCILIATION_INVESTIGATION_MODE` | `live` requires complete Azure settings plus live Supabase/intake/Jev; otherwise `disabled` |
+| `RECONCILIATION_JUSTIFICATION_MODE` | `simulated` for deterministic explanations; opt into `live` with Azure or OpenAI (`JUSTIFICATION_MODEL` overrides the direct OpenAI default) |
+| `RECONCILIATION_AUTOMATION_MODE` | `policy-caps` or `disabled` |
+| `RECONCILIATION_EMAIL_MODE`, `RECONCILIATION_EMAIL_DRAFT_MODE` | Keep `preview` and `template` for unsent notices |
+| `RECONCILIATION_ALLOW_DEMO_RESET` | Keep `false` unless explicitly preparing an archive-and-reset rehearsal |
+
+Start normally so Next.js reads `.env.local`:
 
 ```sh
-npm run seed:receipts
-npm run check:jev
-npm run dev -- --hostname 127.0.0.1
+NEXT_DIST_DIR=.next-live npm run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-`seed:receipts` uploads five fictional PDFs after SQL seeding, overwriting only their fixed synthetic storage objects. `check:jev` makes one live call; `npm run check:jev -- --workflow` runs seven calls covering the correction loop. Seed parsed fields are fixtures: upload a **new file through the form** to verify OpenAI extraction.
+Live assessments require Supabase; simulation requires isolated local storage. Missing or inconsistent configuration fails explicitly, and provider failure never silently substitutes a simulated assessment. Direct OpenAI supports extraction and optional explanations; live investigations require Azure. Restart after changing environment settings. No Elasticsearch service is required: retrieval scans authoritative stored records. For tunnels, `RECONCILIATION_DEV_ORIGINS` lists allowed asset hostnames without schemes or ports; configure the mutation origin separately.
 
-Live mode fails closed on missing configuration and never silently simulates provider failure. Restart after changing environment settings.
+Live email is a separate opt-in using `RESEND_API_KEY`, `RECONCILIATION_EMAIL_FROM`, optional `RECONCILIATION_EMAIL_REPLY_TO`, exact `RECONCILIATION_EMAIL_ALLOWED_RECIPIENTS`, and a private reviewer environment. Hosted environments need actual access protection before setting `RECONCILIATION_EMAIL_PRIVATE_REVIEWER=true`; that flag provides no authentication. Automatic notices can attempt delivery immediately in live mode; `npm run email:worker` handles durable outbox retries. See [email setup](docs/resend-setup.md) for provider configuration and delivery operation. Public applicant links and delivery webhooks remain unimplemented.
 
-## Decision justifications
+## Legacy commands and previews
 
-Every completed run stores a reviewer-facing justification inside the `overall_status` decision. The new receipt drawer renders it as "Recorded explanation" when provided in a v2 response; `POST /api/justifications` with `{"submission_id": "<uuid>"}` regenerates one on demand from the latest completed run. The narrative only restates checks that already ran: it cannot change a verdict, a status, or a stored decision, and a narrative that argues for a different outcome or does not describe the recorded one is discarded. When a human correction owns the status, the narrative says so instead of crediting the machine checks. Demo and simulated modes emit a deterministic template. OpenAI narratives are opt-in: set `RECONCILIATION_JUSTIFICATION_MODE=live` with `OPENAI_API_KEY` (model override: `JUSTIFICATION_MODEL`, default `gpt-4.1-mini`) outside simulated mode; an `OPENAI_API_KEY` alone never starts spending on narratives. Live usage is logged in `model_calls`, one row per provider call. If OpenAI refuses, times out, or returns an unusable narrative, both paths keep the outcome and fall back to the deterministic summary with an `error` code attached.
+- `npm run demo` uses the original five-claim local seed in `.intake-demo/` (or the configured private directory), not the curated showcase. Existing data persists across restarts.
+- `npm run demo:reset -- --confirm`, with the server stopped, archives that local directory; a plain demo restart recreates the five-claim seed. It does not reset Supabase or reproduce the showcase's fourteen-claim reset.
+- `npm run demo:jev` remains a legacy script but currently cannot supply a working live workspace: it removes Supabase credentials while the runtime requires Supabase for live assessments. Use the full live setup above.
+- UI `?preview=1`, private-store simulation, and live services are distinct execution paths. None proves results in either of the others.
 
-Optional local live extraction: keep intake mode `demo`, set extraction mode `live`, configure `OPENAI_API_KEY`, and use `npm run dev`, not `npm run demo` (which forces simulation). Keep reconciliation mode `simulated` for simulated checks, or leave it unset with a Jev key for live decisions and local retrieval. Inspect the dashboard execution label.
+## Architecture and checks
 
-## Test
+- [src/app](src/app): pages and API routes; [src/components/business](src/components/business): review UI; [src/lib/dashboard](src/lib/dashboard): workspace cache, audit session, and projections for the client.
+- [src/lib/core/runtime.ts](src/lib/core/runtime.ts): mode/provider wiring; [service.ts](src/lib/core/service.ts): assessment orchestration; [store.ts](src/lib/core/store.ts) and [file-store.ts](src/lib/core/file-store.ts): Supabase and local persistence.
+- [src/lib/intake](src/lib/intake): validation, private originals, extraction, and supporting uploads; [src/lib/providers/responses.ts](src/lib/providers/responses.ts): Azure/OpenAI configuration.
+- [src/lib/intelligence](src/lib/intelligence): intelligence implementations; [src/lib/core/feedback-learning.ts](src/lib/core/feedback-learning.ts): review learning; core investigation, procedure, and rule modules persist their guarded lifecycles.
+- [src/lib/email](src/lib/email) and core communication modules: immutable notices and delivery; [src/lib/demo/showcase.ts](src/lib/demo/showcase.ts): curated seed; [src/lib/review-contracts.ts](src/lib/review-contracts.ts): workspace API contracts.
+
+One focused offline showcase check (temporary store, network calls rejected):
 
 ```sh
-npm test
-npm run build
-npm run typecheck
-npm run test:browser
+node --conditions=react-server --import tsx scripts/check-showcase.ts
 ```
 
-Browser tests start an isolated app on port 3100 and use fresh temporary data, without modifying your demo ledger. Google Chrome is required; if missing, run `npx playwright install chrome`. `DASHBOARD_BASE_URL` selects an external test server, which must have a fresh synthetic dataset. Tests cover real upload/API/storage/review integration using simulated providers, failed requests, and desktop/mobile layouts.
+For application changes, available checks are `npm test`, `npm run test:intelligence`, `npm run build`, `npm run typecheck`, and `npm run test:browser`. Browser tests require Google Chrome and normally start an isolated server on port 3100 with temporary data; `DASHBOARD_BASE_URL` targets an existing fresh synthetic server instead. `npm run check:jev` makes a paid live provider call; `-- --workflow` exercises the legacy correction smoke workflow, not the current showcase or learning rehearsal. SQL tests use PGlite; mocked/offline tests and migration application do not establish successful live provider behavior.
 
-SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase harness. Provider contract tests mock HTTP. Actual Gateway Jev workflow evidence is in `docs/live-jev-smoke.json`; this is a small smoke test, **not an accuracy/cost benchmark**. OpenAI and remote Supabase still need live verification after configuration.
+## Current boundaries
 
-## Boundaries and useful next work
+USD only; one PDF/PNG/JPEG receipt up to 8 MiB and at most eight supporting documents per pending claim. The curated policies cover September 2026 with caps of $500 flight, $250 hotel, $200 train, $100 bus, and $50 other. Hotel/bus/other require receipt identity; flight/train permit a correctly linked itinerary. Policy editing is not a public UI feature.
 
-- USD, one PDF/PNG/JPG per claim, 8 MiB maximum, exact amount matching. Demo window: September 1–30, 2026. Caps: flight $500, hotel $250, train $200, bus $100, other $50. Policy editing currently requires database/local-state changes.
-- Code enforces amounts, dates, and caps. Jev judges merchant/category compatibility, attendee identity, and duplicate evidence. Code combines independent checks. Missing fields and uncertainty require review. Thresholds are conservative starting values, not calibrated on representative data.
-- Reusable aliases are scoped to observed vendor/category/currency. One-time overrides teach nothing. Explicitly rerunning a manually resolved claim creates a new machine outcome; old decisions remain stored. Related claims need a rerun to use a correction.
-- Usage is logged once per call; unknown costs stay null. Highest-value next sponsor feature: a fair labeled Jev-versus-LLM benchmark with measured latency/cost and decision quality, plus visible usage reporting.
-- Justifications are explanations of recorded checks, not model reasoning traces and not an independent audit of the outcome.
-- Dashboard shows current decisions and the applicable human override. A historical run comparison/export, extraction edit/retry controls, and policy editor would improve usability. Rationale is an evidence-based template, not a claim to expose model reasoning.
-- Database candidate retrieval is bounded to a small demo corpus (1000 claims), not production-scale indexing. Evaluate varied receipts and near-duplicates before broad quality claims.
-- Before real users: authentication/authorization, retention controls, upload abuse limits, and background jobs/retries. No payments, DOCX, currency conversion, or independent auditor.
-- Hosting must support private durable storage, 8 MiB uploads, extraction requests up to 90 seconds, and reconciliation batches up to 300 seconds. Some serverless platforms need direct storage uploads and background workers. No deployment has been performed.
+The ledger and candidate scan are bounded to 1,000 claims and fail rather than truncate evidence. Local persistence uses private atomic snapshots and a cross-process lock on one machine. Upload follow-up checks and learning run within the server lifecycle, so a restart can interrupt work; saved claims and visible failure/retry states remain available. Deployment needs durable private storage, suitable upload/request limits, authentication/authorization, and reliable background work before real users.
 
-## Integrated review and search (no Elasticsearch)
-
-The business page displays real stored claims, original receipts, machine checks,
-and the latest human approval/rejection note. Machine passes appear as **Matched**
-with the human decision still **Pending**. Human corrections persist across reruns.
-Approvals require successful extraction, a completed assessment, passing financial
-and duplicate checks, and a reviewer note. An existing database run lease serializes
-reviewer writes against reconciliation; stale revisions return an explicit error.
-
-Use the existing search box and **AI search** for questions such as `hotel claims`
-or `claims above $200`. Decision/category/assessment filters run first; Jev then
-classifies up to 100 claims in batches of ten. Uncertain matches are separate.
-Provider failures never become fabricated results. Search is read-only, checks its
-snapshot before and after evaluation, and logs usage. `demo:jev` enables real search;
-`demo` deliberately disables paid search. Azure/OpenAI is not needed for search.
-
-The workspace uses `/api/workspace/reviews`, `/api/workspace/reconcile`,
-`/api/workspace/decisions`, and `/api/search`. Legacy APIs remain for existing scripts.
-The independent search page has been removed; its old URL redirects to the workspace.
-The explicit `?preview=1` fixture mode remains for automated UI tests but is not linked
-from the real workflow. Unimplemented learning/investigation controls are not offered
-in the live UI; failed extraction directs users to submit a replacement document.
-
-Candidate retrieval scans authoritative stored receipt fields and needs no external
-search service. It rejects corpora above 1000 claims rather than truncating evidence.
-Exact file-hash duplicate enforcement, autonomous investigations, tested rule
-activation, and extraction retry still need their broader platform implementation.
-
-## Azure OpenAI
-
-Azure is supported for real receipt extraction and optional decision explanations.
-Set `AZURE_OPENAI_ENDPOINT` to the HTTPS resource root or `/openai/v1` base,
-`AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT` to your deployment name.
-No direct `OPENAI_API_KEY` is needed. A partial Azure configuration fails explicitly;
-it never redirects the Azure key to OpenAI. Requests use `/openai/v1/responses`,
-`api-key` authentication, and the deployment name as `model`. Usage records identify
-`azure-openai`. PDF/image and structured-output support depend on your deployment.
-
-Set extraction mode to `live`. Written explanations remain opt-in through
-`RECONCILIATION_JUSTIFICATION_MODE=live`. Start ordinary `npm run dev` to honor the
-file's settings; demo commands deliberately disable paid extraction/explanations.
-The larger v2 autonomous investigator is still pending.
+Explanations summarize saved evidence and checks; they are not model reasoning traces or an independent audit. Fixed safety tests and synthetic walkthroughs do not establish general accuracy, measured savings, or a successful live-model rehearsal.
