@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertCircle, Download, ChevronRight, LoaderCircle, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { AlertCircle, Download, ChevronRight, LoaderCircle, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,11 +45,8 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
   const [decision, setDecision] = useState<HumanDecision | "all">("pending");
   const [category, setCategory] = useState<Category | "all">("all");
   const [assessment, setAssessment] = useState<Assessment | "all" | "unchecked">("all");
-  const [textSearch, setTextSearch] = useState("");
   const [question, setQuestion] = useState("");
-  const [askOpen, setAskOpen] = useState(false);
   const questionInput = useRef<HTMLInputElement>(null);
-  const askToggle = useRef<HTMLButtonElement>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [searchResult, setSearchResult] = useState<{ query: string; response: SearchResponse } | null>(null);
@@ -94,9 +91,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
     (decision === "all" || row.decision_status === decision) &&
     (category === "all" || row.category === category) &&
     (assessment === "all" || (assessment === "unchecked" ? isUnchecked(row) : row.assessment_status === assessment));
-  const matchesQuery = (row: ReviewRow) =>
-    `${row.id} ${row.attendee_name} ${row.email} ${row.receipt?.parsed_fields_json?.vendor ?? ""}`.toLowerCase().includes(textSearch.trim().toLowerCase());
-  const visible = rows.filter(row => matchesFilters(row) && matchesQuery(row));
+  const visible = rows.filter(matchesFilters);
   const matches = searchResult ? rows.filter(row => searchResult.response.matches.some(match => match.id === row.id)) : [];
   const possible = searchResult ? rows.filter(row => !matches.some(match => match.id === row.id) && searchResult.response.possible_matches.some(match => match.id === row.id)) : [];
   const shown = searchResult ? [...matches, ...possible] : visible;
@@ -154,7 +149,6 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
       ...(category !== "all" ? { category } : {}),
       ...(assessment !== "all" ? { assessment_status: assessment } : {}),
     };
-    setTextSearch("");
     setSearching(true);
     setSearchError("");
     try {
@@ -178,7 +172,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
     const fresh = getWorkspaceStore(preview ? "preview" : "api").getSnapshot().data;
     if (!fresh) return;
     const groupIds = new Set(humanActions(fresh).filter(action => action.group === reviewSession?.group).map(action => action.row.id));
-    const matchesView = (row: ReviewRow) => groupIds.has(row.id) && matchesFilters(row) && (!!searchResult || matchesQuery(row));
+    const matchesView = (row: ReviewRow) => groupIds.has(row.id) && matchesFilters(row);
     const next = nextHumanAction(fresh, saved.id, reviewSession?.ids ?? [], matchesView);
     setReviewSession(session => session && session.ids.includes(saved.id) ? { ...session, completed: [...new Set([...session.completed, saved.id])] } : session);
     setBackIds([]);
@@ -186,7 +180,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
     setNotice(next ? "" : "Decision saved. This review session is complete.");
   }
   function clearFilters() {
-    setTextSearch(""); setQuestion(""); setCategory("all"); setAssessment("all"); setDecision("all"); clearSemanticSearch();
+    setQuestion(""); setCategory("all"); setAssessment("all"); setDecision("all"); clearSemanticSearch();
   }
   async function exportSelected() {
     if (!data?.snapshot_token || !data.capabilities?.export || exportLock.current || selected.length < 1 || selected.length > 1000) return;
@@ -240,37 +234,29 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
           <TabsContent value={decision}>
         <section aria-label="Reimbursement queue">
           <div className={styles.toolbar}>
-            <div className={styles.searchForm}>
-              <label className={styles.searchInput}><span className="sr-only">Search names or merchants</span><Search aria-hidden="true" /><Input type="search" placeholder="Search names or merchants" maxLength={300} value={textSearch} onChange={(event) => { setTextSearch(event.target.value); clearSemanticSearch(); }} /></label>
-              <Button ref={askToggle} type="button" variant="outline" aria-expanded={askOpen} aria-controls="claim-question-panel" onClick={() => { setAskOpen(!askOpen); if (askOpen) clearSemanticSearch(); }}><Sparkles aria-hidden="true" />Ask about claims</Button>
-            </div>
+            <form className={styles.searchForm} onSubmit={runSearch} aria-label="Semantic search">
+              <label className={styles.searchInput}><span className="sr-only">Semantic search</span><Search aria-hidden="true" /><Input ref={questionInput} type="search" placeholder="Semantic search · e.g. hotel claims over $200" maxLength={300} value={question} aria-describedby="semantic-search-help" onChange={event => { setQuestion(event.target.value); clearSemanticSearch(); }} /></label>
+              <Button type="submit" disabled={!data?.snapshot_token || !question.trim() || searching || assessment === "unchecked"} aria-busy={searching}>{searching ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <Search aria-hidden="true" />}{searching ? "Searching…" : "Search"}</Button>
+              {question && <Button type="button" variant="ghost" aria-label="Clear semantic search" onClick={() => { setQuestion(""); clearSemanticSearch(); questionInput.current?.focus(); }}><X aria-hidden="true" /></Button>}
+            </form>
             <Select value={category} onValueChange={(value) => { setCategory(value as Category | "all"); clearSemanticSearch(); }}><SelectTrigger className={styles.filter} aria-label="Category"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{categories.map((value) => <SelectItem key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</SelectItem>)}</SelectContent></Select>
             <Select value={assessment} onValueChange={(value) => { setAssessment(value as Assessment | "all" | "unchecked"); clearSemanticSearch(); }}><SelectTrigger className={styles.filter} aria-label="Assessment"><SelectValue placeholder="Assessment" /></SelectTrigger><SelectContent><SelectItem value="all">All check results</SelectItem><SelectItem value="matched">Passed</SelectItem><SelectItem value="flagged">Issue found</SelectItem><SelectItem value="needs_review">Needs evidence</SelectItem><SelectItem value="unchecked">Unchecked / failed</SelectItem></SelectContent></Select>
           </div>
-          {askOpen && <form id="claim-question-panel" className={styles.questionPanel} onSubmit={runSearch} aria-label="Ask about claims">
-            <div className={styles.questionHeading}><label htmlFor="claim-question">What are you looking for?</label><Button type="button" variant="ghost" size="icon-sm" aria-label="Close claim search" onClick={() => { clearSemanticSearch(); setAskOpen(false); askToggle.current?.focus(); }}><X aria-hidden="true" /></Button></div>
-            <p id="claim-question-scope" className={styles.questionHint}>Search within: {tabs.find(tab => tab.value === decision)?.label}, {category === "all" ? "all categories" : category}, {assessment === "all" ? "all check results" : assessment === "matched" ? "passed checks" : assessment === "flagged" ? "issues found" : assessment === "needs_review" ? "needs evidence" : "unchecked / failed"}. Name or merchant text is not applied.</p>
-            <div className={styles.questionControls}><Input ref={questionInput} id="claim-question" placeholder="e.g. Claims over $200" maxLength={300} value={question} aria-describedby="claim-question-scope claim-question-help" onChange={event => { setQuestion(event.target.value); ++searchSequence.current; setSearching(false); setSearchError(""); }} /><Button type="submit" disabled={!data?.snapshot_token || !question.trim() || searching || assessment === "unchecked"} aria-busy={searching}>{searching ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <Search aria-hidden="true" />}{searching ? "Searching claims…" : "Search claims"}</Button>{searching ? <Button type="button" variant="outline" onClick={clearSemanticSearch}>Cancel search</Button> : question && <Button type="button" variant="ghost" onClick={() => { setQuestion(""); clearSemanticSearch(); questionInput.current?.focus(); }}>Clear question</Button>}</div>
-            <div className={styles.questionExamples} aria-label="Example questions">{["Hotel claims", "Claims over $200", "Possible duplicates"].map(example => <Button key={example} type="button" variant="ghost" size="sm" onClick={() => { setQuestion(example); ++searchSequence.current; setSearching(false); setSearchError(""); questionInput.current?.focus(); }}>{example}</Button>)}</div>
-            <p id="claim-question-help" className={styles.questionHint}>{assessment === "unchecked" ? <>Question search does not support the Unchecked / failed filter. <Button type="button" variant="link" size="sm" onClick={() => { setAssessment("all"); clearSemanticSearch(); }}>Use all check results</Button></> : !data?.snapshot_token ? "Waiting for claims to load before you can search." : searching ? "Searching your claims. You can cancel while the search runs." : "Describe the claims you need, then choose Search claims. This only finds claims; it does not change them."}</p>
-            {searchError && <div role="alert" className={styles.error}><AlertCircle aria-hidden="true" /><span>{searchError} Edit your question or try again.{searchResult && " Previous search results remain below."}</span></div>}
-          </form>}
+          <p id="semantic-search-help" className={styles.questionHint}>{assessment === "unchecked" ? <>Select all check results to use semantic search. <Button type="button" variant="link" size="sm" onClick={() => { setAssessment("all"); clearSemanticSearch(); }}>Use all check results</Button></> : "Describe the claims you need and press Enter. Current status and category filters apply."}</p>
+          {searchError && <div role="alert" className={styles.error}><AlertCircle aria-hidden="true" /><span>{searchError} Edit your search or try again.</span></div>}
           <div className={styles.queueActions}>{reviewQueue.length > 0 && <Button onClick={() => openClaim(reviewQueue[0].id)}>Review inconclusive ({reviewQueue.length}) <ChevronRight aria-hidden="true" /></Button>}{unchecked.length > 0 && <Button id="check-unchecked" variant={unchecked.length ? "default" : "outline"} disabled={busy || !unchecked.length} onClick={() => void recheck(unchecked.slice(0, 1000).map(row => row.id)).catch(() => {})}>Check unchecked ({unchecked.length})</Button>}{selected.length ? <><span>{selected.length} selected{hiddenSelected > 0 ? ` (${hiddenSelected} hidden)` : ""}</span><Button variant={unchecked.length ? "outline" : "default"} disabled={busy || selected.length > 1000} aria-busy={busy} onClick={() => void recheck(selected).catch(() => {})}><RefreshCw aria-hidden="true" className={busy ? "motion-safe:animate-spin" : undefined} />{busy ? "Rechecking…" : "Recheck selected"}</Button><Button variant="ghost" size="icon" disabled={busy} aria-label="Clear selection" onClick={() => setSelected([])}><X /></Button></> : <span>{data ? `${shown.length} claims / ${totalsLabel(claimedTotals(shown))} claimed` : "Loading claims…"}</span>}</div>
           {progress && busy && <div className={styles.checkProgress}><span role="status">{progress.done}/{progress.total} done{busy ? stopping ? " · Finishing current batch…" : " · Checking…" : ""}</span><progress value={progress.done} max={progress.total || 1} aria-label="Claims checked" />{busy && <Button variant="outline" disabled={stopping} onClick={() => { stopChecking.current.stopped = true; setStopping(true); }}>Stop after current batch</Button>}</div>}
           {selected.length >= 1000 && <p className={styles.limitNotice}>1,000 selected. Check or export this selection before selecting more.</p>}
           {searchResult ? <>
-            <div className={styles.searchSummary} role="status"><div><strong>Results for “{searchResult.query}”</strong><span>{searchResult.response.mode === "simulated" ? "Simulated search" : "AI search"} · {searchResult.response.evaluated_count} claims evaluated</span></div><Button variant="ghost" onClick={() => { clearSemanticSearch(); setQuestion(""); }}>Clear search <X aria-hidden="true" /></Button></div>
+            <div className={styles.searchSummary} role="status"><div><strong>Results for “{searchResult.query}”</strong><span>{searchResult.response.mode === "simulated" ? "Simulated search" : "Semantic search"} · {searchResult.response.evaluated_count} claims evaluated</span></div><Button variant="ghost" onClick={() => { clearSemanticSearch(); setQuestion(""); }}>Clear search <X aria-hidden="true" /></Button></div>
             {staleSearch && <div role="status" className={`${styles.staleNotice} motion-enter`}><span>Results are stale. Claims or rules have changed since this search.</span><Button variant="outline" disabled={searching} aria-busy={searching} onClick={() => { setQuestion(searchResult.query); void runSearch(undefined, searchResult.query); }}>{searching && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{searching ? "Searching…" : "Search again"}</Button></div>}
             <h2 className={styles.resultHeading}>Matches <span>{matches.length}</span></h2>
             <ReviewTable {...tableProps} rows={matches} label="Search matches" />
             {!matches.length && <div className={styles.empty}>No confirmed matches for this search.</div>}
-            <h2 className={styles.resultHeading}>Possible matches <span>{possible.length}</span></h2>
-            <p className={styles.possibleNote}>These claims need a closer look before treating them as a match.</p>
-            <ReviewTable {...tableProps} rows={possible} label="Possible search matches" />
-            {!possible.length && <div className={styles.empty}>No possible matches.</div>}
+            {possible.length > 0 && <><h2 className={styles.resultHeading}>Possible matches <span>{possible.length}</span></h2><ReviewTable {...tableProps} rows={possible} label="Possible search matches" /></>}
           </> : <>
             <ReviewTable {...tableProps} rows={visible} />
-            {!visible.length && <div className={styles.empty} role="status">{loading && !data && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}<strong>{loading ? "Loading claims…" : !data ? "Waiting for reviews" : rows.length ? "No claims in this view" : "No claims yet"}</strong><p>{loading ? "Connecting to the review workspace." : !data ? "Your claims will appear when the review API is available." : textSearch || category !== "all" || assessment !== "all" || decision !== "all" ? "Try another search or clear your filters." : "Choose another decision tab to see more claims."}</p>{data && (textSearch || category !== "all" || assessment !== "all" || decision !== "all") && <Button variant="outline" onClick={clearFilters}>Clear filters</Button>}{data && !rows.length && <Button asChild><Link href="/submit">New claim</Link></Button>}</div>}
+            {!visible.length && <div className={styles.empty} role="status">{loading && !data && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}<strong>{loading ? "Loading claims…" : !data ? "Waiting for reviews" : rows.length ? "No claims in this view" : "No claims yet"}</strong><p>{loading ? "Connecting to the review workspace." : !data ? "Your claims will appear when the review API is available." : question || category !== "all" || assessment !== "all" || decision !== "all" ? "Try another search or clear your filters." : "Choose another decision tab to see more claims."}</p>{data && (question || category !== "all" || assessment !== "all" || decision !== "all") && <Button variant="outline" onClick={clearFilters}>Clear filters</Button>}{data && !rows.length && <Button asChild><Link href="/submit">New claim</Link></Button>}</div>}
           </>}
           <footer className={styles.queueFooter}><span>Approval authorizes reimbursement. No payments are sent.</span><span>{updated ? `Updated ${updated}` : "Select up to 1,000 claims to recheck"} <Button variant="ghost" disabled={busy || loading} aria-busy={loading} onClick={() => void refresh().catch(() => {})}><RefreshCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh"}</Button></span></footer>
         </section>

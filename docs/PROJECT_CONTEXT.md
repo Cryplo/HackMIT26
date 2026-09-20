@@ -19,13 +19,13 @@ Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` do
 
 ## The intended user experience
 
-- **Audit overview (`/overview`):** compact, non-clickable counts and amounts for unchecked, approved, needs review, and rejected; one obvious start-audit action; connected flow with fixed-height lists and progress animations. Running investigations appear first; completed work is condensed.
-- **Reimbursements (`/business-demo`):** all claims, search, category/result filters, bulk checks, selection/export, original evidence, and access to review. Learned rules are a view within this workspace, not a separate `/rules` route.
+- **Audit overview (`/overview`):** compact counts and amounts for unchecked, approved, needs review, and rejected, with clickable headings that expand each group into a detail dialog; one obvious start-audit action; connected flow with fixed-height lists and progress animations. Running investigations appear first; completed work is condensed.
+- **Reimbursements (`/business-demo`):** all claims, a primary semantic-search field (press Enter or Search), category/result filters, bulk checks, selection/export, original evidence, and access to review. Learned rules are a view within this workspace, not a separate `/rules` route.
 - **Human review:** centered evidence view, amber for uncertainty, green approval, red rejection/failure; highlight the actual mismatch or missing evidence. Successful decisions advance to the next eligible claim. Completion offers review when actions remain, or the table when they do not. Technical detail and tool histories belong in collapsed sections.
 - **Investigations (`/investigations`):** persisted runs, concise findings, linked documents, and expandable recorded read-tool history. An investigator is not a web-browsing agent and its trace is not hidden model reasoning.
 - **Submit (`/submit`):** upload a claim and original receipt. Successful extraction starts ordinary checks; useful added supporting evidence can trigger reassessment. Rechecks reuse extraction unless explicit reparse is requested.
 
-The user prefers a simple light-green design, meaningful status colors, obvious action buttons, spinners while work is running, and minimal jargon. Keep summary numbers informational. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
+The user prefers a simple light-green design, meaningful status colors, obvious action buttons, spinners while work is running, and minimal jargon. Summary values remain informational; their headings open expanded claim lists. Audit flow headers also expand, including investigation activity. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
 
 ## Statuses: keep these separate
 
@@ -94,6 +94,8 @@ Paths below are relative to `reconciliation/`.
 | Design tokens | `src/app/theme.css`, component CSS modules; existing shadcn/Radix controls |
 
 Read the caller and shared helper before fixing a symptom. In particular, do not implement another independent count calculation or decision path to patch one page.
+
+Semantic search sends each filtered claim to Jev independently in parallel (up to 100), returning match/no-match without an intent gate or confidence cutoff. It runs on explicit submission, not every keystroke. Rate-limit/provider errors remain visible.
 
 ## Verification and remaining work
 

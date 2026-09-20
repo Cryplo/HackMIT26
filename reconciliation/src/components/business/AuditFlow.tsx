@@ -2,7 +2,9 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, CircleX, FileStack, LoaderCircle, Pause, Play, ScanLine, SearchCheck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, CircleX, FileStack, LoaderCircle, Pause, Play, ScanLine, SearchCheck, Maximize2 } from "lucide-react";
+import { AuditClaimsDialog } from "./AuditClaimsDialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { isAuditEligible, useAudit } from "@/lib/dashboard/audit-session";
 import { auditFlowStage, checkState, humanActions } from "@/lib/dashboard/human-actions";
@@ -18,8 +20,11 @@ type FlowClaim = { row: ReviewRow; label: string };
 function ClaimStage({ title, icon, items, tone, empty, onReview, elapsed }: {
   title: string; icon: ReactNode; items: FlowClaim[]; tone: string; empty: string; onReview(id: string): void; elapsed?(id: string): string;
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [expanded, setExpanded] = useState(false);
   return <section className={styles.stage} data-tone={tone} data-flow-node={tone} aria-label={title}>
-    <header className={styles.stageHeader}><h3>{icon}{title}{tone === "checking" && items.length > 0 && <span className={styles.activePulse} aria-hidden="true" />}</h3><span className={styles.count}>{items.length}</span></header>
+    <header className={styles.stageHeader}><h3><button ref={trigger} type="button" className={styles.expandTrigger} onClick={() => setExpanded(true)} aria-label={`Expand ${title}`} aria-haspopup="dialog">{icon}{title}{tone === "checking" && items.length > 0 && <span className={styles.activePulse} aria-hidden="true" />}<Maximize2 aria-hidden="true" /></button></h3><span className={styles.count}>{items.length}</span></header>
+    <AuditClaimsDialog returnFocusRef={trigger} title={title} items={items} open={expanded} onOpenChange={setExpanded} onReview={onReview} />
     <div className={styles.stageQueue} tabIndex={0} role="region" aria-label={`${title} claims`}>
       {items.length ? <ul>{items.map(({ row, label }) => <li key={row.id}>
         <div className={styles.claimLine}><strong>{row.attendee_name}</strong><span>{money(row.amount_requested_minor, row.currency)}</span></div>
@@ -34,6 +39,8 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
   const audit = useAudit(preview);
   const graph = useRef<HTMLDivElement>(null);
   const [resetBusy, setResetBusy] = useState(false);
+  const agentsTrigger = useRef<HTMLButtonElement>(null);
+  const [agentsExpanded, setAgentsExpanded] = useState(false);
   const rows = data?.submissions ?? [];
   const actions = data ? humanActions(data) : [];
   const actionById = new Map(actions.map(action => [action.row.id, action]));
@@ -97,6 +104,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
   };
 
   return <section className={styles.audit} aria-labelledby="audit-title">
+    <Dialog open={agentsExpanded} onOpenChange={setAgentsExpanded}><DialogContent className={styles.expandedDialog} onCloseAutoFocus={event => { event.preventDefault(); agentsTrigger.current?.focus(); }}><div className={styles.expandedHeading}><DialogTitle>Investigation agents</DialogTitle><DialogDescription>{agentsRunning} running · {agentsCompleted} completed · {agentsFailed} failed. Recorded activity and findings.</DialogDescription></div><div className={styles.expandedBody}>{runs.length ? runs.map(renderRun) : <p className={styles.emptyQueue}>No investigation activity yet.</p>}</div></DialogContent></Dialog>
     <div className={styles.canvas}>
       <header className={styles.toolbar}>
         <div><h2 id="audit-title">Follow the audit</h2><p>{checked} of {rows.length} claims checked overall · {unchecked} unchecked</p><p role="status" aria-atomic="true">{active && <LoaderCircle aria-hidden="true" className={styles.spinner} />}{progress}</p></div>
@@ -116,7 +124,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
           <ClaimStage title="Rejected" icon={<CircleX aria-hidden="true" />} items={failed} tone="failed" empty="No saved rejections" onReview={onReview} />
         </div>
       <section className={styles.investigations} data-flow-node="investigations" aria-label="Investigation agents">
-        <div className={styles.laneHeader}><h3><SearchCheck aria-hidden="true" />Investigation agents {agentsRunning > 0 && <span className={styles.activePulse} aria-hidden="true" />} <span>{agentsRunning} running · {agentsCompleted} completed · {agentsFailed} failed</span></h3><Link href={href}>History<ArrowUpRight aria-hidden="true" /></Link></div>
+        <div className={styles.laneHeader}><h3><button type="button" className={styles.expandTrigger} ref={agentsTrigger} aria-label="Expand Investigation agents" aria-haspopup="dialog" onClick={() => setAgentsExpanded(true)}><SearchCheck aria-hidden="true" />Investigation agents<Maximize2 aria-hidden="true" /></button> {agentsRunning > 0 && <span className={styles.activePulse} aria-hidden="true" />} <span>{agentsRunning} running · {agentsCompleted} completed · {agentsFailed} failed</span></h3><Link href={href}>History<ArrowUpRight aria-hidden="true" /></Link></div>
         <div className={styles.agentLane} tabIndex={0} role="region" aria-label="Latest investigation activity">
           {runs.length ? <>
             {runningRuns.map(renderRun)}

@@ -17,6 +17,7 @@ import { useWorkspace } from "@/lib/dashboard/workspace-store";
 import { AppShell } from "./AppShell";
 import { LearningStatus } from "./ProcedurePanel";
 import { ReviewSheet } from "./ReviewSheet";
+import { AuditClaimsDialog } from "./AuditClaimsDialog";
 import { AuditFlow } from "./AuditFlow";
 import styles from "./human-dashboard.module.css";
 
@@ -28,6 +29,8 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
   const { client, data, loading, error, refresh, updatedAt } = useWorkspace(preview);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [backIds, setBackIds] = useState<string[]>([]);
+  const bucketTrigger = useRef<HTMLButtonElement>(null);
+  const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [session, setSession] = useState<{ ids: string[] } | null>(null);
   const [batch, setBatch] = useState<{ completed: number; total: number } | null>(null);
@@ -129,9 +132,10 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
     {!data && !error && <div role="status" className={styles.empty}><LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /><p>Loading saved claims…</p></div>}
     {data && <>
       {(!data.coverage?.complete || data.coverage.returned !== rows.length || data.coverage.total !== rows.length) && <p className={styles.notice}>Showing {rows.length} loaded claims{data.coverage ? ` of ${data.coverage.total}` : ""}. Counts below describe this snapshot; coverage is incomplete.</p>}
+      <AuditClaimsDialog returnFocusRef={bucketTrigger} title={buckets.find(b => b.key === expandedBucket)?.label ?? "Claims"} items={(buckets.find(b => b.key === expandedBucket)?.rows ?? []).map(row => ({ row, label: row.decision_status === "pending" ? claimReason(row) : row.decision_status === "approved" ? "Approved" : "Rejected" }))} open={expandedBucket !== null} onOpenChange={open => { if (!open) setExpandedBucket(null); }} onReview={startReview} />
       <section className={styles.statusSummary} aria-label="Claim status summary">
         <dl className={styles.statusCards}>{buckets.map(({ key, label, detail, Icon, rows: group }) => <div key={key} data-tone={key} className={styles.statusCard}>
-          <dt><span>{label}</span><Icon aria-hidden="true" /></dt>
+          <dt><button type="button" className="cursor-pointer rounded text-left hover:underline focus-visible:outline-2 focus-visible:outline-primary" aria-label={`Expand ${label} summary`} aria-haspopup="dialog" onClick={event => { bucketTrigger.current = event.currentTarget; setExpandedBucket(key); }}>{label}</button><Icon aria-hidden="true" /></dt>
           <dd className={styles.statusCount}>{group.length}<span>{totalsLabel(claimedTotals(group))}</span></dd>
           <dd className={styles.statusHint}>{detail}</dd>
         </div>)}</dl>

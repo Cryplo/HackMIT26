@@ -45,8 +45,8 @@ test("failed semantic search remains an error rather than an empty successful re
   await page.route("**/api/workspace/reviews", route => route.fulfill({ json: fixtureReviews }));
   await page.route("**/api/search", route => route.fulfill({ status: 503, json: { error: { code: "PROVIDER_UNAVAILABLE", message: "Search provider unavailable." } } }));
   await page.goto("/business-demo");
-  await page.getByLabel("Search claims").fill("hotel");
-  await page.getByRole("button", { name: "AI search", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Semantic search" }).fill("hotel");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Search provider unavailable.");
   await expect(page.getByRole("heading", { name: /^Matches/ })).toHaveCount(0);
 });
