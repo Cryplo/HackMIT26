@@ -4,7 +4,7 @@ This comparison answers: **On the same synthetic receipts, how much model proces
 
 This is a standalone addition under `evals/comparison/`. It does not merge PR #3, replace the learning benchmark, mutate Supabase, change decision thresholds, or write reviewer rules. It invokes the **production** `createAssessExample` interface, `CoreService`, `DatabaseRetrieval`, `LiveJev`, and `extractReceipt` with a fresh isolated `MemoryStore`. It never implements a second Sift scorer.
 
-Published exploratory results: [September 20, 2026 findings and evidence](findings/2026-09-20/README.md); [adversarial cohort and recheck run](findings/2026-09-20-adversarial-recheck/README.md) (also documents a Jev merchant-prompt regression that sends every valid case to review on current `main`).
+Published exploratory results: [September 20, 2026 findings and evidence](findings/2026-09-20/README.md); [adversarial cohort and recheck run](findings/2026-09-20-adversarial-recheck/README.md) (also documents the merchant-corroboration trade-off that sends every plain-receipt valid case to review on current `main`); [showcase run on the 14 seeded backend claims](findings/2026-09-20-showcase/README.md).
 
 ## The two arms
 
@@ -47,7 +47,9 @@ node --env-file=.env.local --conditions=react-server --import tsx evals/comparis
   --prices evals/results/comparison-data/prices.json
 ```
 
-`--prepare` is network-free. Every output directory must be new. The live command requires an explicit baseline model/deployment and model-call ceiling. Credentials follow existing `responsesConfig`: complete Azure settings take precedence; otherwise OpenAI. Jev follows production direct-key/Gateway precedence. Neither `.env.local` nor credentials are copied into artifacts.
+`--prepare --showcase` freezes the 14 seeded showcase claims instead of a generated set: the same submissions, receipts and policies `showcaseFixture()` loads into Supabase, using the original PDF bytes. When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set it reads the `receipts` and `submissions` tables (read-only) and writes `supabase.json` recording whether every frozen PDF hash matches the backend; without them it records `skipped`. The live run itself never touches Supabase. Its labels assume neither arm receives supporting documents or learned procedures, and 14 cases is demo scale, not a sample.
+
+`--prepare` is otherwise network-free. Every output directory must be new. The live command requires an explicit baseline model/deployment and model-call ceiling. Credentials follow existing `responsesConfig`: complete Azure settings take precedence; otherwise OpenAI. Jev follows production direct-key/Gateway precedence. Neither `.env.local` nor credentials are copied into artifacts.
 
 Two humans should review `review.html`, each PDF and `policies.json`, then fill `review.template.json` as `review.json` with their names, date, minutes, and matching input/label/policy hashes. Resolve changes by preparing a new dataset/version; stale hashes are rejected. `--exploratory` allows engineering runs without this review but suppresses presentation savings headlines. `--limit` selects the first N cases (a familiar-valid smoke subset), not a representative accuracy sample.
 

@@ -8,7 +8,7 @@ import { receiptPdf, sampleReceipts } from '../../src/lib/demo/samples';
 /** Offline generation of the reviewable hold-out set. Every document is synthetic and invalid for payment.
  * A fixed seed must produce identical inputs, receipt bytes and case IDs: no clock, no random UUIDs, no locale.
  */
-export type Cohort = 'valid' | 'unfamiliar' | 'violation' | 'duplicate' | 'incomplete' | 'adversarial';
+export type Cohort = 'valid' | 'unfamiliar' | 'violation' | 'duplicate' | 'incomplete' | 'adversarial' | 'corroboration';
 export interface ClaimInput { attendee_name: string; email: string; amount_requested_minor: number; currency: 'USD'; category: Category; origin_location: string }
 export interface EvalCase {
   case_id: string;
@@ -19,10 +19,12 @@ export interface EvalCase {
   duplicate_of: string | null;
   input: ClaimInput;
   fields: ParsedReceipt;
+  /** Pre-rendered original bytes (showcase claims); absent means render from `fields`. */
+  pdf?: Uint8Array;
 }
 export interface Dataset { seed: number; alias: AliasPayload; source: EvalCase; scored: EvalCase[]; rehearsal: EvalCase[]; rehearsal_alias: AliasPayload }
 
-export const COHORT_COUNTS: Record<Exclude<Cohort, 'adversarial'>, number> = { valid: 20, unfamiliar: 10, violation: 8, duplicate: 6, incomplete: 6 };
+export const COHORT_COUNTS: Record<Exclude<Cohort, 'adversarial' | 'corroboration'>, number> = { valid: 20, unfamiliar: 10, violation: 8, duplicate: 6, incomplete: 6 };
 /** Opt-in cohort appended after the 50 base cases so the default seed keeps its frozen hashes. */
 export const ADVERSARIAL_COUNT = 10;
 export interface GenerateOptions { adversarial?: boolean }
@@ -176,7 +178,7 @@ export function generate(seed: number, options: GenerateOptions = {}): Dataset {
 }
 
 /** A duplicate's bytes are its original's bytes: the duplicate check, not a vendor string, must catch it. */
-export function receiptBytes(c: EvalCase): Buffer { return receiptPdf(c.fields); }
+export function receiptBytes(c: EvalCase): Buffer { return c.pdf ? Buffer.from(c.pdf) : receiptPdf(c.fields); }
 export interface Manifest { seed: number; generated_by: string; cases: { case_id: string; file: string; sha256: string }[]; inputs_sha256: string; expected_sha256: string }
 
 /** Only neutral IDs, ordinary claim fields and receipt bytes may reach the application. */

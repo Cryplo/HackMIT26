@@ -1,0 +1,270 @@
+{
+  "seed": 0,
+  "alias": {
+    "observed_vendor": "Harbor Reservations",
+    "canonical_vendor": "Harbor Hotel",
+    "scope": {
+      "category": "hotel",
+      "currency": "USD"
+    }
+  },
+  "rehearsal_alias": {
+    "observed_vendor": "Harbor Reservations",
+    "canonical_vendor": "Harbor Hotel",
+    "scope": {
+      "category": "hotel",
+      "currency": "USD"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-01",
+      "cohort": "valid",
+      "expected": "approved",
+      "note": "Ordinary flight. Familiar airline, complete receipt, within cap and window.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Northstar Airlines",
+        "receipt_date": "2026-09-03",
+        "amount_minor": 24000,
+        "currency": "USD",
+        "names": [
+          "Avery Rowan"
+        ],
+        "receipt_number": "SHOW-FLIGHT-101"
+      }
+    },
+    {
+      "case_id": "case-02",
+      "cohort": "valid",
+      "expected": "approved",
+      "note": "Ordinary train / lookalike A. Familiar rail operator; a later distinct purchase shares its date and amount.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Maple Rail",
+        "receipt_date": "2026-09-09",
+        "amount_minor": 8900,
+        "currency": "USD",
+        "names": [
+          "Maya Ellis"
+        ],
+        "receipt_number": "SHOW-RAIL-201"
+      }
+    },
+    {
+      "case_id": "case-03",
+      "cohort": "corroboration",
+      "expected": "needs_review",
+      "note": "Hotel learning source. Billing descriptor \"Harbor Reservations\" is not itself a hotel; production requires a matching booking confirmation, which this benchmark does not supply.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-07",
+        "amount_minor": 18000,
+        "currency": "USD",
+        "names": [
+          "Sam Mercer"
+        ],
+        "receipt_number": "SHOW-HOTEL-301"
+      }
+    },
+    {
+      "case_id": "case-04",
+      "cohort": "corroboration",
+      "expected": "needs_review",
+      "note": "Later hotel / learned procedure. Same descriptor; approvable only through a learned booking-reference procedure that is not active here.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-12",
+        "amount_minor": 19500,
+        "currency": "USD",
+        "names": [
+          "Taylor Quinn"
+        ],
+        "receipt_number": "SHOW-HOTEL-302"
+      }
+    },
+    {
+      "case_id": "case-05",
+      "cohort": "corroboration",
+      "expected": "needs_review",
+      "note": "Conflicting hotel confirmations. Two conflicting confirmations exist in the app; identity is unresolved.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-08",
+        "amount_minor": 17200,
+        "currency": "USD",
+        "names": [
+          "Morgan Blake"
+        ],
+        "receipt_number": "SHOW-HOTEL-303"
+      }
+    },
+    {
+      "case_id": "case-06",
+      "cohort": "corroboration",
+      "expected": "needs_review",
+      "note": "Hotel booking missing. Descriptor with no booking evidence at all.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-14",
+        "amount_minor": 16800,
+        "currency": "USD",
+        "names": [
+          "Casey Reed"
+        ],
+        "receipt_number": "SHOW-HOTEL-304"
+      }
+    },
+    {
+      "case_id": "case-07",
+      "cohort": "incomplete",
+      "expected": "needs_review",
+      "note": "Traveler missing / receipt-only policy. No traveler name on the receipt and hotel policy accepts receipt evidence only.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-11",
+        "amount_minor": 16000,
+        "currency": "USD",
+        "names": [],
+        "receipt_number": "SHOW-HOTEL-305"
+      }
+    },
+    {
+      "case_id": "case-08",
+      "cohort": "incomplete",
+      "expected": "needs_review",
+      "note": "Policy-authorized itinerary identity. No traveler name on the receipt; the linked itinerary that would satisfy flight policy is not supplied to either arm.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Northstar Airlines",
+        "receipt_date": "2026-09-04",
+        "amount_minor": 28500,
+        "currency": "USD",
+        "names": [],
+        "receipt_number": "SHOW-FLIGHT-401"
+      }
+    },
+    {
+      "case_id": "case-09",
+      "cohort": "violation",
+      "expected": "flagged",
+      "note": "Overclaim / receipt total differs. Requested $190.00 against a $180.00 receipt.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-13",
+        "amount_minor": 18000,
+        "currency": "USD",
+        "names": [
+          "Jamie Park"
+        ],
+        "receipt_number": "SHOW-HOTEL-501"
+      }
+    },
+    {
+      "case_id": "case-10",
+      "cohort": "violation",
+      "expected": "flagged",
+      "note": "Hotel policy cap exceeded. $275.00 against the $250.00 hotel cap.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Harbor Reservations",
+        "receipt_date": "2026-09-15",
+        "amount_minor": 27500,
+        "currency": "USD",
+        "names": [
+          "Cameron Lee"
+        ],
+        "receipt_number": "SHOW-HOTEL-502"
+      }
+    },
+    {
+      "case_id": "case-11",
+      "cohort": "valid",
+      "expected": "approved",
+      "note": "First claim for a purchase. Original flight receipt, later re-claimed with a payment document.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Northstar Airlines",
+        "receipt_date": "2026-09-06",
+        "amount_minor": 31000,
+        "currency": "USD",
+        "names": [
+          "Drew Santos"
+        ],
+        "receipt_number": "SHOW-FLIGHT-601"
+      }
+    },
+    {
+      "case_id": "case-12",
+      "cohort": "duplicate",
+      "expected": "flagged",
+      "note": "Same purchase / different document. Payment confirmation for the same purchase: different bytes, same receipt number, traveler, amount and date.",
+      "duplicate_of": "case-11",
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Northstar Airlines",
+        "receipt_date": "2026-09-06",
+        "amount_minor": 31000,
+        "currency": "USD",
+        "names": [
+          "Drew Santos"
+        ],
+        "receipt_number": "SHOW-FLIGHT-601"
+      }
+    },
+    {
+      "case_id": "case-13",
+      "cohort": "valid",
+      "expected": "approved",
+      "note": "Distinct lookalike train B. Same traveler, operator, date and amount as case 2 but a different receipt number and service; must not be treated as a duplicate.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Maple Rail",
+        "receipt_date": "2026-09-09",
+        "amount_minor": 8900,
+        "currency": "USD",
+        "names": [
+          "Maya Ellis"
+        ],
+        "receipt_number": "SHOW-RAIL-202"
+      }
+    },
+    {
+      "case_id": "case-14",
+      "cohort": "valid",
+      "expected": "approved",
+      "note": "Unassessed bus claim. Ordinary bus fare not yet assessed in the app.",
+      "duplicate_of": null,
+      "printed_fields": {
+        "schema_version": 1,
+        "vendor": "Cedar Bus",
+        "receipt_date": "2026-09-16",
+        "amount_minor": 4200,
+        "currency": "USD",
+        "names": [
+          "Jordan Vale"
+        ],
+        "receipt_number": "SHOW-BUS-701"
+      }
+    }
+  ],
+  "rehearsal": []
+}

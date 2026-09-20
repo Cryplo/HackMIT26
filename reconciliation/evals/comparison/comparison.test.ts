@@ -8,6 +8,8 @@ import { report, summarize, validateLabor } from './report';
 import { allAi } from './baseline';
 import { generate, receiptBytes, sha256 } from './dataset';
 import { main } from './run';
+import { showcase, verifyAgainstSupabase } from './showcase-dataset';
+import { showcaseFixture } from '../../src/lib/demo/showcase';
 import { factsFromSnapshot } from './production';
 import { demoSnapshot } from '../../src/lib/core/fixtures';
 import { CoreService } from '../../src/lib/core/service';
@@ -173,4 +175,25 @@ test('benchmark adapter preserves production fail-first and hash duplicates desp
   assert.equal(await assess(second,[],new AbortController().signal),'flagged');
   first.submission.amount_requested_minor+=100;
   assert.equal(await assess(first,[],new AbortController().signal),'flagged');
+});
+
+test('showcase dataset is the 14 seeded backend claims with their original bytes, and verifies hashes against a receipts table', async () => {
+  const data = showcase();
+  const fixture = showcaseFixture();
+  assert.equal(data.scored.length, 14);
+  assert.deepEqual(data.scored.map(c => c.input.attendee_name), fixture.state.submissions.map(s => s.attendee_name));
+  data.scored.forEach((c, i) => assert.equal(sha256(receiptBytes(c)), fixture.originals[i].receipt.sha256));
+  assert.equal(data.scored.filter(c => c.expected === 'approved').length, 5);
+  assert.equal(data.scored[11].duplicate_of, 'case-11');
+  const rows = fixture.originals.map(o => ({ submission_id: o.receipt.submission_id, sha256: o.receipt.sha256, extraction_status: 'succeeded' }));
+  const transport = (async (url: string | URL | Request) => String(url).includes('/receipts')
+    ? new Response(JSON.stringify(rows), { status: 200 })
+    : new Response('[]', { status: 206, headers: { 'content-range': '0-0/14' } })) as typeof fetch;
+  const env = { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'test' };
+  const ok = await verifyAgainstSupabase(data, env, transport);
+  assert.equal(ok.status, 'verified'); assert.equal(ok.matched, 14); assert.equal(ok.submissions_in_backend, 14); assert.equal(ok.project, 'example.supabase.co');
+  rows[0].sha256 = 'tampered';
+  const bad = await verifyAgainstSupabase(data, env, transport);
+  assert.equal(bad.status, 'mismatch'); assert.equal(bad.mismatches[0].case_id, 'case-01');
+  assert.equal((await verifyAgainstSupabase(data, {})).status, 'skipped');
 });

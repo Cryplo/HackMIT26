@@ -1,0 +1,83 @@
+{
+  "seed": 0,
+  "generated_by": "evals/dataset.ts",
+  "cases": [
+    {
+      "case_id": "source-01",
+      "file": "receipts/source-01.pdf",
+      "sha256": "421a6308848db5d8f01a5836fb7271144dc1aba22d29745a79f524828927873f"
+    },
+    {
+      "case_id": "case-01",
+      "file": "receipts/case-01.pdf",
+      "sha256": "251400f07c913485916d028f25852b251a99a3f09af967e639b06f1d6df24420"
+    },
+    {
+      "case_id": "case-02",
+      "file": "receipts/case-02.pdf",
+      "sha256": "38514d43605339fadaa17a37b261f88f6e59ad25246c2427fc001d04b6a8f300"
+    },
+    {
+      "case_id": "case-03",
+      "file": "receipts/case-03.pdf",
+      "sha256": "421a6308848db5d8f01a5836fb7271144dc1aba22d29745a79f524828927873f"
+    },
+    {
+      "case_id": "case-04",
+      "file": "receipts/case-04.pdf",
+      "sha256": "7bed2d7638ff179666ea948ba3e643d3a69c25b45784bdf1beef7ab6409445cd"
+    },
+    {
+      "case_id": "case-05",
+      "file": "receipts/case-05.pdf",
+      "sha256": "e9956de23351932b8fc1bcec28ea05bc50c1adf8e712f3327ea75feba067bbd0"
+    },
+    {
+      "case_id": "case-06",
+      "file": "receipts/case-06.pdf",
+      "sha256": "663a779bd12feecafd05b2b60f825f326800de5883eee0509c86610f8ddc52e5"
+    },
+    {
+      "case_id": "case-07",
+      "file": "receipts/case-07.pdf",
+      "sha256": "b2c049abf79a28f1a0f0db420673feda1ba15dcbcd9bf0f9a640025a6b604bd7"
+    },
+    {
+      "case_id": "case-08",
+      "file": "receipts/case-08.pdf",
+      "sha256": "00b8c5e0283350d0c738b3de238e4005691d2356dcef008d0653b29d010af2bf"
+    },
+    {
+      "case_id": "case-09",
+      "file": "receipts/case-09.pdf",
+      "sha256": "4c30f297fd3590b6e6b8ff6b1b35ca12b398e98811e51960a74d7b3bd46e556b"
+    },
+    {
+      "case_id": "case-10",
+      "file": "receipts/case-10.pdf",
+      "sha256": "4032c0ec776dde66e2bc0cbc622d7da66ed02595052b35fae3f85c154c060cbf"
+    },
+    {
+      "case_id": "case-11",
+      "file": "receipts/case-11.pdf",
+      "sha256": "25af18f7795dc93129b14a1649ea963f3c0cdac4f91b879d651dda2d01d2df2c"
+    },
+    {
+      "case_id": "case-12",
+      "file": "receipts/case-12.pdf",
+      "sha256": "2339e105d1046903100e6c5f511d358360c77308cf132254a56b69e2ed805dbd"
+    },
+    {
+      "case_id": "case-13",
+      "file": "receipts/case-13.pdf",
+      "sha256": "4342dc8a8fc822b2549a0a2edc84082e87602bf713a46ae3abef26770f41c69a"
+    },
+    {
+      "case_id": "case-14",
+      "file": "receipts/case-14.pdf",
+      "sha256": "260b5efc5fdf2996358e164d1a4b114afdb46ac81cbc7affa2118a7507eff54e"
+    }
+  ],
+  "inputs_sha256": "9280a3d36dd42482e7083a92af518a3ba243eb8c125ae75e9b2f82809bacff64",
+  "expected_sha256": "198b6d76d7e0e08bceea0c9d6b7e895b3a543a064934500b8edb8efd33fe5f0a"
+}

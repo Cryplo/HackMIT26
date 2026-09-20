@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { generate, writeDataset, sha256, validateReview, type Manifest } from './dataset';
+import { showcase, showcasePolicies, verifyAgainstSupabase } from './showcase-dataset';
 import { CoreService } from '../../src/lib/core/service';
 import { MemoryStore, type Snapshot } from '../../src/lib/core/store';
 import { DatabaseRetrieval } from '../../src/lib/core/retrieval';
@@ -36,28 +37,34 @@ const options = {
   seed:{type:'string'},dataset:{type:'string'},out:{type:'string'},review:{type:'string'},
   'baseline-model':{type:'string'},'max-model-calls':{type:'string'},limit:{type:'string'},
   prices:{type:'string'},labor:{type:'string'},
-  adversarial:{type:'boolean'},recheck:{type:'string'},'learned-alias':{type:'boolean'},
+  adversarial:{type:'boolean'},showcase:{type:'boolean'},recheck:{type:'string'},'learned-alias':{type:'boolean'},
 } as const;
 const aliasSchema=z.object({observed_vendor:z.string().min(1),canonical_vendor:z.string().min(1),scope:z.object({category:z.enum(['flight','hotel','train','bus','other']),currency:z.literal('USD')}).strict()}).strict();
 
 export async function main(args=process.argv.slice(2)) {
   const {values:v}=parseArgs({args,options,strict:true,allowPositionals:false});
   if(v.help) {
-    console.log('Prepare: run.ts --prepare --out evals/results/comparison-data [--seed 20260921] [--adversarial]\nLive: run.ts --live --dataset DIR --out NEW_DIR --baseline-model DEPLOYMENT --max-model-calls 150 (--review FILE | --exploratory) [--limit 3] [--prices FILE] [--labor FILE]\nRecheck: add --recheck SOURCE_RUN_DIR [--learned-alias]: Sift reuses the source run\'s saved extraction (Jev only), the baseline rereads every PDF with its own source-run history; budget is 2 calls per case.\nNo live calls without --live. Full run: up to 3 model calls per case (extraction + Jev + baseline), serial.'); return;
+    console.log('Prepare: run.ts --prepare --out evals/results/comparison-data [--seed 20260921] [--adversarial | --showcase]\n  --showcase freezes the 14 seeded showcase claims (the rows the demo seed loads into Supabase) and, when SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are set, verifies each PDF hash against the live receipts table.\nLive: run.ts --live --dataset DIR --out NEW_DIR --baseline-model DEPLOYMENT --max-model-calls 150 (--review FILE | --exploratory) [--limit 3] [--prices FILE] [--labor FILE]\nRecheck: add --recheck SOURCE_RUN_DIR [--learned-alias]: Sift reuses the source run\'s saved extraction (Jev only), the baseline rereads every PDF with its own source-run history; budget is 2 calls per case.\nNo live calls without --live. Full run: up to 3 model calls per case (extraction + Jev + baseline), serial.'); return;
   }
   if(!!v.prepare===!!v.live)throw new Error('Choose exactly one of --prepare or --live.');
   if(!v.out)throw new Error('--out must name a new directory.');
   const out=path.resolve(v.out);
   if(v.prepare) {
     if(v.dataset||v.review||v.exploratory||v['baseline-model']||v['max-model-calls']||v.limit||v.prices||v.labor||v.recheck||v['learned-alias'])throw new Error('Live options are invalid with --prepare.');
+    if(v.showcase&&(v.seed||v.adversarial))throw new Error('--showcase is a fixed dataset; it takes no seed or cohort options.');
     const seed=integer(v.seed,20260921);
     await mkdir(path.dirname(out),{recursive:true});await mkdir(out); // exclusive creation
-    const dataset=generate(seed,{adversarial:!!v.adversarial});
+    const dataset=v.showcase?showcase():generate(seed,{adversarial:!!v.adversarial});
     const manifest=await writeDataset(out,dataset);
-    await writeFile(path.join(out,'policies.json'),pretty(demoSnapshot().policies));
+    await writeFile(path.join(out,'policies.json'),pretty(v.showcase?showcasePolicies():demoSnapshot().policies));
+    if(v.showcase) {
+      const verification=await verifyAgainstSupabase(dataset);
+      await writeFile(path.join(out,'supabase.json'),pretty(verification));
+      console.log(verification.status==='verified'?`Supabase: all ${verification.matched} receipt hashes match ${verification.project}.`:verification.status==='skipped'?'Supabase: not verified (SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY unset).':`Supabase: MISMATCH, see supabase.json.`);
+    }
     await writeFile(path.join(out,'review.template.json'),pretty({dataset_dir:out,reviewers:[],reviewed_at:'',minutes_spent:0,inputs_sha256:manifest.inputs_sha256,expected_sha256:manifest.expected_sha256,policies_sha256:sha256(await readFile(path.join(out,'policies.json'))),corrections:[]}));
     await writeFile(path.join(out,'prices.template.json'),'[]\n');
-    console.log(`Prepared ${dataset.scored.length} synthetic cases in ${out}. No API calls made. Review PDFs/labels and policies before a scored run.`);return;
+    console.log(`Prepared ${dataset.scored.length} ${v.showcase?'showcase':'synthetic'} cases in ${out}. No API calls made. Review PDFs/labels and policies before a scored run.`);return;
   }
   if(v.seed||v.adversarial)throw new Error('Seed and cohort selection belong to preparation; live runs use frozen inputs.');
   if(!v.dataset||!v['baseline-model']||!v['max-model-calls'])throw new Error('Live needs --dataset, --baseline-model and --max-model-calls.');
@@ -76,7 +83,7 @@ export async function main(args=process.argv.slice(2)) {
   if(sha256(inputBytes)!==manifest.inputs_sha256||sha256(expectedBytes)!==manifest.expected_sha256)throw new Error('Frozen dataset hashes changed. Prepare and review a new dataset.');
   const input=JSON.parse(inputBytes.toString()), truth=JSON.parse(expectedBytes.toString());
   const policyBytes=await readFile(path.join(dir,'policies.json'));
-  const policySchema=z.array(z.object({id:z.uuid(),category:z.enum(['flight','hotel','train','bus','other']),region_or_route:z.literal('*'),currency:z.literal('USD'),max_amount_minor:z.number().int().nonnegative(),date_range_start:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),date_range_end:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),created_at:z.string()}).strict()).min(1);
+  const policySchema=z.array(z.object({claimant_identity_evidence:z.enum(['receipt_only','receipt_or_linked_itinerary']).optional(),id:z.uuid(),category:z.enum(['flight','hotel','train','bus','other']),region_or_route:z.literal('*'),currency:z.literal('USD'),max_amount_minor:z.number().int().nonnegative(),date_range_start:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),date_range_end:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),created_at:z.string()}).strict()).min(1);
   const policies:PolicyRule[]=policySchema.parse(JSON.parse(policyBytes.toString()));
   if(!Array.isArray(input.cases)||input.cases.length!==planned||!Array.isArray(truth.cases)||truth.cases.length!==planned)throw new Error(`Expected the frozen ${planned}-case dataset.`);
   const learnedAlias:AliasPayload|null=v['learned-alias']?aliasSchema.parse(truth.alias):null;
