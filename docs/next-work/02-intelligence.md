@@ -1,221 +1,150 @@
-# Agent C — Intelligence implementation handoff
+# C — Bounded investigation, semantic evidence, and booking-reference tests
 
-Read [00-contracts.md](00-contracts.md) and [README.md](README.md) **first**. They supersede conflicting instructions in the [previous Agent C context](../superpowers/plans/2026-09-19-dylanli/agent-3-intelligence.md). Report interface conflicts rather than changing another owner's contract.
+Implementation assignment for Sift’s 4–8 hour investigation phase. [00-contracts.md](00-contracts.md) owns all shared types; [01-platform.md](01-platform.md) owns persistence and guarded reassessment. Deliver one working investigation and reviewed-procedure flow before optional work. This is an assignment, not a record of passing checks or live accuracy.
 
-**Goal:** Deliver the ten-case scoped-alias activation gate and preserve Jev correctness for the USD travel reimbursement demo. A model judgment never authorizes payment.
-
-**Architecture:** Implement the existing `IntelligencePort` with TypeScript, native fetch/crypto, and Node tests. B supplies the real financial plus Jev `AssessExample` path and owns all state changes. No new dependencies.
-
-## Ownership and priority
-
-All implementation paths below are relative to `HackMIT26/reconciliation/`. You are not alone in this codebase: preserve others' changes and coordinate integration through the frozen contracts.
+## Ownership and delivered baseline
 
 | Owner | Write scope |
 | --- | --- |
-| C | `src/lib/intelligence/**`; `src/lib/core/jev.ts`; new dedicated `src/lib/core/tests/jev.test.ts` |
-| B | Routes, services, deterministic checks, stores, migrations, runtime wiring, shared contract validation, `AssessExample`, and final duplicate approval enforcement |
-| A | UI, retry/duplicate/export interactions and UI tests |
-| Devin | Separate 50-case held-out benchmark under `evals/**` |
+| C | `reconciliation/src/lib/intelligence/**`, `src/lib/core/jev.ts`, and `src/lib/core/tests/jev.test.ts` |
+| B | Shared contracts, core assessment/retrieval/procedure application, providers/config, intake, stores, migrations, APIs, and core docs |
+| A | Review workspace, supporting-document controls, Investigations UI, and UI tests |
+| Devin + fourth teammate | Devin alone writes the `evals/**` pack/artifacts; the human reviews evidence/policies/labels and handles demo/pitch |
 
-Do not edit existing `core.test.ts`, shared contracts, extraction, package/lock files, DB, UI, or `evals/**`. Earlier C ownership of extraction is withdrawn. Follow the README's main-only process; use mocked HTTP until budgeted live verification.
+- Work only on `main` in your separate clone; preserve unrelated edits and use the coordinator’s serialized delivery slot. Do not edit B’s files, UI, `evals/**`, package/lock files, or shared data.
+- Do not parallel-edit Devin’s evidence files; request corrections through that owner. Human policy/label sign-off is separate from implementation and model input.
+- Existing search and the ten-case `alias-v1` learning suite are implemented. Jev already strictly validates answer keys/distributions, preserves mandatory fields, logs attempts, and uses a 25-second timeout. Reuse them.
+- `intelligence/index.ts` has an unavailable investigation stub. Implement that seam; investigation is now P0. No custom-question editor or new dependency in this phase.
+- Keep one original receipt and exact financial matching. Supporting documents are additional evidence for the purchase; they are never added together as reimbursable purchases.
+- Do not implement an independent assessor. Core alone writes state, computes published assessment/outcome, and decides whether approval is allowed.
 
-P0 covers money/duplicate safety, actual alias propose/test/activate/disable, Devin's 50-case benchmark, UI retry/duplicates/export, and a verified live demo. C's critical path is Tasks 1–3. Search already runs live; investigation is optional. The custom editor is **P1, only after all five P0 items pass**.
+## Read before editing
 
-Effort: Task 1 is small; Tasks 2–3 and integration with B are the main work. P1 requires an A/B/C configuration lifecycle, so defer it if it competes with verification.
+Paths below are under `reconciliation/` unless prefixed with `../`.
 
-## Read the actual baseline
+1. `AGENTS.md`, `src/lib/core/README.md`, `../docs/next-work/{00-contracts,01-platform,04-devin-benchmark}.md`.
+2. `src/lib/review-contracts.ts`, `src/lib/intelligence/{index,learning,search}.ts`, and `learning.test.ts`.
+3. `src/lib/core/jev.ts`, its dedicated test, `service.ts`, `checks.ts`, `retrieval.ts`, `safety.ts`, `evaluation.ts`, `rules.ts`, `rule-state.ts`, and `runtime.ts`; trace every `Jev.evaluate`/investigate caller.
+4. Read-only: `src/lib/providers/responses.ts`, `src/lib/intake/extract.ts`, and B’s delivered supporting-document and procedure contracts.
+5. `evals/comparison/findings/2026-09-20/{README,report}.md`; preserve those published artifacts.
 
-- `src/lib/core/jev.ts`: exports `Jev`, `LiveJev`, `SimulatedJev`, `questions`, and `validateAnswers`. It already posts `{ model, state, questions }`, applies a 25-second timeout, and logs usage in `finally`. Its current answer validator requires the three answers but does **not** reject extra answer keys.
-- `src/lib/intelligence/search.ts`: existing live search, exact response validation, groups of 10 rows, concurrency 3, cancellation, usage logging, and no partial results. Reuse it.
-- `src/lib/review-contracts.ts`: frozen `IntelligencePort`, `EvaluationCase`, `AssessExample`, `RuleEvaluationInput`, `RuleTestReport`, `ProviderOptions`.
-- Read-only: `src/lib/core/service.ts`, `checks.ts`, `retrieval.ts`, `validation.ts`, `fixtures.ts`, and `runtime.ts`. Trace existing `Jev.evaluate` callers, including `scripts/check-jev.ts` and the core tests, before changing its implementation.
-- `docs/live-jev-smoke.json`: historical live Jev with fixture extraction/simulated retrieval; not proof of the new workflow or benchmark.
+The isolated benchmark reported Sift **39/50** correct and **19/30** valid matched versus **47/50** and **29/30** for the direct PDF-to-Azure baseline. Sift flagged 8/8 violations and 6/6 duplicates, with zero unsafe matches; every valid exception had an unknown merchant check. Ten unfamiliar merchants lack corroborating identity evidence. Median 2.287s versus 2.542s and estimated $0.0183 versus $0.0726 do not establish equivalent quality, human-time savings, production behavior, or isolated Jev causality. Labels are unreviewed and costs assumed.
 
-Preserve exports and three-argument `Jev.evaluate(state, runId, log)`. Imports require no keys/network. Money is integer cents or `null`; never fill missing receipt facts from the claim.
+## 1. Consume B’s additive seams
 
-## Verified provider capabilities — checked 2026-09-20
+**Files:** `intelligence/index.ts`; new `intelligence/investigation.ts` and `investigation.test.ts`; no shared-contract edits.
 
-1. Native API: `POST https://api.typesafe.ai/v1/systemone`, bearer authentication, `{model,state,questions}`, matching answer keys, snake-case token usage. State accepts string/object/array. Question keys are not inference input; instructions must identify the evidence. [TypeSafe HTTP reference](https://docs.typesafe.ai/api)
-2. Native Choice returns the highest-probability choice, a distribution summing to one, and confidence. Validate every response. [TypeSafe Choice](https://docs.typesafe.ai/primitives/choice)
-3. Preserve `https://ai-gateway.vercel.sh/typesafe/v1/systemone`: documented model `typesafe-ai/jev`, bearer gateway auth, native-shaped responses and snake-case usage. [Vercel TypeSafe-compatible API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe)
-4. Gateway `/v1/evaluate`/AI SDK 7 is another surface; OpenAI-compatible endpoints do not support evaluation. No migration is needed. [Vercel evaluation documentation](https://vercel.com/docs/ai-gateway/modalities/evaluation)
-5. Independent questions share one state; arrays do not imply a native independent-claim batch API. Search grouping is application logic. Current inputs are text-based: send extracted receipt facts/text, not image/audio bytes. [Vercel Jev boundaries](https://vercel.com/i/what-is-jev), [TypeSafe introduction](https://docs.typesafe.ai/introduction)
-6. Confidence measures distribution concentration, not selected-option probability. Keep application thresholds **0.85 probability / 0.70 confidence**, otherwise `unknown`; these require separate calibration, not accuracy claims. [TypeSafe confidence](https://docs.typesafe.ai/confidence)
+- [ ] Keep `investigate(input, tools, options)` at three arguments and retain every existing port method/export. Existing `ProviderOptions` supplies mode, cancellation, and usage logging.
+- [ ] Tools are exactly `read_receipt`, `read_supporting_documents`, `find_related_claims`, `read_policy`, and `read_active_aliases`; B binds them to authoritative stored evidence and persists each real invocation.
+- [ ] `read_receipt` includes stored extracted text. Supporting-document results include extracted facts/provenance and source references. Use those facts without re-extracting the original PDF.
+- [ ] Preserve existing `InvestigationResult` fields/status (`completed|unavailable`), adding findings, unresolved question, and proposed learning only as frozen. Completion here describes C’s work, not a published resolution or human approval.
+- [ ] B preserves the legacy `ReviewRow.investigation` projection and adds `latest_investigation?: InvestigationRun|null`; list/detail endpoints use the full public run. C never returns a competing public run DTO.
+- [ ] Public tool progress uses `InvestigationRunStep`; legacy `InvestigationStep` remains compatible. `InvestigationFinding.evidence_refs` uses typed `EvidenceRef` records with kind/id, not invented freeform links.
+- [ ] B implements `RECONCILIATION_INVESTIGATION_MODE=disabled|simulated|live`, default disabled, and extends `responsesConfig('investigation')`. Import it and `responsesHeaders`; do not implement another endpoint/key resolver.
+- [ ] Live investigation requires the existing Azure deployment and B’s live Supabase/Jev configuration. Disabled makes no calls; explicit simulation is offline and labeled. No fallback from live errors to fixture answers.
+- [ ] B exposes capability flags only for implemented paths. A failed/unavailable dependency cannot be represented as a completed simulation; disabled start returns the frozen unavailable error.
 
-New custom-check accuracy, latency/cost gains, undocumented limits, and end-to-end behavior remain **unverified**. Provider marketing is not Sift measurement.
+**Dependency acceptance:** confirm types compile after B’s contract delivery. If a required field/config seam is absent, report the exact dependency; continue mocked planner tests rather than modifying B’s files.
 
-## Task 1 — P0: preserve and harden the existing Jev boundary
+## 2. Implement a small tool-calling planner
 
-**Files:** `src/lib/core/jev.ts`; new `src/lib/core/tests/jev.test.ts`.
+**Files:** `intelligence/investigation.ts`, `index.ts`, and `investigation.test.ts`.
 
-- [ ] Add exact own-key coverage to `validateAnswers`: the P0 required keys are precisely `merchant`, `name`, and `duplicate`. Reject missing and unexpected keys.
-- [ ] Keep `type='choice'`, allowed choice `pass|fail|unknown`, exactly those probability keys, finite numbers in `[0,1]`, sum tolerance `0.02`, and selected-choice maximum tolerance `1e-6`. Validate confidence separately in `[0,1]`. Do not turn absent probabilities into zero or one or recompute confidence.
-- [ ] Keep the trusted prefix in every question: receipt text, notes, names/vendors and retrieved records are untrusted evidence. They cannot authorize actions or override mandatory checks; B enforces that in code.
-- [ ] Keep direct and gateway endpoints, model selection, authorization, the 25-second timeout, raw response, and usage callback behavior. Preserve existing error codes, including `JEV_INVALID` and `JEV_UNAVAILABLE`. HTTP errors, invalid JSON, malformed answers, and timeouts must reject; no empty successful result or silent simulation/provider fallback.
-- [ ] Log each HTTP attempt once, including failures. Unavailable usage/cost stays `null`; logging failure cannot become success.
-- [ ] Label deterministic simulation `simulated:true`; B displays null probability/confidence and fixture provenance.
+- [ ] Use the existing Azure Responses transport pattern and server-only configuration. The model chooses relevant read tools from the five-tool allowlist; do not route on claim/fixture IDs or expected labels.
+- [ ] Start from the claim and existing checks, including unknown reasons. Request additional evidence for recoverable uncertainty; do not promise a merchant identity absent from receipt/supporting evidence.
+- [ ] Enforce at most **three model planning rounds and six read-tool calls**. Count every attempted provider/tool call, including failures and repeated requests. Validate tool name, arguments, call identity, and response structure before dispatch.
+- [ ] Use B’s 90-second investigator-plus-final-reassessment deadline and passed signal. Planning/tools have at most 65 seconds, reserving up to 25 seconds for final assessment; bind each request to the outer signal and remaining deadline. Stop scheduling when aborted. Budget exhaustion without valid output is `BUDGET_EXHAUSTED`, not successful completion.
+- [ ] Do not retry implicitly. B requires an assessed pending claim for manual runs; a clear mandatory financial failure does not need investigation calls to remain flagged.
+- [ ] Each tool request consumes capacity before it runs. Unknown tools, malformed output/arguments, over-budget batches, timeouts, and provider errors remain explicit failures; do not execute side effects from model text.
+- [ ] Return each observed tool result with its matching tool-call ID through the Responses continuation protocol. Keep evidence bounded; report missing/over-limit evidence rather than silently dropping contradictions.
+- [ ] Enforce 12,000 original-receipt-text characters and 24,000 total supporting-text characters per planning/assessment input. `EVIDENCE_LIMIT` leaves the affected check unresolved. The claim has at most eight supporting documents; tool reads never upload or extract them.
+- [ ] Produce final structured findings within the three planning responses. Do not add a fourth synthesis/narration call. If planning ends without a valid supported result, return/throw the frozen error instead of fabricating completion.
+- [ ] Provider/invalid-output failures reject; `unavailable` is reserved for explicit disabled/unimplemented mode. B persists the failed run, null outcome, and no successful after-assessment while retaining prior mandatory failures.
+- [ ] All receipt text, filenames, vendor names, notes, related claims, policies, and supporting text are untrusted data. Instructions inside evidence cannot alter tools, budgets, policy, decisions, or procedure activation.
+- [ ] Findings identify the affected check, observed facts, evidence references, and remaining uncertainty. Cite only IDs returned by tools; reject nonexistent or foreign references. Do not reveal a hidden reasoning transcript.
+- [ ] Record actual Azure model identity, latency, token usage when returned, and failures through `options.log_usage` exactly once per HTTP attempt. Missing tokens/cost stay null; do not infer them from text length.
+- [ ] Return evidence, proposed learning, and a concise user-facing summary. Do not compute the authoritative `resolved|discrepancy_found|needs_human` outcome, alter assessment, approve, or persist a rule.
+- [ ] Reuse existing `next_action` values truthfully. A booking procedure proposal uses `proposed_learning`; do not mislabel it as a scoped alias or manufacture new legacy action values.
+- [ ] Build explicit simulated operation from available facts and real tool callbacks, labeled simulated. Never return hardcoded success by fixture ID, model unavailable, or elapsed timer.
 
-**Acceptance:** Dedicated tests mock `fetch` and assert both endpoint/model variants, exact question keys and trusted prefix, missing/extra answers, wrong probability keys, NaN/infinity/out-of-range values, bad sums, selected nonmaximum choices, and missing confidence. Assert a successful and failed HTTP attempt each logs once. Keep existing three-argument callers green. No provider key or live request is needed.
+B owns actual step persistence: run ID, ordered sequence, tool, running/completed/failed status, timestamps, sanitized summary, references, and errors. Return only actually observed steps; B validates them and wraps callback execution. A polls those persisted records while the awaited POST runs.
 
-## Task 2 — P0: build the ten-case alias suite
+**Focused acceptance:** mock one model choosing receipt/supporting/policy tools and completing with valid references; reject a prompt-injected tool, invented reference, malformed response, seventh tool, fourth round, failed tool, timeout, and pre-aborted call. Confirm zero hidden extraction calls and no writes.
 
-**Files:** create `src/lib/intelligence/learning.ts`, `src/lib/intelligence/learning.test.ts`.
+## 3. Use richer evidence without weakening Jev
 
-**Contract:** `build_rule_suite(rule: MerchantRule): EvaluationCase[]`. Import types from `review-contracts.ts`; do not create competing DTOs.
+**Files:** `core/jev.ts` and `core/tests/jev.test.ts`. B updates `SemanticState` producers and core verdict conversion in its owned files.
 
-```ts
-type AssessExample = (
-  facts: EvaluationCase['facts'], aliases: ActiveAlias[], signal: AbortSignal
-) => Promise<Assessment>;
-// EvaluationCase: { id, facts, expected_assessment }
-// facts: { submission, receipt, policies, related_claims, exact_duplicate_ids }
-```
+- [ ] Preserve three-argument `Jev.evaluate(state, runId, log)` callers and exported `Jev`, `LiveJev`, `SimulatedJev`, `questions`, and `validateAnswers`. Add 00's optional fourth `signal?: AbortSignal`; combine it with the current transport timeout so B's remaining deadline cancels the actual request. Use additive state fields agreed with B for receipt text, supporting facts, policy applicability, and procedure evidence.
+- [ ] Keep the native TypeSafe/Gateway transports and existing configured model selection; this phase does not migrate Jev APIs or add an SDK.
+- [ ] Merchant judgment may use actual receipt text, linked booking identity/reference, and applicable active knowledge. Missing or conflicting corroboration stays unknown; a name that merely resembles a hotel is not evidence of category.
+- [ ] Name judgment may use a linked itinerary only when B supplies an applicable policy with `claimant_identity_evidence: 'receipt_or_linked_itinerary'` and matching nonempty reference/claimant evidence. Absent policy metadata means receipt-only; an absent receipt traveler remains unknown. Never invent a global identity exemption.
+- [ ] Duplicate judgment uses B’s narrowed prior candidates and actual corroboration. Same amount/merchant/date alone is insufficient; similarity scores are not duplicate proof. Different document forms can still identify the same purchase.
+- [ ] Keep exact required answer keys `merchant`, `name`, `duplicate`; choices and probability keys `pass|fail|unknown`; finite range checks, sum/max validation, confidence validation, timeout, and once-per-attempt logging.
+- [ ] Preserve application thresholds **0.85 chosen-answer probability / 0.70 confidence**. B records chosen answer/probability/confidence and explicit conversion reasons; do not reinterpret probability as calibrated accuracy.
+- [ ] Keep trusted evidence instructions on every question. Model answers cannot bypass extraction, amount, currency, policy/date/cap, duplicate, revision, or approval checks.
+- [ ] Keep provider errors visible. Simulated semantics stays explicitly labeled, fact-based, and network-free; it must not learn fixture IDs or hidden expected outcomes.
 
-B exports `createAssessExample(core, observe?): AssessExample` from `src/lib/core/evaluation.ts`; C needs only the one-argument factory and unchanged callback. B/Devin use `EvaluationObservation` for actual checks, model calls, alias IDs and errors, with caller phase attribution. Usage has null run IDs; no reconciliation runs are persisted. C writes no state and builds no second assessor. Keep this activation suite separate from Devin's **50 held-out cases**; never import, copy, or tune against them.
+**Acceptance:** dedicated tests preserve old three-argument callers and strict validation, demonstrate evidence passed unchanged, reject instruction-bearing evidence as authorization, and cover supporting-name permission present/absent. Coordinate actual deterministic matching and mandatory financial assertions with B’s tests; C does not duplicate core policy logic.
 
-- [ ] Build these ten stable cases with unique IDs and deterministic facts in the candidate's exact vendor/category/USD scope. Exclude `rule.source_submission_id`. Valid purchases need distinct travelers, receipt numbers, amounts and hashes.
+## 4. Add the separate booking-reference activation suite
 
-| Case ID | Facts to construct | Expected assessment |
-| --- | --- | --- |
-| `valid_a` | Matching traveler, exact USD amount below cap, observed vendor in scope, no duplicate | `matched` |
-| `valid_b` | Another independent eligible purchase in the same scope | `matched` |
-| `overclaim` | Same observed vendor; requested cents exceed receipt cents by 1 | `flagged` |
-| `over_cap` | Requested and receipt cents both exceed the applicable cap by 1 | `flagged` |
-| `exact_duplicate` | Matching related receipt and hash; related submission ID in `exact_duplicate_ids` | `flagged` |
-| `other_category` | Same observed descriptor in a different category, with otherwise valid money/policy | `needs_review` |
-| `eur_receipt` | Submission remains USD; receipt explicitly EUR | `flagged` |
-| `missing_receipt` | `receipt: null`; do not substitute claim data | `needs_review` |
-| `missing_name` | Otherwise eligible receipt has `names: []` | `needs_review` |
-| `unrelated_vendor` | Different ambiguous observed merchant; candidate cannot apply | `needs_review` |
+**Files:** new `intelligence/procedures.ts` and `procedures.test.ts`; `index.ts` wiring. Keep existing `learning.ts`/`learning.test.ts` and ten-case `alias-v1` unchanged.
 
-Mandatory failures remain `flagged` despite another unknown check. A safely nonmatched result with the wrong expected label is still incorrect; do not rewrite truth to pass.
+B exports `createAssessProcedureExample(core, observe?): AssessProcedureExample` from `core/evaluation.ts`. `ProcedureFacts` extends `EvaluationCase['facts']` with `supporting_documents: SupportingDocument[]`. Its callback is `assess(facts, aliases, procedures, signal): Promise<Assessment>`; `EvaluationObservation` adds optional `procedure_ids` without breaking old callers.
 
-- [ ] Use receipt date `2026-09-18`, policy window `2026-09-01` through `2026-09-30`, region `*`, and category caps in cents: flight `50000`, hotel `25000`, train `20000`, bus `10000`, other `5000`. Valid amounts can be `min(10000, floor(cap / 2))` and that value plus 1. The second category must differ and have its own applicable policy. Never expand scope to accept EUR claims.
-- [ ] Use Node `createHash('sha256')` on actual deterministic synthetic text bytes; store that text in `raw_extracted_text`. Duplicates share bytes/hash plus corroborating fields; valid purchases have distinct hashes. Label fixture evidence; no PDF/storage/extraction changes.
-- [ ] Do not embed labels like “should fail” in provider-visible names, vendors, text, or notes. `expected_assessment` stays only on `EvaluationCase`, never inside `facts` or questions.
-- [ ] Reject malformed scope, empty/equal normalized vendor identities, invalid/duplicate IDs and incomplete coverage. Do not change fixtures or labels to force improvement.
+C supplies optional port methods `build_procedure_suite(procedure): ProcedureEvaluationCase[]` and `evaluate_procedure(input: ProcedureEvaluationInput, assess: AssessProcedureExample): Promise<ProcedureTestReport>`. Import exact types from B’s contract; do not create parallel interfaces.
 
-**Acceptance:** Repeatability, ten unique cases, source exclusion, integer/null money, distinct valid purchases, corroborated duplicate, and no mutation. Assert `SYN HBR 042 → Synthetic Harbor Hotel` applies only to the exact normalized descriptor in hotel/USD. Test other category scopes and an out-of-policy-date regression separately without expanding the ten-case denominator.
+- [ ] Build fixed `booking-reference-v1` facts for the candidate’s exact hotel/USD observed descriptor and canonical merchant. Exclude the source claim and the 20 demo claims; use independent deterministic synthetic bytes/facts and stable case IDs.
+- [ ] Required matching values come from extracted receipt and linked booking evidence. Both references must be nonempty and agree after case/trimmed-collapsed-whitespace normalization; preserve meaningful reference characters, nonmatching references, and canonical identity conflicts.
+- [ ] Freeze these **12 cases**, including source references and applicable policy in each input. Expected outcomes stay outside provider-visible facts.
 
-## Task 3 — P0: run paired assessment and produce the real gate
+| Case | Required assertion |
+| --- | --- |
+| `valid_a`, `valid_b` | Two distinct new eligible purchases, matching references and identity; each can match safely |
+| `missing_booking` | No required booking evidence; procedure cannot apply |
+| `conflicting_reference` | Receipt and booking disagree; procedure cannot apply |
+| `unrelated_descriptor` | Different ambiguous descriptor; procedure cannot apply |
+| `missing_traveler` | No identity evidence or applicable exception; remains unresolved |
+| `overclaim` | Requested cents exceed receipt by one; flagged |
+| `over_cap` | Matching requested/receipt amount exceeds policy cap by one; flagged |
+| `non_usd` | Explicit non-USD receipt; flagged |
+| `out_of_policy_date` | Receipt outside applicable date range; flagged |
+| `exact_duplicate` | Earlier same purchase with real matching evidence; flagged |
+| `wrong_category` | Procedure is out of scope; assess remaining facts, with no forced category flag |
 
-**Files:** same `learning.ts` and tests; create `src/lib/intelligence/index.ts` and an optional small `investigation.ts` only for the port implementation described below.
+- [ ] For unresolved negative cases, freeze ambiguous facts so the expected label is supported. Do not change truth simply because the model returns a different safe label. Wrong-category facts must clearly specify their independent expected assessment.
+- [ ] Reject malformed procedure scope, incomplete/changed suite, duplicate identities, source leakage, and already-active candidate inclusion. Do not accept arbitrary client-authored cases.
+- [ ] Compare identical facts, aliases, references, and evidence before/after; change only candidate procedure availability. Call the supplied production scorer for both phases, preserving paired order and at most three concurrent pairs.
+- [ ] Preserve observations for every attempted assessment. Stop scheduling on failure/abort and await already started work; never turn a failed provider into a correct `needs_review` or report an incomplete suite as passed.
+- [ ] Gate on at least one correctly resolved different positive purchase using the procedure, zero unsafe matches, zero previously correct regressions, no protected-check regressions, no decrease in correct count, and complete observations. Actual check evidence must prove application; scorer input IDs alone are insufficient. If baseline already resolved it using more work, new correctness is not required; do not fabricate accuracy improvement.
+- [ ] A later claim must still satisfy evidence requirements. Missing/conflicting booking evidence cannot be replaced by a blanket vendor alias; active procedures cannot bypass name or financial/duplicate checks.
+- [ ] Return `ProcedureTestReport` with actual counts, `applied_case_ids`, regressions, reasons, suite version, and mode. Do not add invented model/hash fields to that DTO. B stores observations and source/evidence/knowledge/procedure/model/suite-hash bindings separately, saves failures, and checks freshness on activation.
 
-**Contract:** `evaluate_rule(input: RuleEvaluationInput, assess: AssessExample): Promise<RuleTestReport>`.
+**Dependency acceptance:** B must supply the real supporting-evidence/procedure scorer before the integration gate can pass. Fake scorers test C’s orchestration only; no copied assessor or model-only alternative is acceptable.
 
-- [ ] Validate candidate identity/version, knowledge revision, mode, ten-case coverage and active alias IDs. Reject an already-present candidate. B supplies the authoritative snapshot; clients cannot choose truth or aliases.
-- [ ] Before aliases are `input.active_aliases`. After aliases are a new array plus `{ id: rule.id, source_correction_id: rule.source_correction_id, payload: rule.payload }`. Do not mutate either input or activate the rule.
-- [ ] For each case, pass the **same `example.facts` object reference** to both assessor calls, with the same supplied signal. Run `before` then `after` as a pair, preserving case order in report IDs. Do not execute a full unrelated before sweep followed by an after sweep. Use at most three concurrent pairs; each pair has only one active assessor call at a time. Do not send labels to the callback or provider.
+## 5. Integrate one truthful learning demonstration
 
-```ts
-input.signal.throwIfAborted();
-const before = await assess(example.facts, beforeAliases, input.signal);
-input.signal.throwIfAborted();
-const after = await assess(example.facts, afterAliases, input.signal);
-input.signal.throwIfAborted();
-```
+- [ ] With B, Devin, and the fourth teammate, choose a supported source from the separate 20-claim pack: 10 straightforward valid, 8 evidence/duplicate/lookalike/identity cases, one genuinely incomplete, and one clear violation.
+- [ ] Verify first investigation reads actual synthetic clues and returns linked findings. B performs one final `CoreService.assess` in the existing lease; C never calls `reconcile` or acquires a second lease.
+- [ ] Reviewer accepts the supported correction through a separate human decision. B derives a draft via `{run_id,expected_review_revision}`; C does not create a procedure merely because the model proposed one.
+- [ ] B allows the later approval revision when evidence is unchanged, then binds the current approval/source revision to proof. Source withdrawal or changed evidence invalidates the candidate’s eligibility.
+- [ ] Test/activate the versioned procedure through B’s server-bound lifecycle, then assess a different later claim with its own matching booking evidence. Keep the incomplete and financial-violation cases visibly blocked.
+- [ ] Record actual steps/calls/time for first investigation and later procedure reuse. A correctness tie is valid; reduced work must be measured from the real trace, not assumed from activation or shown by fake activity.
+- [ ] Keep any recorded demonstration labeled as a recording and simulation labeled simulated. No human-time or independent accuracy claim follows from the development pack.
 
-- [ ] Stop scheduling on failure/cancellation, await started work, and reject invalid outputs, throws, or timeouts. Check cancellation before returning. Never count provider failure as ordinary `needs_review` or return a partial complete report. B's assessor must throw on unavailable required providers/evidence.
-- [ ] P0 Jev has no outer signal argument; its 25-second timeout bounds in-flight requests. Check the supplied signal and discard late results. P1 reserves argument four for custom questions.
-- [ ] Count `total` as evaluated examples, `correct` as exact expected-label agreement, `false_matches` as `actual='matched'` when expected is anything else, and `needs_review` as actual `needs_review`. `improved_case_ids` are previously incorrect cases now correct; `regressed_case_ids` are previously correct cases now incorrect. Preserve suite order.
-- [ ] Pass only with zero after false matches, at least one newly matched valid case, no previously correct regression, and nondecreasing correct count. All-unknown, unchanged, partial and provider-failed runs cannot pass. Correct ambiguity is not valid-case improvement.
-- [ ] Return actual mode, rule ID/version, knowledge revision, `suite_version:'alias-v1'`, completion timestamp, metrics, case-ID lists and reasons. B checks freshness and mode before activation. A live app cannot activate from a simulated report.
-- [ ] On incomplete evaluation, reject. B saves observer diagnostics, marks the attempt failed, clears `latest_test`, and invalidates earlier activation eligibility while retaining history. Optional `latest_test_error` exposes a sanitized message. Do not extend `RuleTestReport` or fabricate missing metrics.
+## Focused verification and handoff
 
-Illustrative output from a controlled **simulated unit test**, not a measured model result:
+Run from `reconciliation/` on Node 24 after B’s typed handoff. New paths below become runnable when created:
 
-```json
-{
-  "rule_id": "40000000-0000-4000-8000-000000000001",
-  "rule_version": 1,
-  "knowledge_revision": 4,
-  "suite_version": "alias-v1",
-  "mode": "simulated",
-  "tested_at": "2026-09-20T12:00:00.000Z",
-  "passed": true,
-  "improved_case_ids": ["valid_a", "valid_b"],
-  "regressed_case_ids": [],
-  "reasons": [],
-  "before": { "total": 10, "correct": 8, "false_matches": 0, "needs_review": 6 },
-  "after": { "total": 10, "correct": 10, "false_matches": 0, "needs_review": 4 }
-}
-```
-
-**Acceptance tests:** Use a facts-only literal `AssessExample` fake and `node:assert/strict`. Assert 20 calls, same facts-reference pairing and order, aliases changed only by the candidate, no truth leakage, no mutation, truthful mode, and correct metrics. Add dangerous fake behavior that matches the duplicate after the alias; require `passed=false`, a false match, and its regression ID. Also cover unchanged/all-unknown output, one earlier-correct case regressing, wrong labels, duplicate/missing suite cases, canceled signal, and an assessor that throws midway. Gate tests with fake assessors validate orchestration, not live semantic accuracy; B separately integrates with its real assessor.
-
-Export the existing full port:
-
-```ts
-export const intelligence: IntelligencePort = {
-  investigate, search, build_rule_suite, evaluate_rule,
-};
-```
-
-Reuse `search`. P0 `investigate` may return `status:'unavailable'`, supplied mode, `model:null`, `next_action:'human_review'`, empty steps/refs, `error_code:'INVESTIGATION_UNAVAILABLE'`, and an honest unavailable summary.
-
-Any later investigator uses only B's four read-only callbacks and reports actually observed evidence/references. Invented citations cannot support completion.
-
-## Task 4 — P1 only: declarative custom Jev questions
-
-The attached proposal cannot weaken approval. Mandatory deterministic and `merchant/name/duplicate` checks stay immutable/enabled. No user code, expressions, SQL, shell or tools. B/A own persistence/API/UI; C receives validated active semantic questions.
-
-After all five P0 items pass, use this frozen additive extension:
-
-```ts
-export type JevChoiceQuestion = {
-  type: 'choice'; instructions: string; criteria: Record<Choice, string>;
-};
-// Additive, existing callers continue using the three mandatory arguments.
-evaluate(
-  state: SemanticState,
-  runId: string,
-  log: (call: ModelCall) => Promise<void>,
-  customQuestions?: Record<string, JevChoiceQuestion>
-): Promise<Evaluation>;
-// Evaluation.answers retains every mandatory built-in:
-// Record<SemanticField, Answer> & Record<string, Answer>
-// SemanticState may additionally contain receipt_text?: string.
-```
-
-- [ ] Keys: `/^custom_[a-z][a-z0-9_]{0,39}$/`; instructions 1–1500 trimmed characters; exactly pass/fail/unknown criteria, each 1–400. Maximum five enabled questions. B supplies an enabled per-run snapshot. C rejects invalid keys/values, collisions, extra properties/criteria and excessive count before HTTP.
-- [ ] Keep merging/prefixing and validation pure. An internal `evaluateConfigured` helper may reuse existing transport/logging/errors. Always merge mandatory questions internally; custom keys cannot replace them.
-- [ ] Prefix every custom question with trusted evidence instructions. `receipt_text` is extracted plain text supplied by B, capped at **12,000 characters**. B omits over-limit text and records an explicit evidence-limit reason; custom checks remain unknown regardless of model answer. Never blindly truncate, fetch, reconstruct, or substitute claim data. Missing/unsupported evidence stays unknown.
-- [ ] Validate exactly all merged question keys, including mandatory ones, using the same strict Choice/probability/confidence contract. Missing or unexpected custom answers fail the entire evaluation. Preserve thresholds `0.85` / `0.70`; do not lower them to make a demonstration pass.
-- [ ] Simulated mode emits deterministic `unknown` answers for every enabled custom key, labels them fixture behavior, and makes no network call. Do not interpret arbitrary custom instructions through keyword heuristics. Built-in fixture behavior remains unchanged.
-- [ ] Custom checks are review-only: fail/unknown/low confidence needs review unless a mandatory failure already flags it. A custom pass cannot approve or erase failures. B owns aggregation; C preserves raw answers honestly.
-
-Example B-to-C input, for a question about evidence actually available in extracted text:
-
-```ts
-const customQuestions = {
-  custom_itemized: {
-    type: 'choice' as const,
-    instructions: 'Does receipt_text explicitly itemize the charged travel services?',
-    criteria: {
-      pass: 'The observed receipt text lists the charged services individually.',
-      fail: 'The observed text explicitly states it is a non-itemized total.',
-      unknown: 'Text is missing, incomplete, or does not establish itemization.',
-    },
-  },
-};
-await jev.evaluate(state, runId, log, customQuestions);
-```
-
-**P1 acceptance:** Test three-argument compatibility, enabled keys/disabled omission, prefixes, overwrite attempts, unsafe keys, six questions, incomplete criteria, missing/extra answers, hostile receipt text, absent/over-limit text, provider failure and simulation with zero calls. B verifies explicit evidence-limit reasons, snapshots/revisions, review-only aggregation and preserved human decisions; A verifies the editor.
-
-## Verification and delivery
-
-Run from `HackMIT26/reconciliation/` after implementing P0:
-
-```bash
+```sh
+node --conditions=react-server --import tsx --test src/lib/intelligence/investigation.test.ts src/lib/intelligence/procedures.test.ts src/lib/core/tests/jev.test.ts
 npm run test:intelligence
-node --conditions=react-server --import tsx --test src/lib/core/tests/jev.test.ts
 npm run typecheck
-npm test
 ```
 
-Existing scripts discover these test paths; no package edits. Restore global fetch mocks and keep keys unnecessary. Report errors in B-owned integration code without editing it.
+Mock transport tests cover round/tool/deadline limits, exact references, hostile evidence, failures, no writes, and actual usage once per attempt. Procedure tests cover 12-case repeatability/label isolation, facts-only pairing, missing/conflicting evidence, unsafe matches, regression, complete observations, and interrupted evaluation. B verifies freshness, SQL, source withdrawal, and real financial guards; retain existing tests.
 
-The coordinator runs build/browser checks, then budgeted `npm run check:jev` / `npm run demo:jev`. C verifies eligible improvement and money/duplicate/scope counterexamples, with actual mode/model/usage and error behavior. No silent live fallback. The coordinator owns the integrated artifact; redact secrets.
+The coordinator reserves the live slice budget before execution: supporting extraction as needed, at most three Azure planning calls, one final Jev assessment, and separately budgeted paired procedure tests. Record every attempt and error; do not probe providers or run broad live suites repeatedly. Existing runtime rejects live core on local storage; use the agreed isolated Supabase target, with no workaround.
 
-Deliver changed paths/signatures, commands/results and remaining dependencies. Distinguish mocks, simulation, historical smoke and fresh live results. Unit tests do not establish lifecycle integration, benchmark accuracy or live-demo completion.
+Deliver changed paths/signatures, actual offline commands/results, model/tool count trace, one supported findings example, one missing/conflicting-evidence example, and remaining B dependencies. Distinguish mock, simulated, historical benchmark, and fresh live observations. No optional custom editor or P1 financial grouping until P0 is accepted and allocation contracts are explicitly renewed.

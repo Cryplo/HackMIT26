@@ -1,131 +1,141 @@
-# 03 — Travel review workspace: colleague A prompt
+# 03 — Investigation workspace: colleague A assignment
 
-Implement the organizer and claimant UI in the existing Next/shadcn application. Make each exception understandable, its evidence inspectable, and its next action obvious. Surface useful cross-claim patterns with exact, inspectable counts and amounts.
+Prepared against `main` at `9f3d593`, 2026-09-20. This is an implementation assignment; the investigation/document/procedure additions below are **proposed, not delivered**. Keep the current review workspace and add a real `/investigations` page.
 
-Read [README.md](README.md), [00-contracts.md](00-contracts.md), [01-platform.md](01-platform.md), [05-integration.md](05-integration.md), and `reconciliation/AGENTS.md` first. The frozen contracts control payloads, limits, and capability semantics. Complete the pack's priorities **1–5 before P1 or other reconciliation types**. Build on existing components; do not restart the app.
+Read [README](README.md), [00-contracts](00-contracts.md), [01-platform](01-platform.md), [02-intelligence](02-intelligence.md), and `reconciliation/AGENTS.md` first. Inspect current source rather than treating archived instructions as current behavior. B owns shared DTOs; use the frozen additive declarations when delivered.
 
 ## Ownership and starting point
 
-You are not alone: preserve teammates' changes. Work only on main, following the README delivery process. Paths below are relative to `reconciliation/`.
+You are not alone. Preserve teammates' edits, work only on `main`, and follow the README's serialized delivery process. Paths here are relative to `reconciliation/`.
 
-**Own:** `src/components/business/**`, `src/lib/dashboard/**`, `src/app/business-demo/**`, submit `page.tsx`/`submit-form.tsx`, and `tests/ui/**`. Change `globals.css`, `theme.css`, or existing UI primitives only for necessary presentation/accessibility fixes. Request shared browser/build configuration changes from the integration owner.
+**Own:** `src/components/business/**`, `src/lib/dashboard/**`, `src/app/business-demo/**`, new `src/app/investigations/**`, and your browser tests under `tests/ui/**`. Keep new styles in owned component CSS modules.
 
-**Do not edit:** API routes, shared contracts, core/intake/intelligence, DB/schema/migrations, evaluation datasets/harnesses, packages/lockfiles, or another owner's files. Report missing backend capabilities to B. Do not reset shared data or run paid providers for UI development.
+**Do not edit:** API routes, `src/lib/review-contracts.ts`, core/intake/intelligence, migrations, evaluation packs, `/submit`, global styles, shared UI primitives, packages/lockfiles, or shared build/test configuration. Request a concrete change from its owner when necessary. No shared-data resets or paid providers for UI development.
 
-Verified current wiring:
+Current source already supplies:
 
-- `/`, `/demo`, `/search` redirect to `/business-demo`; `/submit` uses actual intake. Work in `BusinessDashboard`, `ReviewTable`, `ReviewSheet`, `RulesPanel`, and `AppShell`.
-- Dashboard APIs: workspace reviews/reconcile/decisions, `/api/search`, and receipt originals. `/api/claim-search` is a separate legacy surface; do not switch contracts.
-- `?preview=1` supplies six fictional, isolated claims. API failure must never silently become preview success.
-- Existing UI separates assessment, decision, and processing; preserves stale-decision notes; displays originals; and blocks financial failures. Preserve these behaviors.
-- Rules/retry work only in preview today; real retry/export/rules endpoints are missing. Current revisions are placeholder zero, duplicate IDs empty, investigation unavailable. Client declarations do not prove implementation.
+- `BusinessDashboard`, `ReviewTable`, `ReviewSheet`, `RulesPanel`, and `AppShell`; the neutral shadcn theme and scoped CSS remain the base.
+- `src/lib/dashboard/client.ts` and `ui-contracts.ts` separate API access from explicit preview fixtures; `types.ts` re-exports shared DTOs.
+- Real review/decision/reconcile, alias proposal/test/activate/disable, same-claim extraction retry, original links, snapshot export, and explicit semantic search wiring.
+- A separate `?preview=1` simulation. API failure never silently becomes preview success.
+- A legacy investigation summary in the review sheet. `src/lib/intelligence/index.ts` currently returns `INVESTIGATION_UNAVAILABLE`; no investigation, supporting-document, or procedure routes exist at this starting commit.
 
-Preserve the **neutral default shadcn theme**; previous Ramp colors were intentionally removed. Reuse existing table/filter/sheet/dialog/native inputs and dependencies. No model configuration in the default flow, decorative charts, invented savings, fraud labels, or confidence-as-accuracy claims.
+Retain existing behavior and tests. The archived review-workflow pack is background, not a mandate to rebuild shipped features. Do not add decorative KPIs, provider settings, a new UI library, fake savings, or an accuracy dashboard.
 
-## Layout
+## Delivery order
 
-Keep first rows visible without a KPI wall. One compact insight strip is enough.
+1. Extend the owned client seam and explicit simulated fixtures against `00-contracts`; build the page and result states without pretending the backend exists.
+2. Add evidence upload/list/open and explicit investigation controls to the existing claim sheet.
+3. Connect persisted run polling, returned findings, and human actions when B/C deliver their seams.
+4. Add the single procedure's propose → test → human activate flow; preserve existing alias controls separately.
+5. Verify the focused flows below and hand off exact remaining API blockers and demo entry points.
+
+## Frozen inputs and routes
+
+Do not introduce a second wire-contract model or invent a metrics endpoint. Consume `00-contracts` for complete fields, limits, errors, and envelopes. Gate new controls on `WorkspaceCapabilities.supporting_documents`, `.investigations`, and `.resolution_procedures`; missing means false.
+
+| Operation | Contract to consume |
+| --- | --- |
+| Start investigation | `POST /api/submissions/:id/investigate` with `{expected_review_revision}`; awaited bounded response `{run,row}` |
+| Read saved runs | `GET /api/investigations?claim_id=<id>` (claim filter optional) → `{runs,coverage}`; `GET /api/investigations/:runId` → `{run}` |
+| List/add supporting evidence | `GET/POST /api/submissions/:id/supporting-documents`; POST multipart `file`, `kind`, `expected_review_revision` |
+| Open supporting original | `GET /api/submissions/:id/supporting-documents/:documentId`; private bytes, not a public storage URL |
+| List/propose procedure | `GET/POST /api/procedures`; proposal `{run_id,expected_review_revision}` |
+| Test/activate/disable procedure | `POST /api/procedures/:id/test`, `/activate`, `/disable`; `{expected_procedure_version}` |
+
+`InvestigationRun` contains `run_id`, `claim_id`, `status` (`running/completed/failed/superseded`), `outcome` (`resolved/discrepancy_found/needs_human`, null before a result), `headline`, `summary`, `unresolved_question`, findings with `evidence_refs`, `before_assessment`, nullable `after_assessment` and `proposed_learning`, `InvestigationRunStep[]` steps, timestamps, mode/model, and error. Failed/superseded runs keep `outcome:null` and no successful after-assessment. Read server fields; do not infer outcome from elapsed time or HTTP success.
+
+Use the additive `ReviewRow.latest_investigation` for the new run DTO. Keep legacy `ReviewRow.investigation` rendering compatible; do not feed the new shape to that renderer or coerce legacy unavailable entries into successful runs. Missing capability or unavailable route stays visibly unavailable. Request B's declarations instead of editing shared contracts.
+
+## 1. Evidence in the existing claim sheet
+
+- [ ] Keep the primary receipt and its private original link. Add a supporting-documents section showing kind, document ID/type, extraction status/provenance, and an accessible open-original action. Do not invent a filename field absent from the DTO.
+- [ ] Use the native file input and existing button/label primitives. Accept documented PDF/PNG/JPEG types, at most 8 MiB per file and eight supporting documents per claim; use the documented `DocumentKind` values and pending-claim eligibility. Submit multipart data with the captured decimal review revision; do not set a JSON content type on FormData.
+- [ ] A saved upload is not an extracted or validated purchase. Show pending/failed extraction and server errors truthfully; retain the stored document and original when returned after failure.
+- [ ] Refresh authoritative evidence and review state after a write. Evidence changes can invalidate assessments and learning tests; show stale/recheck-needed state and preserve reviewer notes.
+- [ ] On a revision conflict, keep local notes, refresh, and require another deliberate action. On an uncertain network outcome, read current state before offering retry; never silently resubmit a file or investigation.
+- [ ] Distinguish “documents for this purchase” from “additional purchases.” P0 retains one primary receipt, one purchase, USD, and exact amount equality. Never sum booking + folio + payment slip or offer unsupported split/allocation controls.
+- [ ] An explicit “Investigate” action uses current server eligibility and revision. Disable conflicting actions while the operation runs; no investigation on page load, file selection, focus, polling, or filter changes.
+
+A user can inspect evidence and review manually when investigation is unavailable. Missing documents stay missing; the browser must not fabricate booking references, traveler identities, or merchant mappings.
+
+## 2. Investigations page and actual progress
+
+Add `/investigations` to desktop/mobile navigation without replacing the reimbursements table or existing learned-alias view. Link each run to its actual claim; a missing/unloaded claim gets a truthful state. Keep a selected run addressable, for example by `?run=<run_id>`.
 
 ```text
-Reimbursements                            [New claim] [Export selected]
-Needs review | Approved | Rejected | All             [Mode disclosure]
-[Shared merchant: N / $X ->] [Rules changed: N / $Y ->]
-[Search claims........] [AI search] [Category] [Assessment]
-[Active insight/filter x]                         N claims / $X claimed
-[] Claimant | Merchant | Claimed | Receipt | Delta | Assessment | Decision | Next
-[] ...      | ...      | $...    | $...    | +$... | Flagged    | Pending  | Review
-N selected [Recheck selected]                         Updated ...
-
-Claim review sheet                                    [Close]
-Assessment: Needs review          Human decision: Pending
-[Rules changed. Recheck; human decision is retained.]
-Original / Open original | Claimed / receipt / difference
-                        | Main issue + concrete next step
-                        | Checks, evidence, links to earlier claims
-                        | Recorded reviewer decision and note
-                        | [Technical evidence] [Advanced questions: P1]
-Blocking reason         [Required next action] [Reject] [Approve]
-Mobile: Document / Details tabs; footer stays reachable.
+Investigations                                    [Refresh]
+Claim / merchant       Run status       Outcome       Started
+Selected run: actual action / elapsed / mode
+Recorded tool steps, in persisted order
+Finding → affected check → evidence links
+Before / after assessment · remaining question · next action
 ```
 
-Give each row one obvious action: processing → “Checking…”; extraction issue → “Review receipt issue”; unassessed/stale → “Recheck needed”; duplicate → “Compare claims”; other exception → “Review issue”; matched/pending → “Review for approval”; decided → “View decision”. Open the relevant sheet section; extraction/recheck requires an explicit button press. A matched assessment never means approved.
+- [ ] Initial load reads saved runs. Poll read-only server state roughly once per second only while a known run is active or an explicit start request is pending. The start POST remains awaited; do not depend on a queued response or background promise.
+- [ ] While POST is pending, list polling discovers the persisted active run; identify it using server claim/run data. Use the optional `claim_id` list filter during this pending POST. Before its first event, say “Starting investigation…” without inventing a tool call.
+- [ ] Avoid overlapping requests; abort/ignore obsolete reads when selection changes or the component unmounts. Stop polling once relevant runs are terminal; pause while hidden and refresh on return. A failed read keeps the last snapshot and an error, with bounded retry or explicit refresh.
+- [ ] Refresh/reopen recovers actual saved steps and terminal state. Reopening never starts another investigation. Use persisted sequence/timestamps and stable step identifiers from the contract; do not append duplicates each poll.
+- [ ] Show current action from actual step data. Elapsed time uses persisted start/finish timestamps; a client clock may animate elapsed time but cannot invent progress percentages or completion.
+- [ ] Display actual calls to `read_receipt`, `read_supporting_documents`, `find_related_claims`, `read_policy`, and `read_active_aliases` only when recorded. Never stage a timer-driven sequence, a hidden-reasoning transcript, or fake “thinking” messages.
+- [ ] `failed` shows the sanitized provider/operation error and recovery action even when returned in an HTTP-success `{run,row}` response. Early invalid/unavailable/stale starts use the error envelope; a transport interruption triggers saved-state reads, not another POST. `superseded` explains that changed evidence/knowledge prevented this result becoming current. Neither is rendered as resolved.
+- [ ] Show mode/model from the run. “Simulated fixture” and “Recorded run” are explicit; a live environment banner does not prove a historical run or document used live models.
 
-## P0 — Build and verify these flows
+The list and page are operational views, not model telemetry dumps. Keep raw provider payloads, secrets, storage paths, and signed URLs out of rendered diagnostics.
 
-### 1. Queue and search
+## 3. Findings and the next human action
 
-- [ ] Retain four human-decision tabs and separate machine assessment/decision labels; ignore legacy `status` for approval. Show claim ID in details and actionable processing errors.
-- [ ] Show claimed amount, receipt amount, and `delta_minor = claimed - receipt` only for succeeded extraction, valid integer cents, and equal known currencies. Zero: “Matches”; null: “Unavailable”; mismatched currency: “Currencies differ”, without conversion. Underclaims are mismatches too. Reuse money formatting.
-- [ ] Local text filtering is immediate; semantic search runs only on explicit submit with current query/token/supported filters. Separate matches from possible matches and label simulation. No paid calls on typing, polling, focus, or filter changes.
-- [ ] Query/category/assessment/decision/insight changes clear semantic results and invalidate in-flight responses. A new snapshot marks previous results stale and offers explicit “Search again”. Open claims from current rows by ID, not stale search objects.
-- [ ] Insights use a local ID filter. Clear that filter visibly before a new semantic search; do not invent backend filter fields. Preserve selection by ID, disclose hidden selections or clear them, and cap recheck at 50. Report partial failures and refresh without automatically rerunning successful claims.
-- [ ] Existing read-only refresh may continue; prevent overlapping/stale requests and retain open row/note. Refresh must never trigger extraction, reconciliation, investigation, rule tests, or search.
+Each result card answers: what was found, which check changed, what evidence supports it, what remains uncertain, and what the reviewer should do. Link `evidence_refs` to actual receipt/supporting originals or related claims; unresolved references remain labeled unavailable.
 
-### 2. Evidence, recovery, and decisions
-
-- [ ] Lead with concrete facts: “Claim exceeds receipt by $12.00”, actual policy cap/date evidence, unresolved merchant, and the required next step. Financial results come from checks/integer arithmetic, never generated narrative. Keep originals accessible through extraction, PDF/image rendering, and investigation failures.
-- [ ] Show extraction provenance from the actual receipt/decision evidence supplied by B, including fixture/simulated or live extraction when recorded. A global execution banner does not prove how this uploaded or historical receipt was extracted; absent provenance stays unknown. Do not invent required response fields.
-- [ ] With `duplicate_links`, make every `duplicate_submission_ids` entry open its **actual confirmed prior claim**, decision, amount, and original, with a way back. Show unloaded IDs honestly. These are corroborated prior links, not model candidates; same merchant/date/amount is insufficient. Label uncertain candidate evidence separately.
-- [ ] With `extraction_retry`, call `POST /api/submissions/:id/retry-extraction` using `expected_review_revision`. Only pending claims with no active operation qualify. Retain the saved claim/original/history; never POST a replacement submission. After extraction, explicitly offer recheck. Preserve errors and disable repeat actions during work.
-- [ ] `/submit` retains integer-cent parsing, MIME/8 MB validation, labels, and progress. Saved-but-failed extraction shows the saved ID, original, and same-claim recovery. A `?claim=` workspace link may open a loaded ID; handle missing IDs without inventing a detail API.
-- [ ] Approval requires succeeded extraction, current completed assessment, no running operation, passing currency/amount/policy/date/cap/duplicate checks, current revision, and nonblank note. Missing checks do not pass. Preserve server-authoritative rejection and duplicate protection; eligible merchant/name ambiguity may be resolved only by an explicit human decision, without changing the machine check or teaching a rule.
-- [ ] On stale writes, preserve the note, refresh evidence, and require a new deliberate decision. Do not optimistically claim success. With `knowledge_revisions`, an older assessment gets “Rules changed — recheck”; unassessed is different. Rechecks retain human decisions/notes. Show only returned history; never fabricate an audit timeline. Approval records reimbursement authorization; no payment is sent.
-
-### 3. Insights with auditable formulas
-
-Require complete prefilter source data: `coverage.complete === true`, `returned === submissions.length`, `total === returned`, and unique IDs. Missing/inconsistent coverage means unavailable, not zero. Cache that complete response separately from filtered/AI-result rows. Missing capability booleans mean false.
-
-For each set `S`: `ids = unique(S.map(r => r.id))`, `count = ids.length`, `claimed_minor = sum(amount_requested_minor for ids)` separately per currency, with safe-integer checks. Every insight opens exactly those rows with matching count/cents and a removable filter. Recompute membership and totals together on snapshot change. Never call these amounts savings, loss, fraud, or prevented payment.
-
-| Insight | Exact formula and action |
+| Result | Reviewer-facing behavior |
 | --- | --- |
-| Shared unresolved merchant | Requires `knowledge_revisions`. Pending, idle, successfully extracted, completed current assessment; nonblank observed vendor; receipt currency equals claim USD. Merchant unknown; amount/currency/receipt_date/policy/policy_cap/duplicate/name present and passing; no other failed/unknown mandatory check. Exclude human/overall-summary checks. Group by B's canonical vendor normalization (currently trim, lowercase, collapse whitespace), category, currency; no fuzzy matching or additional Unicode normalization unless B adopts it. Show groups of ≥2 distinct IDs: “N otherwise checked claims share this unresolved merchant — $X claimed.” Open their evidence; do not promise a rule will approve them. |
-| Rules changed | Requires `knowledge_revisions`. Pending rows with completed assessment/run and integer `assessment_knowledge_revision < knowledge_revision`. Null is unknown, not zero. Show “N pending claims use older rules — $X claimed.” Open exact IDs for explicit selection/recheck. Approved/rejected stale rows may appear in a separate scope; exclude their amounts from the pending total. |
-| Later duplicate review | Requires `duplicate_links`. Distinct pending later rows with nonempty confirmed-prior IDs. Sum each later row once, even with several links; **exclude originals and their amounts**. No graph expansion or candidate inference. Show “N pending later claims reuse earlier receipt evidence — $X claimed.” Drill into later rows and prior evidence. Label claimed amount in duplicate review, not excess exposure. Ship only after real links exist. |
+| `resolved` | Show server before/after checks and “Ready for approval” only when the returned current row is eligible; approval is a separate human action. |
+| `discrepancy_found` | Show the financial/policy/duplicate issue and source evidence; preserve the server's blocked/flagged state. |
+| `needs_human` | Show the specific unresolved question under “Needs your input,” with request-document or review action as supported. |
+| No completed outcome | Show running, failed, or superseded status; never manufacture a result from missing fields. |
 
-Needed fields: claim ID/amount/currency/category; three statuses; latest run/assessment knowledge revision; extraction status and parsed vendor/currency/amount; check method/field/verdict; duplicate IDs; response snapshot/knowledge/capabilities/coverage. Optional custom questions do not enter mandatory-check eligibility.
+- [ ] Refresh or install the returned authoritative `{row}` after investigation. The UI never flips checks, sets `matched`, clears a discrepancy, or treats prose as permission to approve.
+- [ ] Preserve separate assessment, human decision, and processing labels. A matched claim is ready for human approval, never already approved. Retain the explicit confirmation, reviewer note, and server revision checks.
+- [ ] Known financial failures remain visible despite other unknowns. Missing/conflicting evidence never produces an all-clear card. Confidence/probability is evidence metadata, not measured accuracy.
+- [ ] Do not put every completed run in “Needs your input.” Reserve that result treatment for an actual unresolved question; keep discrepancy and ready-for-approval actions distinct.
+- [ ] Existing decisions/history survive investigation and recheck. Failed writes retain notes and show errors rather than optimistic approval.
 
-Leave one focused helper test for grouping, missing checks, scope/currency separation, null/stale revisions, and duplicate deduplication. Example: eligible hotel/USD claims `" SYN HBR042 "` and `"syn hbr042"` at 12,300 and 14,800 cents yield two IDs/27,100 cents; a flagged claim or different category contributes nothing to that group.
+## 4. One reviewed reusable procedure
 
-### 4. Real learning and export
+Support only **`booking_reference_identity`: hotel/USD merchant identity established through a booking reference matching the receipt**, within the exact observed-descriptor/canonical-merchant scope. Existing scoped alias rules remain separate and compatible; this is not a generic rule builder, policy exception, or blanket approval.
 
-- [ ] Gate controls using frozen `capabilities` (`rule_learning`, `extraction_retry`, `export`, `custom_checks`, `duplicate_links`, `knowledge_revisions`); missing means false. Do not poll absent endpoints. Update preview fixtures with explicit capabilities/coverage and frozen response shapes, keeping simulation visibly separate from backend availability.
-- [ ] Wire eligible approved source → draft → explicit real test → current passed report → activate → explicit recheck. Respect rule versions, knowledge, source validity, and test freshness. Show observed/canonical vendor, category/USD scope, source link, regressions/reasons, and report provenance. Canonical name is 1–120 trimmed characters. Editing requires disable/new draft, not a new edit API.
-- [ ] Frozen rule-test response is `RuleTestReport`, unlike the current client's `RuleResponse` assumption: align the dashboard seam and refetch rules for authoritative version/state. Failed/stale/unavailable tests cannot activate. Source rejection/disable is reflected from server state; no automatic approval/recheck. Preview's 8/10 → 10/10 is scripted, not measured accuracy.
-- [ ] After an incomplete/failed test, refetch rules: `latest_test` is null and optional `latest_test_error` supplies the sanitized failure message. Keep activation disabled; a previous passing report retained in history cannot restore eligibility. Verify this state survives refresh.
-- [ ] Export explicitly selected IDs through `POST /api/workspace/export` with `{snapshot_token, submission_ids}`; 1–1000 unique IDs. “Select shown” may populate selection; possible AI matches require explicit selection. Capture token/IDs together. Keep recheck's separate 50-item limit clear.
-- [ ] Handle successful CSV separately from JSON-only `api<T>`, download the response, then release the object URL. On `409 STALE_SNAPSHOT`, create no file; refresh and require another explicit export. Parse JSON failures; no client-side CSV substitute or silent changed-snapshot retry. Unknown values remain unknown. Unavailable export is disabled with a reason.
-- [ ] No benchmark metrics API exists. Do not invent live 50-case charts, conflate activation cases with held-out results, or present probability as calibrated accuracy.
+- [ ] Show the returned proposal's trigger scope, required evidence, matching fields, and source references. No frontend-authored executable procedure or arbitrary prompt editor.
+- [ ] First, a human reviews and approves the supported source claim through the existing decision flow. Then explicitly propose using `{run_id,expected_review_revision}`; proposal is unavailable while source approval is missing or stale.
+- [ ] Display persisted draft/version, then run the real versioned test explicitly. Show the `ProcedureTestReport` applied/regressed case IDs, reasons, mode, and test freshness supplied by the server. Its fixed 12-case `booking-reference-v1` suite is separate from the demo pack; do not present it as independent accuracy or require a new accuracy gain.
+- [ ] Require a current passing report and a distinct human “Activate” action. After any failed/incomplete test, refresh state; historical passing proof cannot enable activation.
+- [ ] Evidence, source-decision, knowledge, or procedure-version changes invalidate obsolete proof. Show the server reason, refresh, and require a new explicit test/action; do not retry a stale activation automatically.
+- [ ] A later eligible claim can show the applied procedure and evidence with less recorded work. Missing/conflicting booking evidence prevents reuse; all money, policy, date, identity, and duplicate guards still apply. Itinerary identity support requires explicit applicable policy permission; this procedure establishes only merchant identity.
+- [ ] Disable explicitly via the versioned endpoint. Activation/disable never approves or automatically rechecks claims. Keep any deliberate recheck separate and label simulated reports clearly.
 
-## P1 — Advanced custom questions, only after all five priorities pass
+## 5. Motion, accessibility, and focused verification
 
-With `custom_checks`, place an advanced panel inside receipt review. Mandatory checks remain locked. Configuration is workspace-scoped under the frozen API: explain that saving affects subsequent assessments; do not promise attachment-only persistence. Explicitly recheck the current claim to evaluate its receipt, without inventing a run endpoint.
+Use existing CSS/shadcn animation utilities for a pulse on the actual active step, a brief completion transition, and transitions when real counts change. Respect `prefers-reduced-motion`/`motion-safe`; reduced motion retains all text/state information. Do not animate fake work to fill latency.
 
-Use `GET/POST /api/checks`, `PATCH /api/checks/:id`, `expected_version`, and body `enabled`; no enable/disable endpoints. Maximum **five enabled** `custom_` keys; immutable field key; `kind: jev`, `severity: review`. Use only choice questions with pass/fail/unknown criteria and the exact lengths/validation in `00-contracts`. Show configuration errors/stale versions. No model selector, arbitrary code, or raw provider settings.
+Keep keyboard navigation, visible focus, accessible names, non-color status labels, reachable mobile controls, focus return from dialogs, and polite status announcements. Do not announce elapsed seconds repeatedly. Loading is not zero results; errors are not empty lists.
 
-Custom fail/unknown/low confidence requests review; custom pass cannot approve or weaken mandatory checks. Present real answers/evidence/provenance and stale configuration status; retain human history. Missing capability stays unavailable; simulated answers remain explicitly unknown fixtures.
+Extend the owned client/UI tests with a small focused set:
 
-## States, accessibility, and acceptance
+- Persisted running → terminal steps survive refresh, remain ordered/deduplicated, stop polling, and never trigger additional POSTs; delayed responses cannot replace a newer selected run.
+- Multipart supporting upload includes kind/revision; stale/failed requests preserve evidence/notes and do not silently repeat. Private evidence links remain usable.
+- Resolved, discrepancy, needs-human, failed, superseded, and unavailable states use server results; no result auto-approves or bypasses existing financial/duplicate blockers.
+- Procedure source approval → proposal → real-test response → human activation; missing/conflicting evidence, stale version, and failed test disable reuse/activation after refresh.
+- Keyboard/mobile flow and reduced motion; simulation/recording labels remain visible.
 
-Loading must not show zero totals/all-clear. Empty workspace offers New claim; empty filters offer Clear filters. First API failure shows retry without fixtures; refresh failure retains last snapshot/note and labels it. Search failure is an error, not zero matches. Uncertain mutation outcome triggers refresh, not an automatic repeat write. Receipt failures retain originals. Missing capabilities explain unavailable actions while normal review stays usable.
+Runnable current commands from `reconciliation/` (Node 24):
 
-Preserve keyboard row actions, focus trapping/Escape/return, accessible names/status announcements, non-color status labels, 44 px mobile targets, contained table overflow, reachable sheet footer, and reduced motion.
-
-Extend existing preview/client/UI tests for:
-
-- Same-ID extraction retry, originals, exact delta, financial/duplicate blockers, missing checks, and stale-note preservation.
-- Real linked-claim navigation; human decisions surviving recheck; insight exact IDs/count/cents and unavailable coverage.
-- Explicit-only search, filter changes clearing stale results, delayed responses ignored, and possible-match separation.
-- Capability-gated rule lifecycle; failed/stale activation; exact snapshot/selection export and no file on conflict.
-- Loading/empty/error states; keyboard/mobile focus; reduced motion. P1 separately proves locked checks and review-only outcomes.
-
-Run from `reconciliation/`:
-
-```bash
+```sh
 npm run typecheck
-NODE_OPTIONS=--conditions=react-server npx tsx --test src/lib/dashboard/tests/*.test.ts
-npm run test:browser -- src/lib/dashboard/tests/dashboard.spec.ts tests/ui
-npm run build
+node --conditions=react-server --import tsx --test src/lib/dashboard/tests/*.test.ts
+npm run test:browser -- tests/ui/workspace.spec.ts
 ```
 
-Use the existing isolated, paid-provider-disabled browser demo and route mocks for undelivered capabilities; do not target a shared/live `DASHBOARD_BASE_URL`. Leave helper tests in the discovered dashboard test directory. Deliver exact results, synthetic desktop/mobile screenshots, owned diff, and named backend blockers. Distinguish actual API verification from mocks/preview. Live persistence/rehearsal belongs to the integration owner; preview success does not complete learning/retry/export integration.
+Add one focused spec such as `tests/ui/investigations.spec.ts`; its command becomes runnable only after that file is delivered. Run the focused new spec with the existing browser config. Let integration own the final build/combined checks; do not repeatedly run broad suites without a new failure or change.
+
+Use the existing isolated browser demo with paid providers disabled; unset `DASHBOARD_BASE_URL` rather than pointing tests at shared/live data. Route mocks and preview verify UI behavior only. Report actual backend integration separately.
+
+Deliver the owned diff, exact commands/results, synthetic desktop/mobile screenshots, and a short click path: evidence → real investigation → findings → human source approval → proposal/test/human activation → later claim reuse → blocked bad case. The team will test the UI themselves; Devin supplies independent focused recording/evidence. A missing B/C endpoint is a named integration blocker, not grounds to fabricate completion.
