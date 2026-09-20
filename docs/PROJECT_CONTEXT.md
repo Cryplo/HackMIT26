@@ -6,7 +6,7 @@ Updated September 20, 2026, for the integrated Data sources and prepared live-re
 
 Sift is a HackMIT 2026 reimbursement-review demo motivated by Maximor’s finance workflow. The aim is to save reviewer time: automate supported checks and approvals, investigate useful evidence automatically, and ask a human only where a decision or follow-up remains. Present the decisive facts clearly; do not turn every claim into a form full of explanations.
 
-The product lives in `reconciliation/`, a Next.js/React/TypeScript app with Supabase or private local-file persistence. The Python browser/voice agent elsewhere in the repository is an earlier project, not Sift’s investigator. Devin is an external development/testing collaborator; Sift’s investigator runs inside the app.
+The product lives in `reconciliation/`, a Next.js/React/TypeScript app with Supabase or private local-file persistence. An earlier Python browser/voice agent has been removed from the repository; it was never Sift’s investigator. Devin is an external development/testing collaborator; Sift’s investigator runs inside the app.
 
 Read next:
 
@@ -15,7 +15,7 @@ Read next:
 3. [Review learning](../reconciliation/docs/REVIEW_LEARNING.md) for feedback behavior and its limits.
 4. [Repository guidance](../AGENTS.md) and [app guidance](../reconciliation/AGENTS.md) before editing.
 
-Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` documents record earlier designs and ownership. Their claims that investigation is unavailable, the backend is pending, or every approval needs manual rule activation are historical. Current source and this guide take precedence for implementation status; do not discard still-relevant safety requirements.
+Older `docs/next-work/` and `docs/superpowers/plans/` documents record earlier designs and ownership. Their claims that investigation is unavailable, the backend is pending, or every approval needs manual rule activation are historical. Current source and this guide take precedence for implementation status; do not discard still-relevant safety requirements.
 
 ## The intended user experience
 
