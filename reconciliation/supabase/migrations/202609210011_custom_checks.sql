@@ -35,7 +35,7 @@ begin
   cid:=gen_random_uuid();
   check_doc:=jsonb_build_object('id',cid,'version',1,'state','active','field',field,'label',p_input->>'label','instructions',p_input->>'instructions','criteria',p_input->'criteria','category',p_input->'category','created_at',now(),'updated_at',now());
   insert into custom_checks values(cid,check_doc);
-  update platform_state set knowledge_revision=knowledge_revision+1 returning knowledge_revision into k;
+  update platform_state set knowledge_revision=knowledge_revision+1 where id returning knowledge_revision into k;
  else
   if action not in ('update','enable','disable') then raise exception 'INVALID_INPUT';end if;
   cid:=(p_input->>'id')::uuid;select doc into check_doc from custom_checks where id=cid for update;if not found then raise exception 'NOT_FOUND';end if;
@@ -43,15 +43,15 @@ begin
   select knowledge_revision into k from platform_state;
   if action='update' then
    check_doc:=check_doc||jsonb_build_object('label',p_input->>'label','instructions',p_input->>'instructions','criteria',p_input->'criteria','category',p_input->'category','version',(check_doc->>'version')::int+1,'updated_at',now());
-   if check_doc->>'state'='active' then k:=k+1;update platform_state set knowledge_revision=k;end if;
+   if check_doc->>'state'='active' then k:=k+1;update platform_state set knowledge_revision=k where id;end if;
   elsif action='disable' then
    if check_doc->>'state'='disabled' then raise exception 'STALE_CHECK';end if;
    check_doc:=check_doc||jsonb_build_object('state','disabled','version',(check_doc->>'version')::int+1,'updated_at',now());
-   k:=k+1;update platform_state set knowledge_revision=k;
+   k:=k+1;update platform_state set knowledge_revision=k where id;
   else
    if check_doc->>'state'='active' then raise exception 'STALE_CHECK';end if;
    check_doc:=check_doc||jsonb_build_object('state','active','version',(check_doc->>'version')::int+1,'updated_at',now());
-   k:=k+1;update platform_state set knowledge_revision=k;
+   k:=k+1;update platform_state set knowledge_revision=k where id;
   end if;
   update custom_checks set doc=check_doc where id=cid;
  end if;
