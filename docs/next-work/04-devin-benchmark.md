@@ -1,130 +1,147 @@
-# Devin work prompt: benchmark, verify and record Sift
+# 04 — Devin: prepare evidence, verify the investigation, record the demo
 
-**Prepared 2026-09-20; implementation assignment, not a dispatched session or passing report.** Read [README.md](README.md) and [00-contracts.md](00-contracts.md) first. They are canonical for ownership, API payloads, guards and revisions; older [testing notes](../SIFT_TESTING.md) and [benchmark proposals](../superpowers/plans/2026-09-19-sift-benchmark.md) are background. Inspect current `main`; planned endpoints are not proof of implementation.
+Prepared against `main` at `9f3d593`, 2026-09-20. **This is a work prompt, not a dispatched Devin session or a passing report.** No session link exists for this assignment. Read [README](README.md), [00-contracts](00-contracts.md), and [05-integration](05-integration.md) first.
 
-Deliver a reproducible benchmark, integration verification and complete recorded demo across five milestones: **safe approval; real scoped learning; measured results; understandable review/retry/export; independent human and Devin replay**. Label every gate `passed`, `failed`, `blocked` or `not_run`, with commit, mode, command and evidence. Preserve unfavorable results. P1 review-only custom checks need separate coverage; exclude them from the 50-case headline. Autonomous investigation is not P0.
+The next 4–8 hours prioritize a **20-claim development/demo pack, focused safety checks, and one budgeted live vertical slice**. Start offline now; do not wait for every feature. The previous broad 50-case campaign is not a recurring mandate. The team tests the UI themselves; your independent reproductions and recording complement that work.
 
-## Ownership and delivery
+## Ownership and source of truth
 
-Own only **`reconciliation/evals/**`**: fixtures, separate expected labels, runner/reporting, your `node:test` and Playwright configuration/specs, replay instructions and evidence. Reuse Node 24, TypeScript, native fetch/FormData/crypto, installed Playwright and `receiptPdf`. No dependencies, substitute engine or changes to production/UI/DB/contracts/packages/scripts/other owners' tests. C owns the ten-case activation suite. The existing `eval:heldout` script points to your missing `evals/run-heldout.ts`.
+Own only `reconciliation/evals/**`, excluding immutable existing comparison/findings outputs. Put new work under `evals/investigation/` and fresh run artifacts under `evals/results/investigation/`. Do not alter old `evals/comparison/findings/2026-09-20/**` or overwrite prior result directories.
 
-You are not alone. Use a separate clone on `main`; no branches/worktrees, force-push or unrelated edits. Request the integration owner's serialized delivery slot; follow README's commit/fetch/integration sequence, never push automatically. Record starting/delivered SHAs and scoped diff/hash. A PR link is evidence only if one actually exists.
+You are not alone. Use a separate clone on `main`; no branch/worktree, force-push, automatic push, shared-data reset, or production fixes. Integration serializes delivery. Record starting/delivered SHAs and your exact scoped diff; request the integration slot and follow README's sequence.
 
-For production defects, return the smallest reproduction, expected/actual behavior, failing HTTP/log evidence, commit and recommended smallest owner fix. Continue independent harness work; retest the returned owner patch. Production implementation by Devin requires **explicit ownership reassignment first**. Retain the diagnose → human review → owner fix → Devin verification history and distinguish authorship.
+Production/UI/API/contracts/schema/packages/scripts and others' tests are outside your ownership unless explicitly reassigned. Reuse Node 24, TypeScript, native fetch/FormData/crypto, installed Playwright, and existing synthetic PDF helpers where they preserve the required clues. No new dependency or substitute Sift scorer.
 
-## Starting state and isolation
+Read current code before adapting checks:
 
-The [seed guide](../../reconciliation/scripts/SEED_REHEARSAL.md) records **20 rehearsal claims already seeded, 21 shared claims total** including one preserved upload. Parsed fields are `SIMULATED/FIXTURE`; the six preview examples are another dataset. Never reseed/reset shared storage, overwrite decisions or count rehearsal/preview results as unseen accuracy. The guide's legacy alias instructions are superseded: `POST /api/corrections` must reject `vendor_alias` with **410 LEGACY_ALIAS_DISABLED**, not activate learning.
+- `reconciliation/AGENTS.md`, `src/lib/core/README.md`, `src/lib/review-contracts.ts`.
+- `src/lib/intelligence/index.ts`, `src/lib/core/evaluation.ts`, and current route handlers.
+- `evals/comparison/README.md`, `evals/comparison/findings/2026-09-20/README.md`, and its `report.md`.
+- The new B/C/A assignments in this pack and their delivered commits, rather than archived feature assumptions.
 
-Prefer fresh isolated local file storage. Record all reference rows, including automatically initialized samples. Use a separate synthetic Supabase project only when allocated. Benchmark snapshots are read-only; never restore over a person's newer decision. `npm run demo` simulates providers and cannot establish live accuracy.
+Current main already has guarded approvals, persisted scoped alias lifecycle, retry/export, and the comparison runner. Investigation currently returns unavailable. Supporting-document, persisted investigation, and procedure APIs below are proposed until their owners deliver them. `package.json` contains `eval:heldout`, but `evals/run-heldout.ts` is absent at this starting point; a script name is not a runnable benchmark.
 
-Follow canonical setup with Azure **OpenAI** extraction and Gateway Jev (`JEV_MODEL=typesafe-ai/jev`); no non-OpenAI Azure deployment or silent substitution. Verify actual deployment/model/channel, PDF support and secret presence without printing values; direct Jev keys can override Gateway. Local storage's `demo_mode` is not provider provenance. Elasticsearch is unnecessary. Missing capabilities, null assessment/unavailable required scoring and provider failures stay blocked/error/unknown, never simulated success.
+## Preserve what the existing experiment actually found
 
-Preflight all six capability flags (`rule_learning`, `extraction_retry`, `export`, `custom_checks`, `duplicate_links`, `knowledge_revisions`), treating absence as false. Require complete `coverage` for whole-snapshot measurements. Optional investigation may truthfully remain unavailable. Start offline while backend dependencies are incomplete.
+The published isolated experiment reports Sift **39/50** correct versus direct PDF-to-Azure-model **47/50**; valid matches **19/30 versus 29/30**, policy violations flagged **8/8 versus 6/8**, duplicates flagged **6/6 in both**, and zero unsafe matches in both. Median receipt-to-verdict was **2.287s versus 2.542s**; estimated 50-case model cost **$0.0183 versus $0.0726**.
 
-## A. Offline fixtures and review gate
+All valid Sift exceptions had an unknown merchant check; ten unfamiliar merchants lacked corroborating identity evidence. Labels remain unreviewed and costs use deployment/rate assumptions. This was an isolated pipeline comparison, excluding live database/upload/UI, human time, Ramp, and learning. Do not claim equivalent-quality savings, Jev-only attribution for the entire difference, or that this new demo erases the unfavorable result.
 
-Suggested small files: `dataset.ts`, `run-heldout.ts`, `report.ts`, `benchmark.test.ts`, `http-safety.test.ts`, `playwright.config.ts`, `rehearsal.spec.ts`, `README.md`. Outputs belong in ignored `evals/results/`.
+The new pack is development/demo material used to build the feature, **not independent accuracy evidence**. Any later independent claim requires a separate fresh, reviewed held-out pack untouched by tuning or activation tests. Do not relabel the 20 development cases as held-out.
 
-Generate deterministic, visibly synthetic PDFs, `inputs.json`, evaluator-only `expected.json` and readable review sheets. Fixed seed means identical bytes/hashes. Neutral IDs/filenames reveal no labels. Whitelist intake's seven fields: `attendee_name`, `email`, `amount_requested_minor`, `currency`, `category`, `origin_location`, `file`. Never send expected answers/cohorts or answer-key duplicate relationships in model inputs, production records or UI. Production-derived hash/corroborated duplicate evidence is allowed: derive `facts.exact_duplicate_ids` through shared production logic from actual frozen evidence/reference order, never from expected labels.
+## Timing and dependencies
 
-Exactly **50 scored claims**:
+| Stage | Start condition | Deliverable and boundary |
+| --- | --- | --- |
+| Offline preparation — now | This prompt and current source | Synthetic documents, separated labels, policy/evidence review packet, mock contract checks, recording outline, proposed call budget. No model calls or shared DB access. |
+| Incremental verification | Each endpoint/adapter is delivered | Verify its commit and run focused offline/local checks immediately. Missing siblings are named blockers, not a reason to idle. |
+| One live vertical slice | Isolated Supabase is ready; real Azure planner is implemented; fixtures/policies have human sign-off; explicit counted model budget is approved | Exercise source evidence → investigation → human approval → procedure test/activation → later reuse → blocked bad case. Stop at budget/time cap. |
+| Independent recording and retest | Integrated delivered commit and available UI | Record real behavior, file minimal reproductions, retest owner fixes, and update evidence. Do not repeatedly rerun broad suites. |
 
-| Cohort | Count | Expected assessment |
+If the live gates are unavailable, finish the offline pack and checks, record an explicitly simulated fallback if useful, and report the exact blocker. Never invent sign-off, credentials, a model budget, successful execution, or a Devin session link.
+
+## 1. Build the separate 20-case development pack
+
+Create actual readable synthetic PDFs/images and structured claim inputs. Expected answers/policy interpretation live in a separate evaluator-only file; the application and models receive only claim facts, policy, and genuine document contents.
+
+| Cohort | Claims | Evidence to include |
 | --- | ---: | --- |
-| Straightforward valid | 20 | matched |
-| Valid unfamiliar merchant | 10 | matched |
-| Financial/policy violations | 8 | flagged |
-| Later duplicates | 6 | flagged |
-| Incomplete/ambiguous | 6 | needs_review |
+| Straightforward valid | 10 | Familiar merchant, matching claimant, exact eligible amount/currency/date, distinct purchases. |
+| Unfamiliar merchant with linked booking | 2 | Receipt billing descriptor + booking confirmation carrying the same explicit reference and merchant identity; use a hotel/USD source/later pair with the same descriptor/canonical identity for the single procedure. |
+| Similar-looking distinct purchases | 2 | Similar merchant/date/amount but different purchase/reference facts supporting two real eligible purchases. |
+| Duplicate purchase across different documents | 2 | Different document bytes/types describing a purchase already represented by an earlier claim; shared corroborating purchase identity, not filename inference. |
+| Claimant identity supported by itinerary | 2 | Receipt + itinerary with an explicit reference/name link permitted by the applicable reviewed policy. |
+| Genuinely incomplete | 1 | Essential evidence truly absent; no hidden answer seeded as supporting evidence. |
+| Clear policy violation | 1 | Unambiguous cap/date/category violation that remains blocked after investigation/learning. |
+| **Total** | **20** | **10 straightforward + 8 evidence cases + 1 incomplete + 1 violation.** |
 
-- Ten unfamiliar purchases share one exact hotel/USD alias, with new traveler/receipt/date/amount identities versus the separate source correction and C's fixed ten activation cases. Source, activation, rehearsal and three smoke receipts are disjoint from the final set.
-- Eight violations: two amount mismatches, two over-cap, two non-USD, two outside policy dates. Include the learned descriptor on counterexamples; use frozen actual policy caps/window and exact-cap/one-cent-over boundaries.
-- Six later copies reuse exact PDF bytes of earlier originals among the 30 valid claims; at least two groups use the unfamiliar descriptor. Preserve claim facts and order; include a renamed file. No additional scored originals.
-- Include distinct valid purchases sharing merchant/date/amount but different receipt numbers. Ambiguous cases include missing totals/travelers and unrelated descriptors; every case has a PDF. Unknown is not zero.
+- [ ] Use two distinct later duplicate claims pointing to earlier purchases already represented among the 20; original claims precede duplicates. Keep purchase/document/claim links explicit in evaluator metadata.
+- [ ] Generate real clue text inside documents: booking references, merchant legal/trading names, traveler names, dates, amounts, and purchase identifiers as applicable. `receiptPdf` alone may need an eval-owned wrapper/helper for supporting text; inspect rendered output.
+- [ ] Use neutral randomized IDs and filenames, with no `valid`, `duplicate`, `violation`, expected verdict, or cohort hint visible to models. Randomization must preserve required original-before-duplicate ordering.
+- [ ] Keep expected labels, cohort names, and evaluation rationale outside uploads, extraction prompts, tool responses, filenames, and app-visible metadata. A clue describes a transaction, not “approve this claim.”
+- [ ] Preserve P0's one primary receipt/one purchase/exact USD amount model. Multiple documents for one stay never become several summed purchases. Unsupported allocations stay unsupported.
+- [ ] Record input/document/label/policy hashes, generator seed/version, scenario dependencies, expected checks/outcome, and why available evidence supports each label.
+- [ ] Give the fourth teammate a readable review packet containing every original, linked supporting document, policy, and expected answer/rationale. They review labels/policies, help refine synthetic evidence, and prepare pitch language.
+- [ ] Record actual reviewer identity/date and accepted hashes; unresolved label disagreements remain open. If evidence/policy changes, revise hashes and get the changed material reviewed again. Automated agreement is not human sign-off.
 
-Keep printed-field truth separate from assessment labels. Freeze normalization rules for minor-unit amount/currency/date/receipt number and merchant/name accuracy; count invented missing values and extraction errors.
+You may prepare/run explicitly simulated local cases before sign-off, but label them unreviewed development fixtures. Human review gates the live demonstration and any reported interpretation of expected outcomes.
 
-**Human gate:** Two teammates review all 50 PDFs/policies/labels, resolve disagreements and cross-check financial/duplicate cases. Save reviewers/time/amendments and input/PDF/label/policy SHA-256 hashes in `review.json`; freeze before final predictions. Never invent sign-off or relabel valid unfamiliar claims to match baseline predictions. Later label changes invalidate/version the evaluation; retain prior runs.
+## 2. Verify each delivered contract before the full flow
 
-Implement this exact CLI contract from `reconciliation/`; these commands are proposals, not existing functionality:
+Consume frozen `00-contracts`; do not invent production routes or implement them in the harness.
 
-```sh
-npm run eval:heldout -- --prepare --seed 20260920 --out evals/results/dataset-v1
-npm run eval:heldout -- --live --phase smoke --dataset evals/results/dataset-v1 --base-url http://127.0.0.1:3000 --out evals/results/smoke-v1 --max-model-calls=12
-npm run eval:heldout -- --live --phase baseline --dataset evals/results/dataset-v1 --review evals/results/dataset-v1/review.json --rule-id RULE_UUID --base-url http://127.0.0.1:3000 --out evals/results/baseline-v1 --max-model-calls=200
-npm run eval:heldout -- --live --phase after --baseline evals/results/baseline-v1 --base-url http://127.0.0.1:3000 --out evals/results/after-v1 --max-model-calls=150
-# Save the actual rehearsal reviews response as rehearsal-snapshot.json first.
-npm run eval:heldout -- --prepare --kind search --snapshot evals/results/rehearsal-snapshot.json --seed 20260920 --out evals/results/search-v1
-npm run eval:heldout -- --live --phase search --dataset evals/results/search-v1 --review evals/results/search-v1/review.json --base-url http://127.0.0.1:3000 --out evals/results/search-run-v1 --max-model-calls=40
-```
+| Surface | Focused observation |
+| --- | --- |
+| `GET/POST /api/submissions/:id/supporting-documents` | Multipart `file,kind,expected_review_revision`; pending claim, eight documents max, 8 MiB each; private persistence, visible extraction failure and stale-write rejection. |
+| `GET /api/submissions/:id/supporting-documents/:documentId` | Correct private original bytes after refresh; no public bucket or leaked storage credentials. |
+| `POST /api/submissions/:id/investigate` | `{expected_review_revision}`; awaited `{run,row}` including persisted failed runs; early invalid/unavailable errors use the error envelope; no detached “queued” success. |
+| `GET /api/investigations`, `GET /api/investigations/:runId` | Claim-filtered list `{runs,coverage}` while POST is pending; detail `{run}`; persisted actual steps survive reload; reads never trigger providers. |
+| `GET/POST /api/procedures` | Proposal `{run_id,expected_review_revision}` requires a current human-approved source; separate from existing alias APIs. |
+| `POST /api/procedures/:id/test`, `/activate`, `/disable` | `{expected_procedure_version}`; test proof/version/source/knowledge freshness; explicit human activation. |
 
-No arguments means offline preparation with the shown seed/destination; never overwrite an existing output. `--prepare` is network-free and mutually exclusive with `--live`. Reject unknown flags, missing phase arguments and nonpositive budgets. `RULE_UUID` is the human-reviewed draft. After-phase inherits frozen metadata from `--baseline`. Live requires an explicitly isolated target and matching Origin. Exit 0 means completed/passing; document separate nonzero failed/blocked/interrupted exits and always retain partial artifacts.
+Public run evidence must include run/claim IDs, status `running/completed/failed/superseded`, nullable outcome before a result, headline/summary/unresolved question, findings with evidence references, `before_assessment`/`after_assessment`, nullable `proposed_learning`, actual `InvestigationRunStep` records/timestamps, mode/model, and errors. Failed/superseded runs retain null outcome/after-assessment. Check optional `ReviewRow.latest_investigation` separately from compatible legacy `investigation`; new capability booleans absent means unavailable. Validate evidence refs against stored run records. `completed` does not mean approved; a resolved eligible claim is ready for human approval.
 
-Budgets are ceilings, not promised sufficiency. Before each phase print configuration, bounded HTTP timeout and planned worst-case provider attempts, including retries, search batches and activation tests. Reserve fanout before each action. If fanout/usage cannot support a hard cap, emit `blocked_budget` and request owner instrumentation; HTTP requests are not model calls. No automatic ambiguous POST retries, extra probes or model comparisons. Check saved mappings first: retrying intake can create another claim.
+Capture delivered commit + request/response + persisted revision/step evidence. Mocks demonstrate contract handling only; mark actual API and live-provider verification separately. Do not infer implementation from TypeScript declarations or screenshots.
 
-## B. Smoke and HTTP safety
+## 3. Leave a few focused runnable safety checks
 
-Send three distinct clean/unfamiliar/violation smoke PDFs through real intake, Azure extraction and workspace reconciliation. Record bytes, parsed fields, checks, usage and still-pending decisions. This may precede final-label review. Test independently available components while learning is blocked; fixture parsing and preview's 8/10 → 10/10 never count as live evidence.
+Use the production assessment/API paths with injected offline doubles or isolated storage. No parallel toy verdict engine. Group related risks into a small number of checks under your eval ownership; retain existing tests without making every old suite a recurring task.
 
-Read existing core `{core,routes,workspace,integration,database,claim-search}.test.*`, intake and dashboard tests; add only missing checks under `evals/`. Current legacy tests demonstrate direct alias learning, not new safety compliance. After B's guard patch, verify **real HTTP** requests against an isolated app process:
+- [ ] **Money and duplicates:** overclaim/underclaim, wrong currency or cap violation stays blocked; similar distinct purchases do not become duplicates from surface similarity; different documents for one purchase cannot authorize a second payment; supporting documents are never double-summed.
+- [ ] **Evidence/revisions:** new or changed evidence invalidates affected assessment/test proof; stale approval/investigation/procedure requests cannot publish; changed evidence or knowledge during work yields truthful superseded/conflict state instead of overwriting a newer result.
+- [ ] **Learning safety:** only the hotel/USD `booking_reference_identity` merchant procedure is supported; require human source approval, real versioned test, then human activation. Missing/conflicting reference evidence prevents reuse; failure/stale proof/source withdrawal prevents activation/reuse; alias behavior remains compatible. C’s fixed 12-case `booking-reference-v1` suite stays separate from these 20 cases and `alias-v1`; its gate requires correct application with no safety/correctness regression, not a fabricated accuracy gain.
+- [ ] **Provider/progress failure:** planner/tool/reassessment failure is visible and never becomes fixture success or correct ambiguity; persisted real steps survive refresh; no fabricated steps, repeated start on refresh, or approval side effect.
 
-- Reproduce the legacy cap-failure approval bypass through `/api/corrections`; assert the same guarded result as workspace decisions, required revision, no unsafe write, and exact 410 rejection of legacy aliases. Cover canonical mandatory guard failures and legitimate note-based merchant/name ambiguity resolution.
-- Concurrent duplicate approvals, including separate service instances, cannot both succeed. Stale decisions/publication/tests, source withdrawal and disable obey canonical atomic revisions. Recheck never rewrites human decisions. Test all rule transitions through real endpoints with server-bound reports, not caller-authored proof.
-- Retry uses canonical `{expected_review_revision}` on the same original, only while decision is pending and no operation active. Stale/concurrent attempts fail; timeouts/429/malformed responses preserve evidence history and visible failures. Inject faults through existing test seams, not live quota exhaustion.
-- Export uses canonical `{snapshot_token,submission_ids}`, exact column order/download headers, 1–1000 unique IDs, stale/foreign-ID rejection, selected possible matches only, empty unknown amounts, quoting and formula safety. Coverage and snapshot tokens must include relevant knowledge/config revisions.
-- Confirmed duplicate links require canonical evidence; possible candidates remain distinct. Exercise renamed copies, purchase lookalikes, folio subtotal/tax/total and ambiguous refunds without claiming perceptual detection/refund accounting. Receipt/vendor instructions cannot mutate decisions/rules.
-- Refresh/restart preserves notes, rules, decisions and receipt hashes. Search failure/malformed IDs/failed batch is explicit; empty corpus makes zero calls and stale/over-limit requests do not silently truncate.
+The bounded investigator starts with three planning rounds, at most six tool calls, one final reassessment, and a 90,000 ms deadline covering investigation plus reassessment, as frozen in 00. Verify actual limits/failures with offline doubles first. Tool calls are not the same as paid provider calls; activation tests may fan out substantially.
 
-Simulated fault tests prove software behavior only. Keep failing-before/passing-after evidence; production owners update obsolete tests. Do not weaken expected safety to preserve old behavior.
-
-## C. Frozen paired benchmark through the real scorer
-
-Use B's **`createAssessExample(core, observe?)`** from `src/lib/core/evaluation.ts`: the real financial/duplicate/Jev engine operating only on supplied facts, reference claims and active aliases. It must not load unrelated state or write claims/runs/decisions/corrections. The one-argument factory and returned `AssessExample` callback remain compatible for C. Devin supplies the optional observer and saves every `EvaluationObservation`: submission/alias IDs, nullable assessment, actual checks, already-logged `model_calls` with stable IDs, latency and error code, attributed to its own run/phase. Use these observations for protected-check regressions and actual usage; never invent diagnostics from `Assessment` alone or duplicate provider logs. Usage has null run IDs rather than invalid foreign keys. The runner and app use the same isolated provider/store configuration. Missing scorer/observations block dependent metrics; never implement a substitute. Respect AbortSignal and documented in-flight cancellation limits.
-
-1. Human approves the separate source with a note and proposes the scoped draft before baseline; approval alone does not teach. Verify no equivalent alias is active. Do not approve/reject the 50 cases.
-2. Upload/extract the 50 once, serially, originals before copies. Save mappings and errors immediately; verify persisted `(submitted_at,id)` ordering. Freeze actual bytes/parsed facts, policies, full reference corpus/order, human decisions and models/prompts. Never substitute expected extraction or retry until it improves.
-3. Baseline scores those frozen cases in order via `createAssessExample`, saving every response/check/error immediately. Explicit supplied reference facts prevent prior assessment outcomes contaminating later inputs. Read-only snapshots never restore state or overwrite decisions.
-4. Through `/api/rules/:id/test` then `/activate`, test/activate the reviewed draft with `{expected_rule_version}` and canonical freshness checks. Failed/errored/stale activation stops after-phase. Preserve failure; no final-set tuning or repeated attempts to select a pass.
-5. Score identical facts/reference order again with only reviewed active-alias knowledge changed. Verify unchanged human decisions and input hashes. Report all 50 attempts, errors and paired changes. HTTP/UI rehearsal separately verifies that persisted reconciliation consumes the same production logic.
-
-Any protected-check regression or changed human decision fails safety regardless of aggregate improvement. Debug on rehearsal data; final-set-driven fixes require a new frozen evaluation version and disclosure. Do not reset shared state or copy partial stores to manufacture comparability.
-
-## D. Search and honest measurement
-
-Freeze/review search labels from the **actual complete review projection**, not facts absent from model input. Twelve queries: hotel claims; paraphrase; greater-than amount; at-least amount; hotels above amount; requested versus receipt amount; matched-but-pending; human-approved; missing total; approve all hotels; total spend; event attendance. Last three reject unsupported mutation/aggregation/facts. Call actual `/api/search`; compare persistent state before/after excluding usage. Keep this report separate from the 50.
-
-Report all rows, a 3×3 confusion matrix plus errors/missing, and denominators: extraction accuracy/inventions; 30 valid matches/reviews/false flags; unsafe matches among 20 non-match cases; eight violations/six duplicates caught; paired regressions including individual protected checks. Search reports precision/recall, uncertainty, wrong confident matches, coverage and unsupported queries; empty denominators are N/A, failures are not correct empty results.
-
-Retain raw stage/end-to-end latencies, median/p95/sample size, failures, cold/warm state and concurrency. Extraction happens once; after-phase time is not upload-to-decision speedup. Collect actual calls/tokens/retries by provider/channel/model/phase, deduplicated by usage ID, with unrelated work excluded. Missing tokens/request IDs/internal timings stay null. Never estimate tokens from text length or double-count reasoning tokens.
-
-Separate billed cost, dated official model/region price estimates and unknown cost/coverage. Azure deployment names are not pricing SKUs; credits are not zero service cost, and shared account changes are not run attribution. Separate Devin usage and excluded hosting/storage. Cost-per-attempt/correct-valid-match/search needs explicit denominators. Observed reviewer time is separate from model latency; flagged dollars are not recovered savings or fraud.
-
-Harness checks cover deterministic/disjoint fixtures, counts/duplicates/order, no label leakage, production-derived duplicate facts, frozen-artifact protection, activation/freshness failure, unchanged decisions, one observation per attempt including errors, unsafe-alias detection from actual checks, unique usage IDs, budgets and CSV escaping. Mock transport only for protocol tests.
-
-## E. Human replay, recording and delivery
-
-Run against the delivered commit:
+Current runnable offline reference check, from `reconciliation/`:
 
 ```sh
-nvm use
-npm ci
-npm test
-npm run typecheck
-npm run build
-npm run test:browser
-node --conditions=react-server --import tsx --test --test-concurrency=1 evals/*.test.ts
-npx playwright test --config evals/playwright.config.ts
+node --conditions=react-server --import tsx --test evals/comparison/comparison.test.ts
 ```
 
-Run `npm run test:intelligence` after C delivers it; missing implementation is blocked. Existing browser checks use simulated demo/preview. Configure Chrome and your separate Playwright config for isolated integrated rehearsal; live retries require budget. Historical passing counts do not establish current results.
+Run it only if comparison-helper compatibility is relevant; preserve the existing comparison source/artifacts. Proposed new checks may use `node --conditions=react-server --import tsx --test evals/investigation/*.test.ts` **after those files exist**. Provide exact preparation/check/recording commands you actually implement. Do not advertise `npm run eval:heldout` as ready or edit `package.json` to make it so.
 
-A teammate unfamiliar with implementation replays without coaching: inspect receipts/duplicates, clear statuses/errors, keyboard/focus, retained notes, retry/export and persistence. Report polish defects to A and retest fixes. For time-saved claims, use two equivalent four-case packs and two operators in opposite manual/Sift order, same policy/evidence and hidden answers; retain individual times/errors/corrections and disclose sample size.
+## 4. Agree the live scope and count every call
 
-Explicitly ask Devin to test and send an annotated recording; official docs support requests during a session. Preserve a **complete walkthrough**: upload → extraction/evidence → assessment → source approval/note → propose/test/activate → unseen rehearsal purchase → protected violation/duplicate → pending-versus-approved search → retry/export → restart. Add two short learning and safety/search clips; retain originals and mark editing/speed changes. Missing recording remains blocked. [Official testing/recording documentation](https://docs.devin.ai/work-with-devin/testing-and-recordings)
+Before any paid execution, propose the smallest slice and its **maximum provider fanout**, based on the delivered implementation: initial/supporting extraction, Azure planner rounds, final reassessment/Jev, source/later/bad-case assessments, and every before/after activation-test call. Include optional narration if enabled; prefer keeping optional work off.
 
-Derive replay instructions in `evals/README.md` from the actual run. This prompt can become a team playbook after owner request; do not create external playbooks/extra sessions unasked. [Official playbook documentation](https://docs.devin.ai/product-guides/using-playbooks) was checked 2026-09-20. Preserve actual contribution evidence for **Best Use of Devin** without promising eligibility/outcome or additional prize categories.
+The integration owner approves a concrete call ceiling and any time/cost cap; this prompt supplies no invented number. Reserve/count each request before transmission, including retries and failed attempts. Stop starting work at the cap/deadline; no unbounded reruns or silent budget increases. A new paid retest needs remaining explicit budget.
 
-Each ignored run directory contains `manifest.json`, `review.json`, `results.json`, `cases.csv`, `search.csv`, `calls.jsonl`, `timings.csv`, `report.md`, and `evidence/index.md` plus originals/logs/repros. Record hashes, commands/budgets/modes, revisions, all failures, review sign-off and claim → case/run → recording timestamp/log → commit/diff → Devin session/authorship. Export reviewed synthetic attachments before links expire; inspect for secrets/headers/signed URLs and keep answer keys/raw diagnostics out of the shared demo.
+Log run/case/phase, delivered commit, mode, provider/requested model/returned model, call ID, latency, usage when returned, failures, and procedure-test attribution. Null usage/cost stays unknown. Count extraction, planner, Jev, and activation calls once each, even on failure; tools that only read stored data do not masquerade as paid model calls.
 
-Deliver the scoped diff, gate table, reproducible commands, frozen review pack, reports and recordings through the integration slot. A teammate reruns the frozen experiment in a fresh isolated environment; retain both results rather than choosing the better one. If blocked, deliver independent completed work with exact missing requirements; do not claim all five milestones passed.
+Use a dedicated isolated Supabase project/store with reviewed migration state and private synthetic documents. B/integration owns migration application and backfill. Never seed/reset the shared rehearsal DB, expose credentials, or create human approvals in advance to force the story.
+
+## 5. Record one truthful full flow and return failures to owners
+
+Prepare a short recording, roughly 2–4 minutes if the actual bounded run permits:
+
+1. Identify the delivered commit, live/simulated mode, and synthetic development pack. Open an unfamiliar merchant claim and its receipt/booking clues.
+2. Start one real investigation; show persisted actual tools, findings/evidence, before/after checks, elapsed time, and any remaining uncertainty. Refresh once to prove persistence.
+3. Have a real teammate review and approve the supported source with a note. Record that supervised human action; the harness must not invent approval or reviewer identity.
+4. Propose the booking-reference procedure, run its real test, show proof, and have the human explicitly activate it. Preserve the distinct approval and activation actions.
+5. Show a later eligible claim using the saved procedure, its evidence and actual recorded work. Say “less work” only if observed calls/steps support that comparison; matched still awaits human approval.
+6. Show the violation/duplicate remaining blocked and the genuinely incomplete case retaining a specific question. End with the next reviewer action.
+
+Keep a fallback recording clearly labeled **recording**, with its commit/date/mode. If it is simulated, say so throughout; do not pass replay for a live run. Preserve failures in evidence even if the presentation excerpt is shorter. No staged tool transcript or fake counters.
+
+For each defect, send the integration owner a reproduction with commit, fixture/hash, exact action/request, expected versus observed result, sanitized logs, and recording timestamp. Route persistence/API/revision issues to B, planner/Jev/procedure logic to C, and rendering/polling/accessibility issues to A. A human triages priority; the owner fixes it; Devin retests that delivered fix. Do not silently patch production or rerun everything.
+
+## Handoff and gate evidence
+
+Use `passed`, `failed`, `blocked`, or `not_run` for each gate. Every result names commit, mode, command/action, evidence path, and blocker/owner where relevant. Missing execution is never a pass.
+
+| Gate | Status | Required evidence |
+| --- | --- | --- |
+| 20-case pack + human label/policy review | `not_run` initially | Counts, documents, hashes, actual sign-off or named unresolved review |
+| Financial/duplicate/revision guards | `not_run` initially | Focused runnable checks and failures retained |
+| Real investigation + refresh persistence | `not_run` initially | Delivered commit, API/step records, provider/progress failure check |
+| Reviewed procedure + later safe reuse | `not_run` initially | Source human action, test/version proof, activation, positive and negative evidence |
+| Budgeted live vertical slice | `not_run` initially | Approved ceiling, all counted calls, actual usage/errors, isolated DB identity |
+| Team UI rehearsal + independent recording | `not_run` initially | Named human rehearsal evidence, recording mode/commit/timestamps, fallback label |
+
+Deliver the scoped diff; exact runnable commands; fixture/review manifests; concise report; call/timing log; reproduction list; recording index; and the gate table. Keep large/raw artifacts in fresh ignored run directories and link reviewed sanitized evidence. Strip secrets, authorization headers, signed URLs, and evaluator labels from shared demo material.
+
+## Pasteable kickoff
+
+> Work from current main on Sift's `docs/next-work/04-devin-benchmark.md` after reading README and 00-contracts. Own only reconciliation/evals/** and preserve existing comparison/findings outputs. Start offline now: prepare the separate 20-case development pack with actual supporting documents, evaluator-only labels, human review packet, focused guard checks, recording outline, and proposed maximum provider fanout. Validate individual endpoints as B/C/A deliver them. Run one live vertical slice only after isolated Supabase, the implemented Azure planner, signed-off fixtures/policies, and an explicit counted model budget are available. Record the delivered commit and all calls/failures; return reproductions to B/C/A through human triage, then retest owner fixes. Record supervised human source approval and procedure activation; never invent sign-off. No production edits, broad recurring benchmark campaign, paid calls before budget approval, automatic push, or shared-data reset. Return passed/failed/blocked/not_run gates with evidence and a clearly labeled fallback recording.

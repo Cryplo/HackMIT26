@@ -1,119 +1,180 @@
-# Frozen integration contracts for the next phase
+# Shared contracts: investigation and booking-reference learning
 
-These are proposed implementation requirements, not existing API guarantees. Agent B alone updates `src/lib/review-contracts.ts`, legacy contract adapters, SQL and server validation. Other owners import those types after B delivers; until then, use local test fixtures typed against this document, never edit the shared files independently. Existing v2 interfaces in `src/lib/review-contracts.ts` remain the base. Keep `contract_version: 2`; additions below are optional during rollout so the current workspace can still load.
+**Proposed implementation contract, frozen for this build pack on 2026-09-20. These additions are not implemented at `9f3d593`.** Read [README](README.md). B alone publishes shared TypeScript declarations, request validation, storage and API adapters; A/C/Devin consume them. Changes to this document during implementation are coordinated through B before dependent edits. Preserve existing `contract_version: 2`, alias types/endpoints, `AssessExample`, search, decisions, retry and export. Add fields; do not silently reinterpret old fields.
 
-## 1. Meaning of a claim
+## 1. Existing invariants still apply
 
-- One synthetic reimbursement claim, one original receipt, USD amounts in integer cents. Existing travel categories remain unchanged.
-- `assessment_status` is `null | matched | flagged | needs_review`; it is never a human approval.
-- `decision_status` is `pending | approved | rejected`. Reconciliation, retry, rule changes and custom checks preserve human decision history.
-- A known mandatory failure produces `flagged`, even if another check is unknown. With no mandatory failure, incomplete evidence, an unavailable required check, or a review-only concern produces `needs_review`. Only a complete passing assessment produces `matched`.
-- Required financial checks are `extraction`, `currency`, `amount`, `policy`, `receipt_date`, `policy_cap`; required semantic checks are `merchant`, `name`, `duplicate`. Successful extraction may be represented by `receipt.extraction_status === 'succeeded'`; emit an explicit extraction check for failure/unknown and record provenance.
-- Machine `matched` requires all required checks passing, plus no enabled custom review concern. Human approval requires succeeded extraction, a current assessment, passing currency/amount/policy/date/cap/duplicate checks, a note, and the current review revision. A reviewer may resolve merchant/name/custom ambiguity explicitly; this does not change the machine check to pass.
-- Exact duplicate protection runs again atomically when approving, against current stored claims/approvals, not only the previous model answer. Stable ordering is `submitted_at`, then claim ID. Never count an exact receipt copy as a new legitimate purchase. Same merchant/amount/date alone is not exact-duplicate proof.
+A claim is one purchase, one original receipt, USD in integer cents. Supporting documents are evidence for that purchase, not additional reimbursable totals. Machine assessment is `matched | flagged | needs_review | null`; human decision is `pending | approved | rejected`. All mandatory checks must pass for `matched`. Known mandatory failure wins over unknown checks. Exact amount, currency, policy/date/cap, successful extraction and confirmed duplicate protection remain mandatory.
 
-## 2. Revisions, snapshots and provenance
+Approval uses the existing common guarded operation, reviewer note, expected review revision, current assessment/knowledge and an atomic current duplicate check. Reassessment and learning never modify human decision history. Same merchant/date/amount alone is not duplicate proof. Hash equality means reused bytes, not blanket permission for a split. P0 has no split/aggregation support.
 
-`review_revision` changes for every material change to a claim's evidence, assessment or human decision. `knowledge_revision` is a persisted, monotonic revision for active alias or policy/check configuration changes. `assessment_knowledge_revision` records the revision actually used by the assessment. A smaller value means “Rules changed — recheck.” Do not silently rerun or alter an old human decision.
+Evidence or knowledge changes invalidate affected assessments and activation tests. Capture evidence/review/knowledge revisions at operation start; validate them in the same transaction/lease as publication. A stale attempt can remain in history but cannot replace the current assessment. Source withdrawal or source-evidence change invalidates dependent active knowledge. Keep existing `409 STALE_REVIEW`, `STALE_RULE`, `STALE_RULE_TEST`, `STALE_SNAPSHOT` behavior; use `STALE_RUN` for superseded runs. No stale success, client test proof or silent overwrite.
 
-Approval and publication validate revisions within the same transaction/lease as their write. An assessment begun under an old knowledge/evidence revision may be retained as a superseded attempt, but must not replace the current assessment. Source approval withdrawal and rule disable invalidate affected tests/knowledge atomically. Fail with `409 STALE_REVIEW`, `STALE_RULE`, `STALE_RULE_TEST`, or `STALE_SNAPSHOT`, as applicable. Rule tests bind to rule version, source correction and review revision, knowledge revision, activation-suite version/hash, and provider/model mode; their metadata is stored server-side and cannot be supplied by a client as proof.
+## 2. Additive data types
 
-The receipt stores a server-computed SHA-256 of the original bytes. For existing receipts, B provides an idempotent hash backfill that reads private originals without changing them. Preserve null/unavailable when no original exists. Seeded parsed fields remain labeled fixture data; global “live Azure” configuration is not proof that a historical receipt used live extraction.
-
-Extend the v2 review response additively:
+Types below belong beside the existing declarations in `reconciliation/src/lib/review-contracts.ts`; referenced `Assessment`, `Check`, `ProviderMode`, `ActiveAlias`, `EvaluationCase`, `EvaluationMetrics`, `ProviderOptions` already exist. Storage-only paths, credentials, raw provider payloads and activation proof never enter browser DTOs. ISO timestamps and server-issued UUIDs throughout; `claim_id` below is the existing submission ID, not a new entity.
 
 ```ts
-interface WorkspaceCapabilities {
-  rule_learning: boolean; extraction_retry: boolean; export: boolean;
-  custom_checks: boolean; duplicate_links: boolean; knowledge_revisions: boolean;
+export type DocumentKind = 'booking_confirmation' | 'itemized_document' | 'itinerary' | 'payment_confirmation' | 'other';
+export interface EvidenceRef {
+  kind: 'receipt' | 'supporting_document' | 'claim' | 'policy' | 'alias' | 'procedure';
+  id: string;
 }
-// Optional fields on ReviewsResponse during rollout:
-// capabilities?: WorkspaceCapabilities;
-// coverage?: { complete: boolean; returned: number; total: number };
+export interface SupportingDocument {
+  id: string; claim_id: string; kind: DocumentKind;
+  file_type: string; sha256: string; created_at: string;
+  extraction_status: 'pending' | 'succeeded' | 'failed';
+  extraction_error: string | null; extraction_provenance: string | null;
+  extracted_text: string | null;
+  facts: {
+    vendor: string | null; booking_reference: string | null;
+    receipt_number: string | null; names: string[];
+    purchase_date: string | null; currency: string | null; amount_minor: number | null;
+  } | null;
+}
+export interface InvestigationFinding {
+  id: string; check: string; statement: string; evidence_refs: EvidenceRef[];
+}
+export interface InvestigationAssessment {
+  assessment_status: Assessment | null; checks: Check[];
+  review_revision: number; evidence_revision: number; knowledge_revision: number;
+}
+export interface ProcedureCandidate {
+  kind: 'booking_reference_identity';
+  trigger_scope: { category: 'hotel'; currency: 'USD'; observed_vendor: string; canonical_vendor: string };
+  required_evidence: ['receipt', 'booking_confirmation'];
+  matching_fields: ['booking_reference']; source_evidence_refs: EvidenceRef[];
+}
+export interface InvestigationRunStep {
+  id: string; run_id: string; sequence: number;
+  tool: 'read_receipt' | 'read_supporting_documents' | 'find_related_claims' | 'read_policy' | 'read_active_aliases';
+  status: 'running' | 'completed' | 'failed';
+  started_at: string; completed_at: string | null;
+  summary: string; evidence_refs: EvidenceRef[]; error: string | null;
+}
+export interface InvestigationRun {
+  run_id: string; claim_id: string;
+  trigger: 'manual' | 'recoverable_uncertainty';
+  status: 'running' | 'completed' | 'failed' | 'superseded';
+  outcome: 'resolved' | 'discrepancy_found' | 'needs_human' | null;
+  headline: string; summary: string; unresolved_question: string | null;
+  findings: InvestigationFinding[];
+  before_assessment: InvestigationAssessment;
+  after_assessment: InvestigationAssessment | null;
+  proposed_learning: ProcedureCandidate | null;
+  steps: InvestigationRunStep[];
+  started_at: string; completed_at: string | null;
+  mode: ProviderMode; model: string | null; error: string | null;
+}
+export interface ProcedureTestReport {
+  procedure_id: string; procedure_version: number; knowledge_revision: number;
+  suite_version: 'booking-reference-v1'; mode: ProviderMode; tested_at: string;
+  passed: boolean; applied_case_ids: string[]; regressed_case_ids: string[];
+  before: EvaluationMetrics; after: EvaluationMetrics; reasons: string[];
+}
+export interface ResolutionProcedure extends ProcedureCandidate {
+  id: string; version: number; state: 'draft' | 'active' | 'disabled';
+  source_claim_id: string; source_run_id: string; source_correction_id: string;
+  created_at: string; latest_test: ProcedureTestReport | null;
+  latest_test_error: string | null;
+}
 ```
 
-Absent capabilities mean false. Set a capability true only when its real backend path works. Coverage describes the full review snapshot before client-side filtering. Never present a partial scan as a whole-database total; for the bounded demo return all rows or an explicit limit error. Snapshot tokens include rows plus the relevant knowledge/config revision. Search and exports use that exact snapshot.
+Add optional `WorkspaceCapabilities.supporting_documents`, `.investigations`, `.resolution_procedures`; absent means false, true only for implemented paths. Add optional `ReviewRow.latest_investigation: InvestigationRun | null`. Keep existing `ReviewRow.investigation` as its compatible legacy `InvestigationResult` projection. Do not feed the new run shape into a legacy renderer. New screens use the new run DTO.
 
-`duplicate_submission_ids` contains confirmed prior claim IDs supported by exact bytes or corroborated purchase identity. It is not the full candidate list and is not a model-generated ID list. Later copies link to their earlier sources; source rows do not become duplicates merely because a later copy exists. Put ambiguous candidate references and the method of comparison in decision evidence, labeled possible. Receipt-number conflicts or identical totals alone do not establish a confirmed link.
+Add optional `PolicyRule.claimant_identity_evidence: 'receipt_only' | 'receipt_or_linked_itinerary'` in both shared and storage policy types; absent means `receipt_only`. Persist the explicit reviewed choice on the applicable policy, including snapshots and knowledge-revision invalidation. There is no policy editor in P0. The itinerary exception requires nonempty matching booking/trip reference evidence, the named claimant, and no conflicting purchase/traveler facts; an unrelated itinerary is insufficient. B supplies a reviewed, targeted policy update for the isolated demo only after the human confirms it. Do not reinterpret all existing policies as allowing supporting identity.
 
-## 3. API owned by B, consumed by A and Devin
+`before_assessment` is the frozen pre-investigation state. `after_assessment` is core's published assessment, never model-authored. Failed/superseded runs have `outcome:null` and no successful after-assessment. Preserve known financial failures/current valid history while displaying operation failure. Core derives outcomes: a complete `matched` assessment means `resolved`; a mandatory `flagged` assessment means `discrepancy_found`; otherwise `needs_human`. `resolved` still leaves the human decision pending. `unresolved_question` is required meaningful text for `needs_human`, otherwise null unless a discrepancy also requires clarification.
 
-Use existing `{ error: { code, message } }` responses; money/UUID/enum/length validation is server-side. Mutation origin checks and the synthetic-only restriction apply consistently. GET requests do not invoke paid models.
+Evidence references must resolve to actual server-stored records supplied to that run; validate kind, ownership and revision, not just UUID shape. Referenced related claims are read-only. A generated quotation, URL or ID is not evidence. Step summaries are short factual descriptions of tool input/output, never hidden chain of thought. Failed actual calls remain steps. Synthetic/recorded provenance is explicit.
 
-| Endpoint | Request | Response / rules |
+## 3. HTTP surface owned by B
+
+All mutations retain origin and synthetic-only guards, strict input validation and `{error:{code,message}}`. GET requests never invoke models. UUIDs, enums, revisions and unexpected properties are checked on the server. No new authentication claim: this remains a private synthetic demo.
+
+| Endpoint | Request | Response / behavior |
 | --- | --- | --- |
-| `GET /api/workspace/reviews` | none | Existing `ReviewsResponse`, with capabilities and coverage |
-| `POST /api/workspace/reconcile` | existing `ReconcileRequest` | Existing `ReconcileResponse`; preserve human decisions, record evidence/knowledge revisions |
-| `POST /api/workspace/decisions` | existing `DecisionRequest` | Existing `DecisionResponse`; authoritative shared approval guard and atomic write |
-| `POST /api/corrections` | legacy decision override plus `expected_review_revision` | Compatibility adapter to the SAME guarded decision operation; require revision. Return legacy correction ID/status projection if needed. Reject legacy `vendor_alias` with `410 LEGACY_ALIAS_DISABLED` directing callers to the reviewed rule workflow. Never create an alias and approve a claim together. |
-| `GET /api/rules` | none | Existing `RulesResponse` |
-| `POST /api/rules` | existing `RuleProposalRequest` | Existing `RuleResponse`; source must be currently human-approved and contain observed vendor; canonical vendor 1–120 trimmed characters; derive scope/observed name from persisted source |
-| `POST /api/rules/:id/test` | `{ expected_rule_version }` | Existing `RuleTestReport`; server supplies current source, aliases, suite and real assessment callback; bounded test, no caller-authored report |
-| `POST /api/rules/:id/activate` | `{ expected_rule_version }` | Existing `RuleResponse`; atomic fresh passed-test check. Draft → active; increment knowledge revision. Reject conflicting active canonical identities within exact scope. |
-| `POST /api/rules/:id/disable` | `{ expected_rule_version }` | Existing `RuleResponse`; active/draft → disabled; active removal increments knowledge revision. Re-enable requires a new draft/test, not replaying an old report. |
-| `POST /api/submissions/:id/retry-extraction` | `{ expected_review_revision }` | `{ row: ReviewRow }`; same private original, pending human decision, no active operation. Persist failure visibly; preserve old evidence history and invalidate obsolete assessment. |
-| `POST /api/workspace/export` | `{ snapshot_token, submission_ids: string[] }` | CSV download, `text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="sift-reviews.csv"`. 1–1000 unique existing IDs; stale/foreign IDs fail, no partial silent export. |
-| `POST /api/search` | existing `SearchRequest` | Existing `SearchResponse`; read-only per-claim search with existing supported facts, exact snapshot and uncertainty. Not an action/aggregation endpoint. |
+| `GET /api/submissions/:id/supporting-documents` | none | `{documents: SupportingDocument[]}` for that existing claim |
+| `POST /api/submissions/:id/supporting-documents` | multipart `file`, `kind`, `expected_review_revision` | `{document: SupportingDocument, row: ReviewRow}`; await bounded extraction, preserve visible failure |
+| `GET /api/submissions/:id/supporting-documents/:documentId` | none | Private original bytes, correct MIME and safe filename; verify document belongs to claim |
+| `POST /api/submissions/:id/investigate` | `{expected_review_revision:number}` | Await bounded execution, then `{run: InvestigationRun, row: ReviewRow}`; no detached promise/queued fiction |
+| `GET /api/investigations` | optional `claim_id` UUID | `{runs: InvestigationRun[], coverage:{complete:boolean,returned:number,total:number}}`; newest first, bounded at 1,000, explicit limit error instead of hidden truncation |
+| `GET /api/investigations/:runId` | none | `{run: InvestigationRun}` |
+| `GET /api/procedures` | none | `{procedures:ResolutionProcedure[],knowledge_revision:number}` |
+| `POST /api/procedures` | `{run_id:string,expected_review_revision:number}` | `{procedure:ResolutionProcedure,knowledge_revision:number}`; derive reviewed candidate/source from persisted completed run |
+| `POST /api/procedures/:id/test` | `{expected_procedure_version:number}` | `ProcedureTestReport`; report generated/stored server-side |
+| `POST /api/procedures/:id/activate` | `{expected_procedure_version:number}` | `{procedure,knowledge_revision}` after atomic fresh passing-test validation |
+| `POST /api/procedures/:id/disable` | `{expected_procedure_version:number}` | `{procedure,knowledge_revision}`; retain history, invalidate proof |
 
-Every rule edit/state transition increments its own `version`. P0 has no rule-edit endpoint: disable and propose a new draft to change an alias. An approved source later rejected/replaced invalidates its active rules; preserve the history and require explicit new proposal/testing. Migrating legacy aliases does not automatically activate them: retain history, create disabled legacy records or leave them excluded from active retrieval until reviewed.
+Once a run is persisted, an execution/provider failure returns its truthful `failed` run in the awaited response; invalid input/missing capability/stale start remains the error envelope with appropriate HTTP status. On transport interruption the client reads the saved run; do not auto-repeat a paid POST. Read list by claim while start POST is pending so progress is visible before it returns. Capability unavailable returns `503 INVESTIGATION_UNAVAILABLE` or `PROCEDURE_UNAVAILABLE` without spending.
 
-CSV columns: `claim_id, attendee_name, category, currency, requested_amount_minor, receipt_amount_minor, assessment_status, decision_status, processing_status, review_revision, assessment_knowledge_revision, knowledge_revision, assessment_stale, failed_checks, unknown_checks, duplicate_claim_ids, latest_reviewer_note, receipt_id`. Empty unknown amounts remain empty, not zero. Quote CSV fields correctly, neutralize spreadsheet formula injection for text fields, and do not export secrets, raw model payloads or signed receipt URLs. Export exact selected IDs; AI “possible matches” are included only through explicit user selection.
+Supporting upload reuses existing PDF/PNG/JPEG signature validation and 8 MiB file limit; maximum eight supporting documents per claim. Validate serialized decimal revision. Acquire claim operation protection before storing/extracting, compute SHA-256 from bytes, never trust filename/type/hash or client-authored facts. Reject evidence edits on approved/rejected claims in this phase. Appending failed extraction still records provenance and invalidates affected assessments. Refuse active-operation conflicts with `409 RUN_ACTIVE`; duplicate upload bytes within the claim return `409 DOCUMENT_EXISTS` without another extraction. No replace/delete API in P0. Keep originals private and retain potentially committed evidence after uncertain writes.
 
-## 4. Intelligence seam owned by C
+## 4. Intelligence and shared assessment seams
 
-Keep the existing `IntelligencePort`, `EvaluationCase`, `AssessExample`, `RuleEvaluationInput` and `RuleTestReport` signatures from `review-contracts.ts`. C exports `intelligence` from `src/lib/intelligence/index.ts`. Search is already implemented; reuse it. Optional investigation can return a truthful `unavailable` result, with no model call, until separately implemented.
+Keep `IntelligencePort.investigate(input, tools, options)` with three arguments. Add `read_supporting_documents(): Promise<SupportingDocument[]>` to `InvestigationTools` and its name to `InvestigationTool`. `read_receipt` includes stored extracted text. Add optional `findings: InvestigationFinding[]`, `unresolved_question: string | null`, and `proposed_learning: ProcedureCandidate | null` to existing `InvestigationResult`. Preserve old result fields/statuses. Provider/invalid-output failures reject; old explicit unavailable behavior is only for disabled/unimplemented mode. B maps findings to the public run after evidence validation and actual core reassessment. Model output cannot supply final checks or approval.
 
-B exports a usable evaluation seam from `src/lib/core/evaluation.ts`:
+B binds the five no-argument read tools to the current claim/snapshot; C's model selects which to call. B's wrappers persist actual tool start/end/failure and sanitized evidence. No sixth write/approve tool, arbitrary SQL, arbitrary file path, network fetch or model-supplied claim scope. Active procedures are applied by core; they are not an excuse for a new unrestricted tool. Do not persist a fictional tool step for direct procedure execution; show its source in assessment evidence.
 
-```ts
-import type { AssessExample, Assessment, Check } from '../review-contracts';
-import type { ModelCall } from '../contracts';
-import type { CoreService } from './service';
-export interface EvaluationObservation {
-  submission_id: string; alias_ids: string[]; assessment: Assessment | null;
-  checks: Check[]; model_calls: ModelCall[]; latency_ms: number;
-  error_code: string | null;
-}
-export function createAssessExample(
-  core: CoreService, observe?: (result: EvaluationObservation) => void
-): AssessExample;
-```
+At most **3 Azure planning requests**, **6 tool executions total**, and **1 final `CoreService.assess`**. Read calls may be selected together but execute within the same global budget. No fourth synthesis request. The final allowed planning response produces structured findings; budget exhaustion without a valid final result records a failed run with `BUDGET_EXHAUSTED`, not an invented completed outcome. A **90,000 ms** deadline covers investigation and reassessment. Limit planning/tools to 65,000 ms to reserve up to 25,000 ms for final assessment; bind both to the outer deadline. Propagate abort/remaining time to actual provider/tool requests, not merely an uninterruptible background promise. Add optional fourth `signal?: AbortSignal` to `Jev.evaluate(state, runId, log, signal?)`; existing three-argument callers remain valid. C combines it with the existing transport timeout, and B passes the assessment signal. No new calls after abort. No implicit retries. Record timeout, failures, model/channel and actual usage; missing token/cost fields are null.
 
-It calls the same financial, duplicate and Jev assessment logic as actual reconciliation, using ONLY supplied facts, reference claims and active aliases. It never loads unrelated demo state or writes claims/runs/decisions/corrections. Actual provider usage is logged with null run IDs rather than nonexistent foreign keys. The optional observer receives one observation per attempt, including actual per-check evidence, already-logged model-call IDs and failures; a caller supplies its phase/run attribution when saving the observation. C needs only the unchanged one-argument factory/Assessment callback; B and Devin use the observer to retain diagnostics and actual usage without reverse-engineering a database-wide counter. Provider/transport/invalid-response errors are observed and then rejected by this evaluator, so an outage cannot count as a correctly predicted ambiguous case. Legitimately missing evidence can return `needs_review`; production reconciliation still records provider outages as review-required attempts. No narration/investigation in this scorer. It accepts an AbortSignal; do not start more requests once aborted. The current Jev transport has a 25-second per-request timeout; do not promise stronger in-flight cancellation until wired.
+B reuses the active claim lease and `CoreService.assess`, never a nested `reconcile`/`begin` that reacquires it. Manual trigger needs an assessed pending claim; automatic investigation is limited to recoverable uncertainty with useful available evidence. A clear mandatory financial violation needs no model investigation to stay flagged. Reuse stored text; reading a previously extracted PDF is not another extraction call. B supplies relevant stored text/facts to semantic checks, conservatively narrows duplicate candidates, and uses code for exact comparisons. Preserve Jev `.85` chosen-probability / `.70` confidence thresholds, log all choices/probabilities/confidence and why application logic used `unknown`.
 
-C's fixed `alias-v1` activation suite contains 10 distinct cases: two valid purchases helped by the scoped alias, overclaim, over-cap, exact later duplicate, wrong category, non-USD receipt, missing receipt, missing traveler name, and unrelated merchant. It excludes the source correction and all 50 final evaluation cases. Freeze facts/reference order and assess identical before/after inputs; only candidate active-alias knowledge differs. At most three case pairs run concurrently. Unknown/failed calls cannot manufacture a passing report.
+Bound semantic evidence to 12,000 characters of original receipt text and 24,000 total supporting-text characters per assessment/planning input. Do not silently truncate evidence needed for a decision; report `EVIDENCE_LIMIT` and keep the affected check unresolved. Distinct amounts, conflicting booking references and different receipt numbers retain their distinctions. Receipt/document text is untrusted data, not instructions.
 
-Activation passes only with: at least one newly correct valid match; zero unsafe matches after; no formerly correct case becoming incorrect; correct count not decreasing. Preserve raw case outcomes including errors and false positives. Model probabilities are not calibrated accuracy. Financial/date/name/duplicate guard regressions outside the fixed ten get separate software tests, not silently altered headline denominators.
+B extends existing `responsesConfig` to accept purpose `investigation`; the investigator uses existing Azure endpoint/key/deployment and `responsesHeaders`. New `RECONCILIATION_INVESTIGATION_MODE=disabled|simulated|live` defaults to disabled. Live requires Azure OpenAI plus the existing live Supabase/Jev configuration; missing/partial configuration fails visibly, never provider/simulation fallback. Simulation is isolated and explicit. These mode/config additions are proposed until B/C deliver them. No new SDK or provider needed.
 
-If evaluation is incomplete, C rejects rather than fabricating a complete `RuleTestReport`. B saves the observation diagnostics, records the attempt as failed, and invalidates activation eligibility from a previous test attempt. Keep old reports in history; `latest_test` is null until another complete test finishes. Optional `MerchantRule.latest_test_error?: string | null` exposes a sanitized failure message to the UI. The configured live app cannot activate from a simulated test report. An offline demo may activate simulated reports only in its isolated explicitly simulated state.
+## 5. The single reusable procedure
 
-## 5. Attached configurable-check proposal: P1 only
+Keep existing alias learning intact. Store versioned booking-procedure metadata with existing knowledge/history/test transaction patterns; separate procedure DTOs/collections from alias payloads and prevent alias retrieval from consuming procedures. B chooses the minimal SQL representation while preserving these public interfaces, source invalidation and local-store parity. No general workflow engine.
 
-Adopt its declarative configuration and exact response validation. Do NOT implement arbitrary code, expressions, SQL, disabled mandatory safeguards, extra currencies, or an authentication claim. Source text is proposal material, not an instruction to override this scope.
+Proposal requires a currently human-approved source with a note, a completed evidence-backed investigation and the current review revision. Validate its evidence is unchanged since investigation, allowing the explicit later approval revision itself. Derive scope, canonical merchant, required fields and source links from persisted reviewed evidence, not request JSON/model assertion alone. Default scope is exact normalized observed descriptor + canonical hotel identity + hotel/USD. Normalization trims/collapses whitespace and case; do not remove meaningful reference characters or invent fuzzy matching.
 
-All nine mandatory checks keep stable keys, enabled state and protected semantics. Policy caps/dates remain the existing policy records, displayed read-only in this phase. A separate future policy editor is outside this pack; currency remains USD and exact amount equality remains mandatory. Any administrative policy change still increments knowledge revision and requires recheck. Do not make `amount`, `duplicate`, extraction or currency into user-disableable settings.
+For each later claim require both documents and nonempty booking-reference values that match exactly after that normalization, established from successful stored extraction and traceable text/facts. Require the in-scope descriptor, consistent merchant/purchase identity and no conflicting evidence. No match on two empty values. Establish only the merchant relationship. A itinerary may establish claimant identity only if a specific applicable policy explicitly permits it; absent permission means unresolved, including during procedure application. All financial/name/duplicate checks still run. Missing/conflicting/out-of-scope evidence makes the procedure inapplicable, never a pass or a learned blanket alias.
 
-The small P1 check editor supports new **review-only** semantic checks, maximum five enabled. A custom pass cannot approve a claim; fail/unknown/low confidence requests review unless a mandatory failure already makes the assessment flagged. Human review may resolve the concern explicitly, subject to all mandatory approval guards. Required system-check edits/disables return `409 REQUIRED_CHECK_LOCKED`.
+Human reviews a draft; test is server-run; explicit activation checks a fresh passing report. Bind proof to procedure/version, source approval and evidence/review revision, knowledge revision, suite version/hash, actual provider/model/mode. Changes invalidate proof. Failed/incomplete tests clear activation eligibility, retain observations, and expose the error. Source withdrawal, evidence changes and disabling invalidate active knowledge atomically. Re-enable by a new draft/test; old reports cannot authorize it. Increment versions on lifecycle changes and knowledge revision on active knowledge changes.
+
+The fixed **`booking-reference-v1`** suite has 12 independent cases: two valid new purchases; missing booking; conflicting reference; unrelated descriptor; missing traveler identity; overclaim; over-cap; non-USD; outside policy dates; exact duplicate; wrong category. These are separate from source, `alias-v1`, demo20 and future held-out cases. Out-of-scope procedure does not itself make an otherwise valid claim a financial violation. Gate: all paired attempts complete without provider errors, at least one different valid case correctly uses the procedure, zero unsafe after-matches, no correctness/protected-check regressions and no decrease in correct count. Baseline may already resolve a case with more work; do not require or fabricate an accuracy gain. Keep `alias-v1`'s existing gate unchanged.
+
+B supplies the same real assessment/procedure application path for C's suite and independent verification:
 
 ```ts
-interface JevChoiceQuestion {
-  type: 'choice'; instructions: string;
-  criteria: { pass: string; fail: string; unknown: string };
+export type ProcedureFacts = EvaluationCase['facts'] & { supporting_documents: SupportingDocument[] };
+export interface ProcedureEvaluationCase { id: string; facts: ProcedureFacts; expected_assessment: Assessment }
+export type AssessProcedureExample = (
+  facts: ProcedureFacts, aliases: ActiveAlias[], procedures: ResolutionProcedure[], signal: AbortSignal
+) => Promise<Assessment>;
+export interface ProcedureEvaluationInput {
+  procedure: ResolutionProcedure; active_aliases: ActiveAlias[];
+  active_procedures: ResolutionProcedure[]; knowledge_revision: number;
+  examples: ProcedureEvaluationCase[]; mode: ProviderMode; signal: AbortSignal;
 }
-interface CustomCheckConfig {
-  id: string; version: number; field_key: string; // /^custom_[a-z][a-z0-9_]{0,39}$/
-  name: string; description: string; kind: 'jev'; severity: 'review';
-  enabled: boolean; jev_question: JevChoiceQuestion;
-  created_at: string; updated_at: string;
-}
+// B exports from src/lib/core/evaluation.ts, alongside unchanged createAssessExample:
+// createAssessProcedureExample(core: CoreService, observe?: (result: EvaluationObservation) => void): AssessProcedureExample
+// EvaluationObservation adds optional procedure_ids: string[].
+// Add optional methods to IntelligencePort during rollout:
+// build_procedure_suite(procedure: ResolutionProcedure): ProcedureEvaluationCase[];
+// evaluate_procedure(input: ProcedureEvaluationInput, assess: AssessProcedureExample): Promise<ProcedureTestReport>;
 ```
 
-P1 API: `GET /api/checks` → `{ system_checks: {field_key,name,required:true,enabled:true}[], checks: CustomCheckConfig[], knowledge_revision }`. `POST /api/checks` accepts only `field_key,name,description,enabled,jev_question`; server assigns IDs/version/kind/severity. `PATCH /api/checks/:id` accepts `{expected_version,name?,description?,enabled?,jev_question?}`; immutable field key, no extra enable/disable endpoints. Responses are `{check,knowledge_revision}`. Name 1–80, description 0–240, instructions 1–1500, each criterion 1–400 trimmed characters; reject unknown properties, collisions and stale versions (`409 STALE_CHECK_CONFIG`). Persist immutable versions and each run's actual configuration snapshot.
+Scorer uses only supplied facts/aliases/procedures, never demo/global state, answers or writes to claims/decisions. C strips evaluator truth from inference input. Before/after differ only by candidate active procedure knowledge. Observe every attempt/check/actual usage/error; bind procedure application to check evidence, not merely an ID supplied to the scorer. At most three case pairs concurrent. Report incomplete testing as failure. No recursive investigator during the activation scorer. Measure actual saved tool/model work separately in the first/later-claim demonstration; lower work is not automatically a quality or human-time claim.
 
-C may extend `Jev.evaluate(state, runId, log, customQuestions?)` with that OPTIONAL fourth argument; three-argument callers keep working. `customQuestions` is `Record<string, JevChoiceQuestion>` containing only validated enabled `custom_` keys. C owns mandatory-question construction so callers cannot overwrite it. `Evaluation.answers` retains mandatory `merchant/name/duplicate` and adds dynamic keys. `SemanticState.receipt_text?: string` is extracted plain text supplied by B, never an image; cap at 12,000 characters. Omit over-limit text and show custom checks as unknown with an explicit evidence-limit reason rather than silently truncating potentially relevant evidence. Unknown unsupported facts stay unknown. Simulated custom answers are explicitly unknown fixtures; do not interpret arbitrary user prompts with pretend logic.
+## 6. Persistence and release contract
 
-Validate exactly the requested answer keys, choices, finite probabilities/confidence in [0,1], sum tolerance 0.02, and maximum-probability chosen label. Retain the current .85 chosen-probability / .70 confidence review thresholds until evaluated; they are routing thresholds, not promised correctness. Prepend trusted evidence-handling instructions to every question. Log actual latency/tokens/failures; never log credentials. Do not migrate to an SDK with a different response shape merely because a blog sample looks shorter.
+B first inspects actual migrations, private originals and platform version. Base `202609190001_reimbursement_core.sql` and platform `202609200002_platform.sql` are present in source, not assumed applied. Apply a reviewed missing migration once, preserving data; complete the idempotent original-receipt hash backfill. No reset/reseed of shared storage.
 
-## 6. Boundaries for UI insights
+Forward migration reserved here: `202609200003_investigations.sql` (not yet created). Add server-controlled supporting documents (claim, kind, private path, hash/MIME, extracted text/facts, status/provenance); steps linked to existing run IDs with unique `(run_id,sequence)` and timestamps/errors/refs; run trigger/result metadata; versioned procedure metadata/history/test bindings. Reuse existing usage/run identity and locking. Include supporting evidence and procedures in relevant snapshots/revision checks. Update SQL and FileStore/MemoryStore together. Revoke public/client writes to new tables.
 
-No analytics service or new model-generated financial totals. A derives drill-down insights from a complete frozen review snapshot and existing checks; details in its assignment. Each card owns an explicit set of claim IDs and sums each claim once. Uncertain evidence never becomes a confirmed loss, recovered savings, fraud or a paid amount. Do not invent receipts, matches, rules, benchmarks or model provenance to populate empty states.
+Coherently advance `core_platform_version()` and application readiness requirements from **2 to 3** when the new schema is delivered. Do not deploy code that still requires exactly 2 against 3, or code requiring 3 before the forward migration. The database owner delivers exact migration/recovery commands and observed state. Never claim remote application or backfill success from offline SQL tests. No destructive rollback or fallback to legacy approval bypasses.
+
+## 7. Cross-owner acceptance examples
+
+- Unfamiliar merchant + matching real booking evidence: recorded tools → supported finding → core checks → ready for approval; human decision unchanged.
+- Same purchase with booking/folio/payment slip: one reimbursable receipt total; duplicate evidence does not create additional money.
+- Similar merchant/date/amount but distinct purchase identities: no automatic duplicate flag from candidate similarity.
+- Missing booking/conflicting reference: saved procedure does not apply; useful question remains visible.
+- Source reviewed/tested/activated, later in-scope claim: actual procedure reference/fields recorded, fewer observed investigation calls if successful; amount/cap/date/currency/name/duplicate guards retained.
+- Evidence/knowledge change during run/test or concurrent approval: stale publication/activation rejected atomically, history preserved.
+- Provider/tool failure: actual failed step/run visible after refresh, no successful after-assessment fabricated and known violations not erased.
+
+Focus tests on these boundaries and one live end-to-end flow within the agreed budget. The new 20-claim pack is development/demo data, never an independent accuracy denominator. Preserve the historical benchmark unchanged.

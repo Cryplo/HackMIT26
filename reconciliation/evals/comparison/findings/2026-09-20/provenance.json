@@ -1,0 +1,12 @@
+{
+  "original_artifact_sha256": {
+    "report.md": "be17aaed49f05ddc57c44c7f17f909eea2cc1327ef0747233a3469bdbf8be88a",
+    "summary.json": "f70a90f39ce62ae87c72fc03997e77a579970f6148e21028f38717815f065034",
+    "cases.csv": "d6cf058ba3896c1cbf5d5f563a9933fabffabaad337485e92c5399f313a8f009",
+    "calls.jsonl": "29ca46ff2e2c96625379583cd2e3c0130ce121e4093dbd105a324248d65b7311",
+    "manifest.json": "33f14a585f0b183943ac1bd16e6ed0219462f448af9f913783c2bfd38f15658a",
+    "results.json": "e9bf8069cececebacbf128aaa7fdef8b1251e63b170f508245ae9576d4211cbe",
+    "replay.json": "3f73ba2c8211fdf534f2a862fe9a232b1c8a6f2aa71d94748271947b6d0b7546"
+  },
+  "export_notes": "report, summary, cases, calls and manifest are exact copies. results.json retains metrics and compact Sift check verdict/confidence evidence, omitting repeated provider payloads and snapshots. replay.json omits checks. Original synthetic PDFs and full diagnostic snapshots remain local under ignored evals/results; regenerate PDFs using dataset seed 20260921. No metrics or verdicts were changed."
+}
