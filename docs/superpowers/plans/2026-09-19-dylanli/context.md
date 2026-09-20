@@ -32,11 +32,14 @@ Read `reconciliation/AGENTS.md` and relevant bundled Next documentation before c
 | Owner | Exclusive files/responsibility |
 | --- | --- |
 | A | `src/components/**`; `src/app/globals.css`, `layout.tsx`, `page.tsx`; `src/app/business-demo/**`, `src/app/submit/**`, `src/app/demo/**`; `src/lib/dashboard/**`; `tests/e2e.spec.ts`; new UI tests under `tests/ui/**`; `playwright.config.ts`; `public/ui/**` |
-| B | `src/app/api/**`; all `src/lib/core/**` **except `jev.ts`**; all `src/lib/intake/**` **except `extract.ts`**; `supabase/**`; `scripts/**`; `src/lib/demo/**`; app README and `.env.example`; legacy `src/lib/contracts.ts`; `next.config.ts` only if required |
-| C | `src/lib/core/jev.ts`; `src/lib/intake/extract.ts`; new `src/lib/intelligence/**`; `evals/**` |
+| B | `src/app/api/**`; all `src/lib/core/**` **except `jev.ts`**; all `src/lib/intake/**` **except `extract.ts`**; `supabase/**`; `scripts/**`; `src/lib/demo/**`; all backend stores, schema and metrics persistence; app README and `.env.example`; legacy `src/lib/contracts.ts`; `next.config.ts` only if required |
+| C | `src/lib/core/jev.ts`; `src/lib/intake/extract.ts`; new `src/lib/intelligence/**`, including `learning.ts`, ten-case `build_rule_suite`/`evaluate_rule` activation safety and intelligence tests |
+| Devin benchmark | Exclusively `evals/**`: 50-case external benchmark fixture generator, CLI seed, benchmark/report runner and browser tests under `evals/**` (not A's `tests/ui/**`) |
 | Integration owner | frozen `src/lib/review-contracts.ts`; package/lock/TypeScript config, `.nvmrc`, `.gitignore`, shadcn initialization before handoff, this packet |
 
 You are not alone in the codebase. Do not revert others' edits. Do not change another owner's files. In particular, A cannot implement a second backend in route files; C cannot write the database; B cannot rewrite Jev or receipt extraction. Missing upstream implementations are handled by injected test doubles or explicit preview, not by fake production fallbacks.
+
+The [Devin benchmark brief](../2026-09-19-sift-benchmark.md) is separate from C's ten-case rule activation safety work. It tests real existing APIs and reports missing behavior; no production changes may be made solely to fake passing tests. The brief is prepared only: no Devin task has been dispatched and no benchmark runner has been implemented by this handoff.
 
 ## Fixed cross-agent seams
 
@@ -49,7 +52,7 @@ C must preserve the baseline exports and existing call sites of `extractReceipt`
 ## Sponsor intent
 
 - **Maximor:** a financial workflow that identifies failures, chooses evidence to investigate, remembers reviewed corrections and measurably improves on unseen examples. Fixed OCR/checks with a decorative activity feed is insufficient for our intended pitch.
-- **Cognition:** B should use Devin for substantive regression-driven platform work. Keep session/PR links, the initial failing reproducer, the implementation and actual verification. Use its documented audit/fix/verify workflow if available in your account; do not make the product depend on a Devin runtime API.
+- **Cognition:** B should use Devin for substantive regression-driven platform work; the separate benchmark handoff can optionally contribute development evidence once implemented and verified. Keep session/PR links, the initial failing reproducer, the implementation and actual verification. Prepared instructions alone are not implementation evidence. Use its documented audit/fix/verify workflow if available in your account; do not make the product depend on a Devin runtime API.
 - **OpenAI:** use live OpenAI extraction/investigation and Codex for C's development. Keep concrete evidence of both. Do not imply editor use alone supplies runtime API use.
 - **Ramp:** make review faster and expose preventable duplicate/overclaimed reimbursements. Report measured demo effort and outcomes, not invented customer savings.
 - **Dropbox/Long Lake:** useful secondary positioning around organizing messy evidence and showing a skeptic a useful outcome. Existing Elasticsearch may support an Elastic entry if actually used and demonstrated.

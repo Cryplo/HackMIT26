@@ -1,4 +1,4 @@
-# Dylan branch upgrade — three independent agent handoffs
+# Dylan branch upgrade — agent handoffs
 
 This packet replaces the greenfield implementation instructions in `docs/reimbursements-v1/` for work on Dylan's existing application. It is a plan and frozen contract, not an implemented upgrade.
 
@@ -11,6 +11,9 @@ Give each agent access to this **entire directory** in the repository, then send
 | A | [agent-1-frontend.md](agent-1-frontend.md) | Cursor or your preferred coding agent |
 | B | [agent-2-platform.md](agent-2-platform.md) | Devin |
 | C | [agent-3-intelligence.md](agent-3-intelligence.md) | Codex |
+| Devin benchmark | [Reproducible 50-case benchmark](../2026-09-19-sift-benchmark.md) | Devin |
+
+The separate benchmark brief and [Sift testing guide](../../../SIFT_TESTING.md) are prepared instructions only. No Devin benchmark task has been dispatched and no benchmark runner has been implemented by this handoff. C retains its ten-case rule activation safety evaluator and intelligence tests; Devin exclusively owns `reconciliation/evals/**`, including generator, CLI seed, benchmark/report and browser tests. B retains backend scripts, stores, schema and metrics persistence. Benchmark checks use real existing APIs and report missing behavior; do not change production code solely to fake passing tests.
 
 Copy-paste launch message, substituting the appropriate agent file:
 
@@ -25,7 +28,7 @@ The fourth teammate owns this short preparation and the eventual integration. Th
 3. Use Node `24.11.1`, npm `11.6.2` (the versions used for this review); commit `.nvmrc` and the `packageManager` setting in the app. Run `npm ci` from `reconciliation/`.
 4. Copy this packet's `contracts.ts` **unchanged** to `reconciliation/src/lib/review-contracts.ts`. Leave legacy `src/lib/contracts.ts` in place. B can extend its internal persistence types; everyone imports v2 API/intelligence types from the new frozen file.
 5. Before frontend dispatch only: Follow [the visual contract's one-time shadcn setup](ramp-ui.md): Radix + Nova, Tailwind CSS variables, neutral base and Lucide. Generate only its listed components. Review and commit generated components/config, `src/lib/utils.ts` and the lockfile once. A owns generated components after this step and applies the visual contract's theme. Do not scaffold another Next app, upgrade Next/React, or add TanStack, Motion, an ORM, an agent framework, or another test framework preemptively. B/C need not wait for shadcn or UI work.
-6. Add package scripts once: `test:intelligence` = `node --conditions=react-server --import tsx --test src/lib/intelligence/*.test.ts`; `eval:heldout` = `node --env-file-if-exists=.env.local --conditions=react-server --import tsx evals/run-heldout.ts`. Those files are C's deliverables. Keep the existing scripts. Ignore `evals/results/`, local data, secrets, test artifacts and screenshots of submissions.
+6. Preserve the existing package scripts: `test:intelligence` = `node --conditions=react-server --import tsx --test src/lib/intelligence/*.test.ts`; `eval:heldout` = `node --env-file-if-exists=.env.local --conditions=react-server --import tsx evals/run-heldout.ts`. The intelligence tests belong to C; the `eval:heldout` implementation belongs exclusively to Devin under `evals/**`. Do not add or change package scripts for this handoff. Ignore `evals/results/`, local data, secrets, test artifacts and screenshots of submissions.
 7. Commit the common backend baseline after steps 3, 4 and 6. B/C can then branch and start independently (suggested names: `feat/review-platform`, `feat/review-intelligence`). A branches after the integration owner completes and commits shadcn step 5 (suggested name: `feat/review-ui`). Each person/agent uses its own clone or worktree and `npm ci`. Do not share an uncommitted working directory across machines.
 
 Only the integration owner changes `src/lib/review-contracts.ts`, package/lock/TypeScript files, `.nvmrc`, `.gitignore` and this packet after dispatch. An agent must not silently modify a seam to get its own build to pass.
@@ -36,6 +39,8 @@ Only the integration owner changes `src/lib/review-contracts.ts`, package/lock/T
 - [Exact API behavior and integration rules](api.md)
 - [Frozen TypeScript DTOs and intelligence interface](contracts.ts)
 - [Ramp-style visual contract, official screenshot references, tokens and shadcn setup](ramp-ui.md)
+- [Devin benchmark handoff](../2026-09-19-sift-benchmark.md)
+- [Sift testing guide](../../../SIFT_TESTING.md)
 
 The contract defines final v2 behavior. It is fine for A to build against explicitly labeled fixtures while B/C are incomplete. Live provider failures must never switch to fixtures automatically.
 
@@ -61,4 +66,4 @@ Devin needs GitHub access and its own Node/npm/environment setup. Codex and Curs
 
 ## What this packet intentionally cuts
 
-No new SQLite backend, separate worker, generic workflow builder, payments, bank feeds, currency conversion, CSV import/export, general club-spending policy, or second reconciliation type. Synchronous bounded requests are acceptable for this demo; surface timeouts and allow explicit retries. Keep the existing synthetic-only restriction and demo deployment limits.
+No new SQLite backend, separate worker, generic workflow builder, payments, bank feeds, currency conversion, product UI CSV import/export, general club-spending policy, or second reconciliation type. Benchmark CSV result artifacts under `evals/results/` are allowed. Synchronous bounded requests are acceptable for this demo; surface timeouts and allow explicit retries. Keep the existing synthetic-only restriction and demo deployment limits.

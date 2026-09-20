@@ -1,16 +1,16 @@
-# Agent C — investigation, Jev search and learning evaluation implementation plan
+# Agent C — investigation, Jev search and rule activation safety implementation plan
 
 > Execute independently. Read `README.md`, `context.md`, `api.md` and `contracts.ts` in this directory first. These supply the full product context and exact interfaces. Do not use the older greenfield instructions or require communication with A/B.
 
-**Goal:** Make ambiguous reimbursements explainable through real model-selected investigation, add structured Jev search, and demonstrate that reviewed learning improves unseen cases without weakening financial checks.
+**Goal:** Make ambiguous reimbursements explainable through real model-selected investigation, add structured Jev search, and implement the ten-case rule activation safety evaluation without weakening financial checks.
 
-**Architecture:** Preserve the existing receipt extractor and Jev reconciliation API. Add one `IntelligencePort` implementation with read-only tools and a model-independent evaluation runner. B owns database writes, financial assessment and activation; A displays your results through B.
+**Architecture:** Preserve the existing receipt extractor and Jev reconciliation API. Add one `IntelligencePort` implementation with read-only tools and the ten-case activation evaluator in `src/lib/intelligence/learning.ts`. B owns database writes, financial assessment and activation; A displays your results through B. Devin owns the separate 50-case external benchmark.
 
 **Tech stack:** Existing TypeScript, native fetch, Zod, Node test runner and the existing PDF generator. OpenAI Responses for extraction/investigation; TypeSafe's actual Jev API for structured judgments. No Python server, LangChain, graph framework, second database or speculative new SDK.
 
 ## Global constraints and ownership
 
-Application root is `reconciliation/`. Own only `src/lib/core/jev.ts`, `src/lib/intake/extract.ts`, new `src/lib/intelligence/**` and `evals/**`. You are not alone in the codebase. Preserve all others' changes. Do not edit B's core service/checks/stores/routes/SQL or A's UI, package/lock files or the frozen shared contract.
+Application root is `reconciliation/`. Own only `src/lib/core/jev.ts`, `src/lib/intake/extract.ts` and new `src/lib/intelligence/**`, including `learning.ts` and intelligence tests. `evals/**` belongs exclusively to the separate Devin benchmark handoff. You are not alone in the codebase. Preserve all others' changes. Do not edit B's core service/checks/stores/routes/SQL/scripts or A's UI, package/lock files, the frozen shared contract or Devin's benchmark files.
 
 Preserve existing calls to `extractReceipt`, `LiveJev`, `SimulatedJev`, `questions`, `validateAnswers`; B code/tests depend on them. The one planned backward-compatible extension is `Jev.evaluate(state, runId, log, signal?: AbortSignal)`. Add that optional fourth argument to the interface and live implementation, combining it with the existing per-request timeout. Existing three-argument calls still work. New required export:
 
@@ -90,25 +90,16 @@ assert.equal(report.passed, true);
 
 Add a second stub that incorrectly matches the duplicate only when the candidate is present; assert `passed=false` and a reported regression/false match. This tests the evaluation gate. B separately tests your runner against its real financial assessment operation. Do not claim fake-assessor tests establish live model accuracy.
 
-## Task 4 — held-out receipts and sponsor evidence
+## External benchmark handoff — owned by Devin
 
-**Files:** `evals/run-heldout.ts`, `evals/heldout.ts` and generated ignored `evals/results/**`.
+The [Devin reproducible benchmark brief](../2026-09-19-sift-benchmark.md) owns the separate 50-case external benchmark exclusively under `evals/**`: fixture generator, CLI seed, benchmark/report runner and browser checks. These are prepared instructions only; no Devin task has been dispatched and no benchmark runner has been implemented by this handoff. See [Sift testing](../../../SIFT_TESTING.md) for the testing workflow.
 
-**Consumes:** B's real HTTP endpoints, existing `receiptPdf` from `src/lib/demo/samples.ts`, a human-reviewed draft rule.
+C retains `src/lib/intelligence/learning.ts`, `build_rule_suite`, `evaluate_rule` and the ten-case activation safety tests in Task 3. Those tests gate whether a candidate may activate; they do not replace the external benchmark or establish live model accuracy. Deliver the frozen intelligence interface so B and the external benchmark can use the real assessment path.
 
-**Produces:** a reproducible held-out report separate from the ten examples used to permit activation.
-
-- [ ] Default `npm run eval:heldout` generates eight synthetic receipt cases and a private expected-results manifest; it makes no network calls. Reuse `receiptPdf`; don't add a PDF dependency. Use neutral receipt numbers/filenames, clearly synthetic documents and new amounts/names compared with the rule suite.
-- [ ] The eight cases: two valid new alias purchases, overclaim, over-cap, two claims sharing exactly one receipt file (earliest may match; later must be flagged), a different category, and an unrelated ambiguous merchant. Truth stays in the evaluator, never in uploads or provider prompts.
-- [ ] Implement `npm run eval:heldout -- --live --base-url http://127.0.0.1:3000 --rule-id <draft-rule-uuid>`. Read the draft/source/scope from APIs; require actual live extraction and live Jev assessment labels, valid source approval, and no already-active equivalent rule. Exit clearly if prerequisites fail. The explicit live command makes provider calls and uploads synthetic data; document that behavior.
-- [ ] Upload the new receipts using the actual multipart endpoint, recording created IDs. Reconcile and record the baseline. Test the supplied draft through B's test endpoint; if the real report fails, save the failure and stop without activating. If it passes, activate via the returned version, rerun exactly those same held-out IDs and record results. Send the exact Origin header required by B for server-to-server requests.
-- [ ] Do not approve source/held-out claims automatically. The human source decision precedes this script. Track before/after assessment accuracy, false matches, needs-review count and measured request latency. Human decision must remain pending on new rows. Report unknown model/token/cost fields as unavailable if the public API does not expose them.
-- [ ] Save JSON with config/mode, case IDs, labels, outcomes, gate result and timing. Do not bake expected improvements into output. This is a small synthetic demonstration, not proof of real-world fraud detection or calibrated precision.
-
-Default generation can run before B exists. The live driver is an integration check after B/A merge and credentials are configured; report that dependency honestly. Do not write B's route handlers to make the test runnable early.
+Devin tests existing real APIs and reports missing upstream behavior. B retains backend routes, scripts, stores, schema and metrics persistence. Do not change production code solely to fake a passing benchmark, and do not move benchmark browser checks into A's `tests/ui/**`.
 
 ## Verification and delivery
 
 Run `npm run test:intelligence`. Preserve existing extraction/Jev contract behavior: run the baseline tests that import your changed files as well. Importing your module without keys must succeed. All independent tests use fake HTTP/tools/assessor; live calls require the configured explicit live path.
 
-Have Codex perform this implementation and retain a concrete session/diff/test example for the OpenAI entry. Keep actual provider integration evidence separate from development-tool evidence. Provide export signatures, files changed, test commands/results, generated sample paths, the exact live-evaluation command, any live results actually obtained and unresolved dependencies. Do not claim completion of B's integration or an unexecuted benchmark.
+Have Codex perform this implementation and retain a concrete session/diff/test example for the OpenAI entry. Keep actual provider integration evidence separate from development-tool evidence. Provide export signatures, files changed, intelligence and activation-safety test commands/results, any live provider results actually obtained and unresolved dependencies. Reference the Devin brief for external benchmark delivery. Do not claim completion of B's integration or an unexecuted benchmark.

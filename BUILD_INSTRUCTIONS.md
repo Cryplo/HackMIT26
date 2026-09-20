@@ -22,6 +22,9 @@ The shared TypeScript contract, package scripts, and shadcn setup are present on
 - [Agent B — platform and financial correctness](docs/superpowers/plans/2026-09-19-dylanli/agent-2-platform.md)
 - [Agent C — intelligence and learning evaluation](docs/superpowers/plans/2026-09-19-dylanli/agent-3-intelligence.md)
 - [Agent A — frontend](docs/superpowers/plans/2026-09-19-dylanli/agent-1-frontend.md)
+- [Devin — reproducible 50-case benchmark](docs/superpowers/plans/2026-09-19-sift-benchmark.md)
+
+The Devin benchmark handoff and [Sift testing guide](docs/SIFT_TESTING.md) are prepared instructions only: no task has been dispatched and no benchmark runner has been implemented by this handoff. Devin exclusively owns `reconciliation/evals/**`, including generator, CLI seed, benchmark/report and browser tests. C retains `src/lib/intelligence/learning.ts`, its ten-case `build_rule_suite`/`evaluate_rule` activation safety checks and intelligence tests. B retains backend scripts, stores, schema and metrics persistence. Benchmark checks use real existing APIs; report missing upstream behavior instead of changing production code solely to fake passing tests.
 
 Frontend implementation follows the [Ramp-style visual specification](docs/superpowers/plans/2026-09-19-dylanli/ramp-ui.md) and [parallel build plan](docs/superpowers/plans/2026-09-19-ramp-ui-build.md). Its API client targets the frozen v2 contract; the explicit `?preview=1` workspace can be used while the platform upgrade is in progress.
 
@@ -31,6 +34,7 @@ Frontend implementation follows the [Ramp-style visual specification](docs/super
 - [Shared context and ownership](docs/superpowers/plans/2026-09-19-dylanli/context.md)
 - [API behavior and integration rules](docs/superpowers/plans/2026-09-19-dylanli/api.md)
 - [Frozen TypeScript contracts](docs/superpowers/plans/2026-09-19-dylanli/contracts.ts)
+- [Sift testing guide](docs/SIFT_TESTING.md)
 
 ## Theme
 
