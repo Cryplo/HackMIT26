@@ -2,7 +2,7 @@
 
 These briefs upgrade the existing `reconciliation/` app. This publication contains instructions and frozen contracts only; it does not implement or perform application setup.
 
-The integration owner must complete the common baseline setup in the [packet README](docs/superpowers/plans/2026-09-19-dylanli/README.md) before independent agents start.
+The integration owner must complete and commit the common backend baseline in steps 3, 4 and 6 of the [packet README](docs/superpowers/plans/2026-09-19-dylanli/README.md) before B/C start independently. Frontend and shadcn setup may follow separately.
 
 ## Agent briefs
 
