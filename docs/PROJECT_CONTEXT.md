@@ -25,7 +25,7 @@ Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` do
 - **Investigations (`/investigations`):** persisted runs, concise findings, linked documents, and expandable recorded read-tool history. An investigator is not a web-browsing agent and its trace is not hidden model reasoning.
 - **Submit (`/submit`):** upload a claim and original receipt. Successful extraction starts ordinary checks; useful added supporting evidence can trigger reassessment. Rechecks reuse extraction unless explicit reparse is requested.
 
-The user prefers a simple light-green design, meaningful status colors, obvious action buttons, spinners while work is running, and minimal jargon. Summary values remain informational; their headings open expanded claim lists. Audit flow headers also expand, including investigation activity. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
+The user now prefers Ramp-inspired compact components with a black-and-white base: white cards, neutral-gray chrome, charcoal text, fine borders, and restrained corners. Use black primary actions, yellow review/inconclusive highlights, green passed/approved states, and red failures/rejections, spinners while work is running, and minimal jargon. Shared colors and radii live in `src/app/theme.css`; do not restore broad sage backgrounds. Summary values remain informational; their headings open expanded claim lists. Audit flow headers also expand, including investigation activity. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
 
 ## Statuses: keep these separate
 

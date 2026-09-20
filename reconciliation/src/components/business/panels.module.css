@@ -7,42 +7,42 @@
   gap: 0;
   padding: 0;
   overflow: hidden;
-  border-radius: 20px;
-  box-shadow: 0 24px 80px #17201933;
+  border-radius: var(--radius-panel);
+  box-shadow: none;
 }
 
-.review { --review-tone: var(--border); display: flex; flex: 1; flex-direction: column; min-height: 0; border-top: 4px solid var(--review-tone); background: color-mix(in srgb, var(--review-tone) 3%, var(--background)); transition: background-color 280ms ease, border-color 280ms ease; }
-.review[data-tone="review"] { --review-tone: var(--status-review); }
+.review { --review-tone: var(--border); display: flex; flex: 1; flex-direction: column; min-height: 0; border-top: 3px solid var(--review-tone); background: var(--card); transition: background-color 280ms ease, border-color 280ms ease; }
+.review[data-tone="review"] { --review-tone: var(--status-review-accent); }
 .review[data-tone="approved"] { --review-tone: var(--status-good); }
 .review[data-tone="rejected"] { --review-tone: var(--status-bad); }
-.reviewHeader { background: color-mix(in srgb, var(--review-tone) 10%, var(--background)); transition: background-color 280ms ease; }
-.reviewFooter { background: color-mix(in srgb, var(--review-tone) 5%, var(--background)); transition: background-color 280ms ease; }
+.reviewHeader { background: var(--muted); transition: background-color 280ms ease; }
+.reviewFooter { background: var(--card); transition: background-color 280ms ease; }
 .body { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0; }
 .columns { flex: 1; min-height: 0; overflow: hidden; }
 .document, .evidence { height: 100%; min-width: 0; overflow-y: auto; }
 .document[data-state="inactive"], .evidence[data-state="inactive"] { display: none; }
 .document { background: var(--document-paper); padding: 20px; }
-.evidence { padding: 24px; }
+.evidence { padding: 20px; }
 .receipt { display: block; width: 100%; height: auto; background: var(--document-paper); border: 1px solid var(--border); }
 .pdf { width: 100%; height: calc(100% - 58px); min-height: 360px; border: 1px solid var(--border); background: var(--document-paper); }
 .json { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
 .decisionReason { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .decisionReason > div { min-width: 0; max-width: 70ch; }
 .decisionReason > button { flex-shrink: 0; }
-.finding { border: 1px solid; border-radius: 16px; padding: 20px; transition: background-color 280ms ease, border-color 280ms ease; }
+.finding { border: 1px solid; border-radius: var(--radius-panel); padding: 16px; transition: background-color 280ms ease, border-color 280ms ease; }
 .findingHeading { display: flex; align-items: center; gap: 10px; transition: color 280ms ease; }
-.findingReview { background: color-mix(in srgb, var(--status-review) 9%, var(--background)); border-color: color-mix(in srgb, var(--status-review) 35%, var(--border)); }
-.findingFailed { background: color-mix(in srgb, var(--destructive) 6%, var(--background)); border-color: color-mix(in srgb, var(--destructive) 25%, var(--border)); }
+.findingReview { background: var(--status-review-bg); border-color: color-mix(in srgb, var(--status-review) 35%, var(--border)); }
+.findingFailed { background: var(--status-bad-bg); border-color: color-mix(in srgb, var(--destructive) 25%, var(--border)); }
 .findingFailed .findingHeading { color: var(--destructive); }
 .findingReview .findingHeading { color: var(--status-review); }
-.findingPassed { background: color-mix(in srgb, var(--status-good) 6%, var(--background)); border-color: color-mix(in srgb, var(--status-good) 24%, var(--border)); }
+.findingPassed { background: var(--status-good-bg); border-color: color-mix(in srgb, var(--status-good) 24%, var(--border)); }
 .findingPassed .findingHeading { color: var(--status-good); }
-.findingRunning { background: color-mix(in srgb, var(--status-review) 9%, var(--background)); border-color: color-mix(in srgb, var(--status-review) 35%, var(--border)); }
+.findingRunning { background: var(--status-review-bg); border-color: color-mix(in srgb, var(--status-review) 35%, var(--border)); }
 .findingRunning .findingHeading { color: var(--status-review); }
 .queueProgress { display: grid; gap: 6px; }
 .queueProgress progress { display: block; width: 100%; height: 6px; accent-color: var(--status-good); }
-.facts { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--background); }
-.fact { padding: 12px 14px; min-width: 0; overflow-wrap: anywhere; border-left: 3px solid var(--status-review); }
+.facts { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: var(--radius-panel); overflow: hidden; background: var(--card); }
+.fact { padding: 12px 14px; min-width: 0; overflow-wrap: anywhere; border-left: 3px solid var(--status-review-accent); }
 .fact + .fact { border-top: 1px solid var(--border); }
 .fact[data-verdict="pass"] { border-left-color: var(--status-good); }
 .fact[data-verdict="fail"] { border-left-color: var(--destructive); }
@@ -56,7 +56,7 @@
 .decisionActions { display: flex; justify-content: flex-end; gap: 12px; }
 .decisionStatus[data-decision="approved"] { color: var(--status-good); }
 .decisionStatus[data-decision="rejected"] { color: var(--status-bad); }
-.savedNotice { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid currentColor; border-radius: 10px; font-size: 13px; }
+.savedNotice { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid currentColor; border-radius: var(--radius-panel); font-size: 13px; }
 .noticePlane { width: 24px; height: 24px; flex-shrink: 0; animation: notify-flight 700ms ease-out both; }
 @keyframes notify-flight {
   0% { opacity: 0; transform: translate(-8px, 6px) rotate(-12deg); }
@@ -71,7 +71,7 @@
 }
 
 @media (max-width: 639px) {
-  .sheet[data-slot="dialog-content"] { width: calc(100vw - 16px); height: calc(100dvh - 16px); border-radius: 14px; }
+  .sheet[data-slot="dialog-content"] { width: calc(100vw - 16px); height: calc(100dvh - 16px); }
   .sheet :global([data-slot="button"]), .sheet :global([data-slot="tabs-trigger"]),
   .rules :global([data-slot="button"]), .confirmation :global([data-slot="button"]) { min-height: 44px; }
   .evidence, .document { padding: 16px; }

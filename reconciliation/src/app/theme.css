@@ -1,43 +1,44 @@
-/* Sage surfaces frame the workspace; forest green marks its primary actions. */
+/* Neutral workspace surfaces and actions keep review statuses distinct. */
 :root {
   color-scheme: light;
   --font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --radius: 0.625rem;
+  --radius: 0.375rem;
+  --radius-panel: 0.5rem;
   --radius-chip: calc(var(--radius) * 2 / 3);
-  --radius-popover: calc(var(--radius) * 4 / 3);
-  --shadow-popover: 0 4px 16px rgb(0 0 0 / 5%);
+  --radius-popover: var(--radius-panel);
+  --shadow-popover: none;
   --motion-fast: 120ms;
   --motion-normal: 180ms;
   --motion-panel: 220ms;
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   --background: #ffffff;
-  --foreground: #1f3529;
+  --foreground: #1a1a1a;
   --card: var(--background);
   --card-foreground: var(--foreground);
   --popover: var(--background);
   --popover-foreground: var(--foreground);
-  --primary: #256347;
-  --primary-hover: #1d5139;
-  --primary-active: #173f2d;
+  --primary: #171717;
+  --primary-hover: #303030;
+  --primary-active: #000000;
   --primary-foreground: #ffffff;
   --secondary: var(--background);
   --secondary-foreground: var(--foreground);
-  --muted: #f5f9f5;
-  --muted-foreground: #586c5e;
-  --accent: #eef6ef;
+  --muted: #f7f7f7;
+  --muted-foreground: #666666;
+  --accent: #f2f2f2;
   --accent-foreground: var(--foreground);
   --destructive: var(--status-bad);
-  --border: #d5e3d8;
-  --input: #7c9282;
+  --border: #e4e4e4;
+  --input: #cccccc;
   --ring: var(--primary);
 
-  --sidebar: var(--accent);
+  --sidebar: #fafafa;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: #dcecdf;
-  --sidebar-accent-foreground: var(--primary);
+  --sidebar-accent: #ededed;
+  --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 
@@ -50,8 +51,9 @@
   /* Review meaning and original receipt paper stay independent of the brand. */
   --status-good: #286044;
   --status-good-bg: #eef7f0;
-  --status-review: #825700;
-  --status-review-bg: #fff7e5;
+  --status-review: #713f12;
+  --status-review-bg: #fef9c3;
+  --status-review-accent: #eab308;
   --status-bad: #b42318;
   --status-bad-bg: #fff0ee;
   --document-paper: #ffffff;

@@ -18,16 +18,16 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-white hover:bg-[color-mix(in_srgb,var(--destructive),black_12%)] active:bg-[color-mix(in_srgb,var(--destructive),black_22%)] focus-visible:ring-destructive",
         success:
-          "bg-[var(--status-good)] text-white hover:bg-[color-mix(in_srgb,var(--status-good),black_12%)] active:bg-[color-mix(in_srgb,var(--status-good),black_22%)] focus-visible:ring-[var(--status-good)]",
+          "bg-primary text-primary-foreground hover:bg-[var(--primary-hover)] active:bg-[var(--primary-active)] focus-visible:ring-primary",
         link: "text-primary underline underline-offset-4 hover:text-[var(--primary-hover)] active:text-[var(--primary-active)]",
       },
       size: {
         default:
-          "h-10 gap-2 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+          "h-9 gap-2 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-8 gap-1.5 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-11 gap-2 px-4 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-10",
+        icon: "size-9",
         "icon-xs":
           "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
         "icon-sm":

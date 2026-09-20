@@ -6,9 +6,9 @@
 .brand svg { width: 22px; height: 22px; stroke-width: 1.8; }
 .workspaceLabel { margin: 24px 10px 12px; color: var(--muted-foreground); font-size: 12px; }
 .navigation { display: flex; flex-direction: column; gap: 4px; }
-.navigation button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; text-align: left; border-radius: var(--radius); color: var(--muted-foreground); font-size: 13px; font-weight: 500; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); cursor: pointer; }
-.navigation button:hover { background: var(--background); color: var(--foreground); }
-.navigation button[aria-current="page"] { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); box-shadow: inset 3px 0 0 var(--primary); font-weight: 600; }
+.navigation button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 8px 10px; text-align: left; border-radius: var(--radius); color: var(--muted-foreground); font-size: 13px; font-weight: 500; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); cursor: pointer; }
+.navigation button:hover { background: var(--accent); color: var(--foreground); }
+.navigation button[aria-current="page"] { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); box-shadow: inset 2px 0 0 var(--primary); font-weight: 600; }
 .navigation svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 1.7; }
 .sidebarBottom { margin-top: auto; }
 .sidebarBottom > a { display: flex; align-items: center; gap: 9px; padding: 12px 8px; color: var(--muted-foreground); font-size: 12px; text-decoration: none; }
@@ -41,9 +41,9 @@
 .header p { margin: 4px 0 0; color: var(--muted-foreground); font-size: 13px; line-height: 20px; }
 .tabs { gap: 0; }
 .tabList { display: flex; justify-content: flex-start; gap: 24px; height: 44px; width: 100%; border-radius: 0; border-bottom: 1px solid var(--border); padding: 0; background: transparent; }
-.tab { position: relative; flex: none; height: 44px; padding: 0 0 12px; margin-top: 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted-foreground); box-shadow: none; font-size: 13px; font-weight: 500; }
-.tab:hover { color: var(--primary); }
-.tab[data-state="active"], .tab[data-active] { color: var(--primary); background: transparent; border-bottom-color: var(--primary); box-shadow: none; font-weight: 600; }
+.tab { position: relative; flex: none; height: 44px; padding: 0; margin: 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted-foreground); box-shadow: none; font-size: 13px; font-weight: 500; }
+.tab:hover { color: var(--foreground); }
+.tab[data-state="active"], .tab[data-active] { color: var(--foreground); background: transparent; border-bottom-color: var(--primary); box-shadow: none; font-weight: 600; }
 .tab span { padding: 1px 5px; border-radius: var(--radius-chip); background: var(--muted); color: var(--muted-foreground); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
 .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 56px; padding: 10px 0; }
 .searchForm { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
@@ -52,11 +52,12 @@
 .searchInput input { padding-left: 32px; }
 .filter { height: 36px !important; min-width: 134px; border-radius: var(--radius); border-color: var(--border); }
 .toolbarEnd { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--muted-foreground); font-size: 12px; }
-.tableRegion { width: 100%; min-width: 0; overflow-x: auto; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.tableRegion { width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .tableRegion > div { overflow: visible; }
 .table { min-width: 890px; table-layout: auto; }
-.table th { height: 40px; padding: 0 12px; background: var(--muted); color: var(--muted-foreground); font-size: 12px; line-height: 16px; font-weight: 400; }
+.table th { height: 36px; padding: 0 12px; background: var(--muted); color: var(--muted-foreground); font-size: 12px; line-height: 16px; font-weight: 500; }
 .table tbody tr { height: 56px; }
+.table tbody tr:hover { background: var(--muted); }
 .table td { height: 56px; padding: 8px 12px; font-size: 13px; line-height: 18px; }
 .table .checkboxCell { width: 36px; padding-right: 8px; padding-left: 12px; }
 .table .actionCell { width: 42px; padding-left: 0; padding-right: 4px; }
@@ -68,10 +69,10 @@
 .merchant { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
 .cellMeta { display: block; color: var(--muted-foreground); font-size: 11px; line-height: 16px; text-transform: capitalize; }
 .extractionFailed { display: block; color: var(--status-bad); font-size: 11px; line-height: 16px; }
-.table tbody tr.activeRow, .table tbody tr[data-state="selected"] { background: var(--sidebar-accent); }
-.table tbody tr.activeRow { box-shadow: inset 3px 0 0 var(--primary); }
+.table tbody tr.activeRow, .table tbody tr[data-state="selected"] { background: var(--status-good-bg); }
+.table tbody tr.activeRow { box-shadow: inset 2px 0 0 var(--primary); }
 .queueFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
-.error, .notice, .staleNotice { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; line-height: 20px; }
+.error, .notice, .staleNotice { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-panel); font-size: 13px; line-height: 20px; }
 .error { background: var(--status-bad-bg); border-color: color-mix(in srgb, var(--status-bad) 20%, transparent); color: var(--status-bad); overflow-wrap: anywhere; }
 .error > svg { width: 17px; height: 17px; margin-top: 1px; flex-shrink: 0; }
 .error strong { font-weight: 500; }
@@ -127,7 +128,7 @@
   .header p { max-width: 240px; font-size: 12px; line-height: 18px; }
   .header > a { font-size: 12px; padding: 0 10px; }
   .tabList { gap: 20px; height: 52px; }
-  .tab { font-size: 12px; gap: 5px; height: 52px; padding-bottom: 12px; margin-top: 12px; }
+  .tab { font-size: 12px; gap: 5px; height: 52px; }
   .tab span { font-size: 10px; padding: 0 4px; }
   .toolbar { padding: 12px 0; }
   .searchForm { width: 100%; }
@@ -177,7 +178,7 @@
 
 .queueActions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 0 12px; color: var(--muted-foreground); font-size: 12px; }
 .queueActions > span { margin-left: auto; }
-.questionPanel { padding: 14px 16px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--accent); }
+.questionPanel { padding: 14px 16px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .questionHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .questionHeading label { font-size: 14px; font-weight: 600; }
 .questionHint { margin: 4px 0 10px; color: var(--muted-foreground); font-size: 12px; line-height: 19px; }

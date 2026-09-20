@@ -14,7 +14,7 @@
 .summary .metric { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.5px; font-variant-numeric: tabular-nums; margin: 5px 0 2px; overflow-wrap: anywhere; }
 .summary .metric span { color: var(--muted-foreground); font-size: 17px; font-weight: 400; }
 .metricDetail { color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
-.nextAction { display: flex; align-items: center; gap: 16px; padding: 22px 24px; margin-bottom: 32px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--accent); }
+.nextAction { display: flex; align-items: center; gap: 16px; padding: 18px 20px; margin-bottom: 24px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .actionIcon { color: var(--primary); flex-shrink: 0; }
 .actionIcon svg { width: 28px; height: 28px; stroke-width: 1.6; }
 .actionCopy { flex: 1; min-width: 0; }
@@ -33,7 +33,7 @@
 .sectionHeading h2 span { color: var(--muted-foreground); margin-left: 6px; font-size: 13px; font-weight: 400; }
 .sectionHeading p { margin-top: 4px; font-size: 12px; color: var(--muted-foreground); line-height: 19px; }
 .claims { list-style: none; padding: 0; margin: 18px 0 0; }
-.claims > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 20px; padding: 20px 0; border-top: 1px solid var(--border); }
+.claims > li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 20px; padding: 16px 0; border-top: 1px solid var(--border); }
 .claimTop { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .claimTop > div { min-width: 0; }
 .claimName { font-size: 14px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
@@ -93,7 +93,7 @@
 .amber { color: var(--status-review); }
 .red { color: var(--status-bad); }
 .green { color: var(--status-good); }
-.group { min-width: 0; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius); }
+.group { min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--card); }
 .failureGroup { border-color: color-mix(in srgb, var(--status-bad) 25%, var(--border)); background: var(--status-bad-bg); }
 .passedGroup { border-color: color-mix(in srgb, var(--status-good) 25%, var(--border)); }
 .compactClaims { list-style: none; margin: 12px 0; padding: 0; }
@@ -119,31 +119,28 @@
 
 .statusSummary { margin-bottom: 24px; }
 .statusCards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.statusCard { min-width: 0; border: 1px solid var(--border); border-radius: 14px; padding: 18px; background: var(--card); box-shadow: 0 2px 3px #16362904; }
-.statusCard[data-tone="approved"] { background: linear-gradient(135deg, white, var(--status-good-bg)); }
-.statusCard[data-tone="review"] { background: linear-gradient(135deg, white, var(--status-review-bg)); }
-.statusCard[data-tone="rejected"] { background: linear-gradient(135deg, white, var(--status-bad-bg)); }
-.statusCard dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 550; }
+.statusCard { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 16px; background: var(--card); }
+.statusCard dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
 .statusCard svg { width: 17px; height: 17px; flex-shrink: 0; }
-.statusCard[data-tone="approved"] dt { color: var(--status-good); }
-.statusCard[data-tone="review"] dt { color: var(--status-review); }
-.statusCard[data-tone="rejected"] dt { color: var(--status-bad); }
-.statusCount { margin-top: 10px; font-size: 30px; font-weight: 600; line-height: 36px; font-variant-numeric: tabular-nums; }
+.statusCard[data-tone="approved"] svg { color: var(--status-good); }
+.statusCard[data-tone="review"] svg { color: var(--status-review); }
+.statusCard[data-tone="rejected"] svg { color: var(--status-bad); }
+.statusCount { margin-top: 8px; font-size: 28px; font-weight: 600; line-height: 34px; font-variant-numeric: tabular-nums; }
 .statusCount span { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
 .statusHint { color: var(--muted-foreground); font-size: 11px; line-height: 17px; margin-top: 6px; }
-.distribution { margin-top: 12px; border: 1px solid var(--border); padding: 16px 18px; border-radius: 14px; background: var(--card); }
+.distribution { margin-top: 12px; border: 1px solid var(--border); padding: 14px 16px; border-radius: var(--radius-panel); background: var(--card); }
 .distributionHeading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted-foreground); }
 .distributionHeading strong { color: var(--foreground); font-weight: 600; }
-.distributionBar { display: flex; height: 12px; margin: 12px 0; overflow: hidden; border-radius: 8px; background: var(--muted); }
+.distributionBar { display: flex; height: 6px; margin: 12px 0; overflow: hidden; border-radius: 3px; background: var(--muted); }
 .distributionBar span { height: 100%; transition: width 300ms ease; }
-.distributionBar [data-tone="unchecked"], .distributionLegend [data-tone="unchecked"] { background: #99aaa2; }
+.distributionBar [data-tone="unchecked"], .distributionLegend [data-tone="unchecked"] { background: var(--muted-foreground); }
 .distributionBar [data-tone="approved"], .distributionLegend [data-tone="approved"] { background: var(--status-good); }
-.distributionBar [data-tone="review"], .distributionLegend [data-tone="review"] { background: #d2a333; }
+.distributionBar [data-tone="review"], .distributionLegend [data-tone="review"] { background: var(--status-review-accent); }
 .distributionBar [data-tone="rejected"], .distributionLegend [data-tone="rejected"] { background: var(--status-bad); }
 .distributionLegend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 11px; color: var(--muted-foreground); }
 .distributionLegend > span { display: inline-flex; align-items: center; gap: 6px; }
 .distributionLegend i { width: 7px; height: 7px; border-radius: 50%; }
-.completion { overflow: hidden; padding: 32px 28px; text-align: center; justify-items: center; border: 1px solid var(--border); background: #f4faf5; }
+.completion { overflow: hidden; padding: 32px 28px; text-align: center; justify-items: center; border: 1px solid var(--border); background: var(--card); }
 .completion [data-slot="dialog-title"] { font-size: 24px; line-height: 30px; }
 .completion [data-slot="dialog-description"] { line-height: 22px; }
 .completion > button:last-of-type { z-index: 1; }
