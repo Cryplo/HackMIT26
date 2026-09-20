@@ -32,6 +32,7 @@ test("uncertain submission or receipt inserts retain originals and never issue c
     const mock = t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
       const request = new Request(input, init), pathname = new URL(request.url).pathname;
       requests.push(`${request.method} ${pathname}`);
+      if (pathname === "/rest/v1/rpc/core_platform_version") return Response.json(2);
       if (request.method === "DELETE") { originalRetained = false; return Response.json({}); }
       if (pathname === "/storage/v1/bucket/receipts") return Response.json({ id: "receipts", public: false });
       if (pathname === `/storage/v1/object/receipts/${receipt.storage_path}`) {
@@ -46,7 +47,7 @@ test("uncertain submission or receipt inserts retain originals and never issue c
     try {
       await assert.rejects(getStore().create(claim, receipt, bytes), { code: "storage_unavailable", status: 503 });
       assert.equal(originalRetained, true);
-      assert.deepEqual(requests, ["GET /storage/v1/bucket/receipts", `POST /storage/v1/object/receipts/${receipt.storage_path}`, "POST /rest/v1/submissions", ...(failedTable === "receipts" ? ["POST /rest/v1/receipts"] : [])]);
+      assert.deepEqual(requests, ["POST /rest/v1/rpc/core_platform_version", "GET /storage/v1/bucket/receipts", `POST /storage/v1/object/receipts/${receipt.storage_path}`, "POST /rest/v1/submissions", ...(failedTable === "receipts" ? ["POST /rest/v1/receipts"] : [])]);
     } finally { mock.mock.restore(); }
   }
 });
@@ -60,6 +61,7 @@ test("live initial completion uses the atomic RPC and exposes persistence failur
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
     requests.push(`${request.method} ${new URL(request.url).pathname}`);
+    if (new URL(request.url).pathname === "/rest/v1/rpc/core_platform_version") return Response.json(2);
     assert.deepEqual(await request.json(), { p_receipt: completed });
     return fail ? Response.json({ message: "Completion unavailable." }, { status: 503 }) : new Response(null, { status: 204 });
   });
@@ -67,7 +69,43 @@ test("live initial completion uses the atomic RPC and exposes persistence failur
   await store.finish(completed);
   fail = true;
   await assert.rejects(store.finish(completed), { code: "storage_unavailable", status: 503 });
-  assert.deepEqual(requests, Array(2).fill("POST /rest/v1/rpc/core_finish_initial_extraction"));
+  assert.deepEqual(requests, Array(2).fill(["POST /rest/v1/rpc/core_platform_version", "POST /rest/v1/rpc/core_finish_initial_extraction"]).flat());
+});
+
+test("live intake refuses an old schema before uploading or writing metadata", async t => {
+  liveEnvironment(t);
+  const { claim, receipt } = fixture();
+  const paths: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init), pathname = new URL(request.url).pathname;
+    paths.push(pathname);
+    assert.equal(pathname, "/rest/v1/rpc/core_platform_version");
+    return Response.json({ code: "PGRST202", message: "Function not found" }, { status: 404 });
+  });
+  const store = getStore();
+  await assert.rejects(store.create(claim, receipt, bytes), { code: "schema_mismatch", status: 503 });
+  await assert.rejects(store.finish(receipt), { code: "schema_mismatch", status: 503 });
+  assert.equal(paths.length, 2);
+});
+
+test("live original reads distinguish missing objects from bucket, auth, and transient failures", async t => {
+  liveEnvironment(t);
+  const { receipt } = fixture();
+  let failure = { status: 404, body: { code: "NoSuchKey", message: "Missing object" } as Record<string, string> };
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init), pathname = new URL(request.url).pathname;
+    if (pathname === "/rest/v1/receipts") return Response.json(receipt);
+    assert.equal(pathname, `/storage/v1/object/receipts/${receipt.storage_path}`);
+    return Response.json(failure.body, { status: failure.status });
+  });
+  const store = getStore();
+  assert.equal(await store.read(receipt.id), null);
+  failure = { status: 400, body: { statusCode: "404", error: "not_found", message: "Object not found" } };
+  assert.equal(await store.read(receipt.id), null);
+  for (const [status, code] of [[404, "NoSuchBucket"], [403, "AccessDenied"], [500, "InternalError"]] as const) {
+    failure = { status, body: { code, message: code } };
+    await assert.rejects(store.read(receipt.id), { code: "storage_unavailable", status: 503 });
+  }
 });
 
 test("late initial extraction cannot overwrite an active or completed core retry", async () => {

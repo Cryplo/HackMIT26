@@ -8,6 +8,7 @@ import type { IntelligencePort } from '../review-contracts';
 import { confirmedDuplicates, latestCorrection } from './safety';
 import type { Snapshot, Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
+import { publicEvidence } from './projection';
 export class CoreService {
   constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort) {}
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
@@ -111,7 +112,7 @@ export class CoreService {
       const runDecisions = run ? state.decisions.filter(d => d.run_id === run.id) : [];
       const correction=latestCorrection(state,s.id);
       const latestHuman=correction?state.decisions.find(d=>d.check_method==='human'&&d.evidence_json.correction_id===correction.id):undefined;
-      const decisions: DecisionSummary[] = [...runDecisions.filter(d => d.check_method !== 'human'),...(latestHuman?[latestHuman]:[])].map(({ id, field_checked, check_method, verdict, answer_json, probability, confidence_score, rationale_text, evidence_json }) => ({ id, field_checked, check_method, verdict, answer_json, probability, confidence_score, rationale_text, evidence_json }));
+      const decisions: DecisionSummary[] = [...runDecisions.filter(d => d.check_method !== 'human'),...(latestHuman?[latestHuman]:[])].map(({ id, field_checked, check_method, verdict, answer_json, probability, confidence_score, rationale_text, evidence_json }) => ({ id, field_checked, check_method, verdict, answer_json, probability, confidence_score, rationale_text, evidence_json:publicEvidence(evidence_json) }));
       return { ...s, receipt: receipt ? { id: receipt.id, file_type: receipt.file_type, extraction_status: receipt.extraction_status, parsed_fields_json: receipt.parsed_fields_json } : null, decisions };
     });
     const reviewed = rows.filter(s => s.status !== 'pending'); const flags = reviewed.filter(s => ['flagged', 'needs_review'].includes(s.status));

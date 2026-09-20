@@ -197,9 +197,9 @@ begin
  'submissions',coalesce((select jsonb_agg(s order by submitted_at,id) from submissions s),'[]'),
  'receipts',coalesce((select jsonb_agg(r order by id) from receipts r),'[]'),
  'policies',coalesce((select jsonb_agg(p order by id) from policy_rules p),'[]'),
- 'decisions',coalesce((select jsonb_agg(d order by created_at,id) from decisions d),'[]'),
+ 'decisions',coalesce((select jsonb_agg((to_jsonb(d)||jsonb_build_object('state_snapshot_json','{}'::jsonb,'evidence_json',d.evidence_json-'provider_response')) order by created_at,id) from decisions d),'[]'),
  'corrections',coalesce((select jsonb_agg(c order by review_revision,corrected_at,id) from corrections c),'[]'),
- 'runs',coalesce((select jsonb_agg(r order by started_at,id) from reconciliation_runs r),'[]'),
+ 'runs',coalesce((select jsonb_agg(to_jsonb(r)-'evidence_snapshot' order by started_at,id) from reconciliation_runs r),'[]'),
  'rules',coalesce((select jsonb_agg(doc order by id) from merchant_rules),'[]'));
 end $$;
 -- New functions default to PUBLIC execute in PostgreSQL; close every new entry point.
@@ -217,3 +217,8 @@ begin
 end $$;
 revoke all on function core_finish_initial_extraction(jsonb) from public,anon,authenticated;
 grant execute on function core_finish_initial_extraction(jsonb) to service_role;
+
+-- Created last: callers fail closed until the complete platform migration is installed.
+create function public.core_platform_version() returns integer language sql stable security definer set search_path=public as $$ select 2 $$;
+revoke all on function core_platform_version() from public,anon,authenticated;
+grant execute on function core_platform_version() to service_role;

@@ -5,6 +5,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { intakeMode } from "./config";
 import { IntakeError, type Claim, type Receipt, type Usage } from "./schema";
+import { SupabaseStore } from "../core/store";
+import { CoreError } from "../core/validation";
 export interface IntakeStore {
   create(claim: Claim, receipt: Receipt, bytes: Uint8Array): Promise<void>;
   finish(receipt: Receipt): Promise<void>;
@@ -76,11 +78,20 @@ export function getStore(): IntakeStore {
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const platform = new SupabaseStore(url, key);
+  async function checkSchema() {
+    try { await platform.assertSchema(); }
+    catch (error) {
+      if (error instanceof CoreError) throw new IntakeError(error.code.toLowerCase(), error.message, error.status);
+      checked(error);
+    }
+  }
   const bucket = client.storage.from(
     process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
   );
   return {
     async create(claim, receipt, bytes) {
+      await checkSchema();
       const bucketInfo = await client.storage.getBucket(
         process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
       );
@@ -104,11 +115,13 @@ export function getStore(): IntakeStore {
       checked((await client.from("receipts").insert(receipt)).error);
     },
     async finish(receipt) {
+      await checkSchema();
       checked(
         (await client.rpc("core_finish_initial_extraction", { p_receipt: receipt })).error,
       );
     },
     async usage(call) {
+      await checkSchema();
       checked((await client.from("model_calls").insert(call)).error);
     },
     async read(id) {
@@ -127,6 +140,8 @@ export function getStore(): IntakeStore {
       )
         return null;
       const file = await bucket.download(receipt.storage_path);
+      // Only a confirmed missing object is unavailable evidence; auth/network errors must surface.
+      if (file.error && (("code" in file.error && file.error.code === "NoSuchKey") || (file.error.statusCode === "404" && file.error.message === "Object not found"))) return null;
       checked(file.error);
       return { receipt, bytes: new Uint8Array(await file.data!.arrayBuffer()) };
     },

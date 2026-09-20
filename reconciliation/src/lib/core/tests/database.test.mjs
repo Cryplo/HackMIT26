@@ -85,3 +85,23 @@ test('SQL initial extraction cannot overwrite retry and replacement of active so
  assert.equal((await store.snapshot()).receipts.find(r=>r.submission_id===ids[0]).extraction_status,'failed');
  }finally{await db.close();}
 });
+test('SQL readiness marker is service-only and atomic read projections retain stored audit evidence',async()=>{
+ const {db,store,core}=await database();try{
+ assert.equal(await scalar(db,'select core_platform_version()'),2);
+ await core.reconcile([ids[0]]);
+ await db.exec("update decisions set evidence_json=evidence_json||'{\"provider_response\":{\"private_diagnostic\":\"audit-sentinel\"}}'::jsonb where check_method='jev'");
+ const stored=await scalar(db,"select jsonb_build_object('runs',(select jsonb_agg(evidence_snapshot) from reconciliation_runs),'decisions',(select jsonb_agg(jsonb_build_object('state',state_snapshot_json,'evidence',evidence_json)) from decisions))");
+ const snapshot=await store.snapshot();
+ assert.ok(snapshot.runs.length>0);assert.ok(snapshot.decisions.length>0);
+ assert.ok(snapshot.runs.every(r=>!('evidence_snapshot' in r)));
+ assert.ok(snapshot.decisions.every(d=>Object.keys(d.state_snapshot_json).length===0&&!('provider_response' in d.evidence_json)));
+ assert.ok(snapshot.decisions.some(d=>d.evidence_json.provider_answer));
+ assert.equal(JSON.stringify(stored).includes('audit-sentinel'),true);
+ assert.deepEqual(await scalar(db,"select jsonb_build_object('runs',(select jsonb_agg(evidence_snapshot) from reconciliation_runs),'decisions',(select jsonb_agg(jsonb_build_object('state',state_snapshot_json,'evidence',evidence_json)) from decisions))"),stored);
+ await db.exec("update reconciliation_runs set started_at=now()-interval '10 minutes'");
+ const lease=await store.begin(ids[0]);await db.query("update reconciliation_runs set started_at=now()-interval '6 minutes' where id=$1",[lease]);
+ assert.equal(workspaceRows(await store.snapshot())[0].processing_status,'failed');
+ const next=await store.begin(ids[0]);assert.notEqual(next,lease);assert.equal((await store.snapshot()).runs.find(r=>r.id===lease).status,'failed');
+ await db.exec('set role anon');await assert.rejects(db.query('select core_platform_version()'),/permission denied/);
+ }finally{await db.close();}
+});

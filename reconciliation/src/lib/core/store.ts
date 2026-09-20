@@ -104,10 +104,16 @@ export class MemoryStore implements Store {
 }
 export class SupabaseStore implements Store {
   constructor(private url: string, private key: string) {}
+  async assertSchema() {
+    if (await this.request('rpc/core_platform_version', {}) !== 2) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
+  }
   private async request(path: string, body?: unknown) {
+    // Check every operation: an earlier successful request cannot authorize an older schema.
+    if (path !== 'rpc/core_platform_version') await this.assertSchema();
     const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/${path}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json', ...(path.startsWith('rpc/') ? {} : { Prefer: 'return=minimal' }) }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000), cache: 'no-store' });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
+      if (path === 'rpc/core_platform_version' && ['PGRST202', '42883'].includes(e.code)) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
       const known: Record<string, [string, number]> = { 'RUN_ACTIVE': ['A run is already active.', 409], 'STALE_RUN': ['Run was superseded by reviewer action.', 409], 'NOT_FOUND': ['Submission not found.', 404], 'STALE_DECISION': ['Decision is stale or belongs to another submission.', 409], 'INVALID_SCOPE': ['Alias scope does not match receipt.', 400] };
       const key = typeof e.message === 'string' ? e.message : '';
       for(const code of ['STALE_REVIEW','STALE_RULE','STALE_RULE_TEST','APPROVAL_BLOCKED','RULE_CONFLICT','RULE_SOURCE_REQUIRED','RETRY_BLOCKED','RECEIPT_CONFLICT','REVIEW_LIMIT','INVALID_INPUT','LEGACY_ALIAS_DISABLED'])known[code]=[code==='LEGACY_ALIAS_DISABLED'?'Use the reviewed /api/rules workflow.':code.replaceAll('_',' '),code==='LEGACY_ALIAS_DISABLED'?410:code==='INVALID_INPUT'?400:409];

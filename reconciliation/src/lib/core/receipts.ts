@@ -5,6 +5,7 @@ import type { IntakeStore } from '../intake/store';
 import type { ExtractionResult } from '../intake/extract';
 import { CoreError } from './validation';
 import { workspaceRows } from './projection';
+import { IntakeError } from '../intake/schema';
 const revision=z.object({expected_review_revision:z.number().int().nonnegative()}).strict();
 export async function retryExtraction(core:CoreService,id:string,raw:unknown,originals:IntakeStore,extract:(bytes:Uint8Array,fileType:string,id:string)=>Promise<ExtractionResult>){
  const input=revision.safeParse(raw);if(!z.uuid().safeParse(id).success||!input.success)throw new CoreError('INVALID_INPUT','Claim ID and current review revision are required.');
@@ -19,7 +20,7 @@ export async function retryExtraction(core:CoreService,id:string,raw:unknown,ori
   catch{result={fields:null,raw:null,usage:null,error:'Extraction or usage persistence failed; original retained.'};}
   await core.store.finishExtraction(lease,{...receipt,sha256:hash,parsed_fields_json:result.fields,raw_extracted_text:result.raw,extraction_status:result.error?'failed':'succeeded',extraction_error:result.error,extracted_at:new Date().toISOString(),extraction_provenance:result.usage?`${result.usage.provider}:${result.usage.model}`:result.raw?.startsWith('SIMULATED')?'simulated fixture':'unavailable'});
   return {row:workspaceRows(await core.store.snapshot()).find(r=>r.id===id)!};
- }catch(e){await core.store.fail(lease,e instanceof CoreError?e.message:'Extraction unavailable; original retained.');throw e;}
+ }catch(e){const error=e instanceof IntakeError?new CoreError(e.code.toUpperCase(),e.message,e.status):e;await core.store.fail(lease,error instanceof CoreError?error.message:'Extraction unavailable; original retained.');throw error;}
 }
 /** Explicit operator-invoked backfill; never called by GET or startup. No model calls. */
 export async function backfillReceiptHashes(core:CoreService,originals:IntakeStore){

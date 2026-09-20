@@ -5,12 +5,14 @@ import { overall } from './checks';
 import { CoreError } from './validation';
 import { confirmedDuplicates, latestCorrection, reviewRevision } from './safety';
 
+export function publicEvidence({provider_response: _raw, ...evidence}: Record<string, unknown>) { return evidence; }
+
 /** Project persisted machine checks and human corrections independently. Machine
  * status never implies a human approval, even for historical v1 records. */
 export function workspaceRows(state: Snapshot): ReviewRow[] {
  return state.submissions.map(s=>{
   const receipt=state.receipts.find(r=>r.submission_id===s.id);
-  const runs=state.runs.filter(r=>r.submission_id===s.id);
+  const runs=state.runs.filter(r=>r.submission_id===s.id).map(r=>r.status==='running' && Date.now()-Date.parse(r.started_at)>300000 ? {...r,status:'failed' as const,error:'Run lease expired. Retry the operation.'} : r);
   const machineRun=runs.filter(r=>r.status==='completed' && (r.evidence_revision ?? 0)===(s.evidence_revision ?? 0) && state.decisions.some(d=>d.run_id===r.id && d.check_method!=='human')).sort((a,b)=>Number(a.id===s.latest_run_id)-Number(b.id===s.latest_run_id)||(a.completed_at||a.started_at).localeCompare(b.completed_at||b.started_at)||a.id.localeCompare(b.id)).at(-1);
   const checks=state.decisions.filter(d=>d.run_id===machineRun?.id && d.check_method!=='human');
   const evidence=checks.filter(d=>d.field_checked!=='overall_status');
@@ -22,7 +24,7 @@ export function workspaceRows(state: Snapshot): ReviewRow[] {
   // The existing run lease is also used to serialize reviewer writes. Exclude
   // its cancellation record from assessment errors and completed evidence.
   const last=runs.filter(r=>r.error!=='Superseded by human correction.').sort((a,b)=>a.started_at.localeCompare(b.started_at)||a.id.localeCompare(b.id)).at(-1);
-  const decisions=[...checks,...(human?[human]:[])].map(({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json})=>({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json}));
+  const decisions=[...checks,...(human?[human]:[])].map(({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json})=>({id,field_checked,check_method,verdict,answer_json,probability,confidence_score,rationale_text,evidence_json:publicEvidence(evidence_json)}));
   return {...s,review_revision:reviewRevision(state,s.id),
    latest_run_id:machineRun?.id||null,assessment_status,decision_status,assessment_knowledge_revision:machineRun?machineRun.knowledge_revision ?? -1:null,
    processing_status:running?'running':last?.status==='failed'?'failed':'idle',processing_error:last?.status==='failed'?last.error:null,
