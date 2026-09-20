@@ -4,7 +4,7 @@ This comparison answers: **On the same synthetic receipts, how much model proces
 
 This is a standalone addition under `evals/comparison/`. It does not merge PR #3, replace the learning benchmark, mutate Supabase, change decision thresholds, or write reviewer rules. It invokes the **production** `createAssessExample` interface, `CoreService`, `DatabaseRetrieval`, `LiveJev`, and `extractReceipt` with a fresh isolated `MemoryStore`. It never implements a second Sift scorer.
 
-Published exploratory results: [September 20, 2026 findings and evidence](findings/2026-09-20/README.md).
+Published exploratory results: [September 20, 2026 findings and evidence](findings/2026-09-20/README.md); [adversarial cohort and recheck run](findings/2026-09-20-adversarial-recheck/README.md) (also documents a Jev merchant-prompt regression that sends every valid case to review on current `main`).
 
 ## The two arms
 
@@ -22,6 +22,8 @@ Each arm accumulates its own history, so Sift extraction output never helps the 
 As of `59ee979`, Sift gives `fail` precedence over `unknown` and confirms duplicate PDFs by SHA-256 or corroborated receipt identity. The adapter supplies actual file hashes; both arms receive hashes of current and prior files. The baseline evaluates those hashes itself. Both arms follow the current aggregation rule. Historical runs retain their original unknown-first policy metadata. The harness reports what they actually return, including mistakes. Sift provider failures are errors, not successful `needs_review` predictions. No fuzzy human-approval interpretation is applied to an assessment.
 
 The 50-case deterministic generator is reused from PR #3 at `ea4637bd3dea6cfdd39e04a13a7da5d8185b775b`; its helpers remain local here to avoid interfering with that open PR. Cohorts: 20 familiar valid, 10 unfamiliar valid, 8 violations, 6 incomplete and 6 exact later duplicates. Unfamiliar merchant labels may describe truth unavailable to either model; review those carefully. No alias is pre-taught. The ten-case alias activation suite and before/after learning remain separate work.
+
+`--prepare --adversarial` appends a 10-case **adversarial cohort** (`case-51`…`case-60`) after the 50 base cases, so the base cases, their bytes and their order are identical to the default dataset while the dataset hash differs. It contains lookalike merchants that share a familiar prefix but cannot supply the category (airline cafe, hotel gift shop, station parking), a familiar receipt claimed under the wrong category, the unfamiliar train descriptor claimed as lodging (so a train-scoped alias must not vouch for it), a traveler sharing only the attendee's first name, a planted "reviewer note" inside the merchant text plus a $1 overclaim, transposed digits, one cent over the hotel cap, and a receipt dated the day before the policy window. None is approvable; a `matched` verdict on any of them is an unsafe match. Reports include a per-cohort breakdown.
 
 ## Run
 
@@ -49,7 +51,7 @@ node --env-file=.env.local --conditions=react-server --import tsx evals/comparis
 
 Two humans should review `review.html`, each PDF and `policies.json`, then fill `review.template.json` as `review.json` with their names, date, minutes, and matching input/label/policy hashes. Resolve changes by preparing a new dataset/version; stale hashes are rejected. `--exploratory` allows engineering runs without this review but suppresses presentation savings headlines. `--limit` selects the first N cases (a familiar-valid smoke subset), not a representative accuracy sample.
 
-All pipeline runs are serial, alternating which entire arm runs first per case. No warmup is silently discarded. Real provider caching may occur; usage records preserve returned cached tokens. Every network attempt reserves budget before transmission, including retries introduced by future production updates. There are no harness retries. SIGINT/SIGTERM stops starting new stages; in-flight calls settle under existing 25s Jev / 60s Azure timeouts. A 401/403 ends the run after that case. Partial data is saved after every stage. Exit 2 means invalid configuration, incomplete execution or case errors; exit 0 means execution completed, **not** that Sift won or a presentation claim passed.
+All pipeline runs are serial, alternating which entire arm runs first per case. No warmup is silently discarded. Real provider caching may occur; usage records preserve returned cached tokens. Every network attempt reserves budget before transmission, including retries introduced by future production updates. The only harness retry is one bounded retry per arm per case when the provider answered HTTP 429, after a 20s pause; the failed attempt stays in `calls.jsonl` and stage counts, and the run's limitations record how many retries happened. SIGINT/SIGTERM stops starting new stages; in-flight calls settle under existing 25s Jev / 60s Azure timeouts. A 401/403 ends the run after that case. Partial data is saved after every stage. Exit 2 means invalid configuration, incomplete execution or case errors; exit 0 means execution completed, **not** that Sift won or a presentation claim passed.
 
 ## What is measured
 
@@ -75,6 +77,19 @@ node --conditions=react-server --import tsx evals/comparison/replay.ts \
 ```
 
 Replay verifies frozen facts and PDF hashes, blocks network calls, and preserves recorded provider failures. It reports changed verdicts only: historical costs and latency remain historical. Follow replay with a fresh live comparison on the same dataset to measure changed prompts, provider latency, token usage, and cost. Every run records its source version and file hashes.
+
+### Recheck after a rule or knowledge change
+
+A recheck measures what each arm must spend to re-decide already-submitted claims when a policy or a reviewer-confirmed alias changes. Sift keeps its extraction and reruns code/Jev; a direct PDF-to-verdict baseline has no separable extraction, so it rereads every PDF.
+
+```sh
+node --env-file=.env.local --conditions=react-server --import tsx evals/comparison/cli.ts \
+  --live --dataset evals/results/comparison-data --out evals/results/comparison-recheck \
+  --baseline-model YOUR_AZURE_DEPLOYMENT_OR_OPENAI_MODEL \
+  --max-model-calls 100 --exploratory --recheck evals/results/comparison-full --learned-alias
+```
+
+`--recheck SOURCE_RUN` requires a completed direct-PDF source run on the same frozen dataset that covers every selected case and is not itself a recheck. Per case, Sift loads the source run's `*.sift-facts.json` (re-hashed against the recorded `facts_sha256`, and its receipt hash checked against the current PDF), then runs the production `createAssessExample` path with live Jev; no extraction call is made and extraction latency/cost are recorded as 0 **by design, not as a measurement**. The baseline loads its own source `*.ai-input.json` (PDF hash re-verified), reuses that run's prior-receipt history and completeness flag, and makes one live PDF-to-verdict call. Budget is two calls per case. `--learned-alias` supplies the same scoped alias (`SYN NRTHWND 77` → Synthetic Rail, train/USD) to Sift as an `ActiveAlias` and to the baseline as `active_aliases` in its request; aliases clarify merchant identity only. Reports name the source run and commit, whether an alias was active, and first-to-last input-token growth for Jev and the baseline. Recheck runs are never presentation-eligible on their own; they are a decision-layer cost/time measurement.
 
 ## Pricing
 

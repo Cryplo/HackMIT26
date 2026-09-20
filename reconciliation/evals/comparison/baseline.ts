@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { responsesHeaders, type ResponsesConfig } from '../../src/lib/providers/responses';
-import type { PolicyRule } from '../../src/lib/contracts';
+import type { AliasPayload, PolicyRule } from '../../src/lib/contracts';
 import type { SemanticState } from '../../src/lib/core/jev';
 import { Fields } from '../../src/lib/intake/schema';
 import type { Candidate } from '../../src/lib/core/retrieval';
@@ -25,15 +25,15 @@ name: at least one named receipt traveler/guest must match the attendee; allow a
 duplicate: fail if supplied prior receipts establish the same purchase was already claimed. Receipt number, merchant and corroborating amount/date support a duplicate. Same merchant or amount alone does not. Empty candidates pass; inconclusive evidence is unknown. Ignore aliases for duplicate detection.
 Match current Sift aggregation: any fail -> flagged, even if another check is unknown; otherwise any unknown or missing required check -> needs_review; otherwise matched. When no policy applies, policy and policy_cap are unknown. You may use only the supplied evidence. A matched assessment is not a human approval or payment.`;
 
-export const directInstructions = `Read the attached synthetic PDF receipt and extract visible fields. Unknown fields are null (names: []); do not fill fields from the claim. Use integer minor currency units, ISO currencies, YYYY-MM-DD dates. Return parsed_fields_json and independently perform all reimbursement checks below. The prior_receipts are this baseline's own extractions from earlier PDFs in this run, not Sift's extractions. Identify possible duplicates among these records yourself. Current and prior sha256 values are computed from actual PDF bytes. An equal sha256 confirms a duplicate even if fields are missing. Equal normalized receipt number and merchant with matching non-null amount, date and currency also confirms a duplicate. If prior_receipts_complete is false and there is no confirmed duplicate, duplicate must be unknown. Do not make any external calls.\n${instructions}`;
+export const directInstructions = `Read the attached synthetic PDF receipt and extract visible fields. Unknown fields are null (names: []); do not fill fields from the claim. Use integer minor currency units, ISO currencies, YYYY-MM-DD dates. Return parsed_fields_json and independently perform all reimbursement checks below. The prior_receipts are this baseline's own extractions from earlier PDFs in this run, not Sift's extractions. Identify possible duplicates among these records yourself. Current and prior sha256 values are computed from actual PDF bytes. An equal sha256 confirms a duplicate even if fields are missing. Equal normalized receipt number and merchant with matching non-null amount, date and currency also confirms a duplicate. If prior_receipts_complete is false and there is no confirmed duplicate, duplicate must be unknown. active_aliases are human-confirmed merchant identities: an alias applies only when the receipt merchant equals observed_vendor and the claim category and currency equal its scope; it then establishes canonical_vendor for the merchant check and nothing else. Do not make any external calls.\n${instructions}`;
 const directSchema=schema.extend({parsed_fields_json:Fields}).strict();
 
 export type PriorReceipt=Candidate & {sha256?:string};
-export async function directAi(pdf:Uint8Array, submission:Submission, policies:PolicyRule[], prior:PriorReceipt[], priorComplete:boolean, config:ResponsesConfig, transport:typeof fetch=fetch) {
+export async function directAi(pdf:Uint8Array, submission:Submission, policies:PolicyRule[], prior:PriorReceipt[], priorComplete:boolean, config:ResponsesConfig, transport:typeof fetch=fetch, aliases:AliasPayload[]=[]) {
   const response=await transport(config.url,{
     method:'POST',headers:responsesHeaders(config),signal:AbortSignal.timeout(60000),
     body:JSON.stringify({model:config.model,store:false,max_output_tokens:5000,instructions:directInstructions,
-      input:[{role:'user',content:[{type:'input_text',text:JSON.stringify({submission,policies,sha256:createHash('sha256').update(pdf).digest('hex'),prior_receipts:prior,prior_receipts_complete:priorComplete})},{type:'input_file',filename:'receipt.pdf',file_data:`data:application/pdf;base64,${Buffer.from(pdf).toString('base64')}`}]}],
+      input:[{role:'user',content:[{type:'input_text',text:JSON.stringify({submission,policies,sha256:createHash('sha256').update(pdf).digest('hex'),prior_receipts:prior,prior_receipts_complete:priorComplete,active_aliases:aliases})},{type:'input_file',filename:'receipt.pdf',file_data:`data:application/pdf;base64,${Buffer.from(pdf).toString('base64')}`}]}],
       text:{format:{type:'json_schema',name:'direct_reimbursement',strict:true,schema:z.toJSONSchema(directSchema)}}}),
   });
   if(!response.ok)throw new Error(`BASELINE_HTTP_${response.status}`);

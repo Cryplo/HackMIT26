@@ -83,6 +83,18 @@ test('dataset remains deterministic, disjoint from bundled fixtures and exact du
   assert.equal(a.scored.filter(c=>c.cohort==='duplicate').length,6);
   for(const c of a.scored.filter(c=>c.duplicate_of)) assert.equal(sha256(receiptBytes(c)),sha256(receiptBytes(a.scored.find(o=>o.case_id===c.duplicate_of)!)));
 });
+test('adversarial cohort is opt-in, deterministic, appended after the frozen base and entirely non-approvable',()=>{
+  const base=generate(20260921),extended=generate(20260921,{adversarial:true});
+  assert.deepEqual(extended.scored.slice(0,50),base.scored);
+  assert.deepEqual(extended, generate(20260921,{adversarial:true}));
+  const adversarial=extended.scored.slice(50);
+  assert.equal(adversarial.length,10);assert.equal(extended.scored.length,60);
+  for(const [i,c] of adversarial.entries()){assert.equal(c.cohort,'adversarial');assert.equal(c.case_id,`case-${51+i}`);assert.notEqual(c.expected,'approved');}
+  assert.equal(adversarial.filter(c=>c.expected==='needs_review').length,1);
+  const hashes=new Set(extended.scored.map(c=>sha256(receiptBytes(c))));
+  assert.equal(hashes.size,60-6); // only the six exact duplicates share bytes
+  assert.ok(adversarial.some(c=>/REVIEWER NOTE/.test(c.fields.vendor??'')));
+});
 test('all-AI preserves actual LLM verdict and rejects refusal/incomplete/invalid outputs',async()=>{
   const c={url:'https://api.openai.com/v1/responses',key:'fake',model:'test',provider:'openai' as const};
   const state={submission:{} as never,receipt:{} as never,evidence:{candidates:[],aliases:[],retrieval_mode:'database' as const}};
@@ -126,6 +138,24 @@ test('offline preparation and two-case live protocol exercise production engine 
     assert.equal(summarize(result).headline_eligible,false);
     for(const b of bodies)assert.doesNotMatch(b,/expected|cohort|duplicate_of/);
     await assert.rejects(()=>main(['--live','--dataset',dataset,'--out',path.join(temp,'over'),'--baseline-model','baseline-model','--max-model-calls','1','--limit','2','--exploratory']),/Reserve/);
+    // Recheck: no extraction calls, Sift facts come from the source run, the baseline rereads the PDF with its saved history, both arms see the alias.
+    const recheck=path.join(temp,'recheck');requests=0;bodies.length=0;
+    await main(['--live','--dataset',dataset,'--out',recheck,'--baseline-model','baseline-model','--max-model-calls','4','--limit','2','--exploratory','--recheck',out,'--learned-alias']);
+    assert.equal(requests,4);
+    const again:Run=JSON.parse(await readFile(path.join(recheck,'results.json'),'utf8'));
+    assert.equal(again.recheck?.source_commit,result.commit);assert.deepEqual(again.recheck?.learned_alias,all.alias);
+    assert.deepEqual(again.pairs.map(p=>p.facts_sha256),result.pairs.map(p=>p.facts_sha256));
+    for(const p of again.pairs){assert.deepEqual(p.extraction,{latency_ms:0,error:null,call_ids:[]});assert.equal(p.sift.call_ids.length,1);assert.equal(p.all_ai.call_ids.length,1);}
+    assert.equal(summarize(again).arms.sift.calls,2);assert.equal(summarize(again).arms.all_ai.calls,2);
+    assert.ok(again.calls.every(c=>c.stage!=='extraction'));
+    const recheckAi=bodies.map(b=>JSON.parse(b)).filter(b=>b.model==='baseline-model').map(b=>JSON.parse(b.input[0].content[0].text));
+    assert.deepEqual(recheckAi[1].active_aliases,[all.alias]);assert.equal(recheckAi[1].prior_receipts[0].receipt.vendor,'BASELINE ONLY');
+    const jevBodies=bodies.filter(b=>JSON.parse(b).questions);
+    assert.equal(jevBodies.length,2);
+    const observed=JSON.parse(await readFile(path.join(recheck,'case-01.sift-observations.json'),'utf8'));
+    assert.deepEqual(observed[0].alias_ids,['benchmark-alias-01']);
+    assert.match(report(again),/Recheck run/);
+    await assert.rejects(()=>main(['--live','--dataset',dataset,'--out',path.join(temp,'twice'),'--baseline-model','baseline-model','--max-model-calls','4','--limit','2','--exploratory','--recheck',recheck]),/not another recheck/);
   } finally {globalThis.fetch=originalFetch;for(const k of Object.keys(process.env))if(!(k in env))delete process.env[k];Object.assign(process.env,env);await rm(temp,{recursive:true,force:true});}
 });
 

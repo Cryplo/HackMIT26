@@ -1,3 +1,5 @@
+import type { AliasPayload } from '../../src/lib/contracts';
+
 export type Arm = 'sift' | 'all_ai';
 export type Assessment = 'matched' | 'flagged' | 'needs_review';
 export interface Call {
@@ -40,4 +42,6 @@ export interface Run {
   baseline_model: string; prices: Price[]; labor: Labor | null;
   pairs: Pair[]; calls: Call[]; status: 'running' | 'completed' | 'interrupted';
   limitations: string[];
+  /** Present when Sift reused a source run's saved extraction and the baseline reread every PDF. */
+  recheck?: { source_dir: string; source_commit: string; learned_alias: AliasPayload | null };
 }

@@ -76,7 +76,12 @@ export function summarize(run: Run) {
   const pairedSift=pricedPairs.length?pricedPairs.reduce((n,p)=>n+p.sift,0)/pricedPairs.length:null;
   const pairedAi=pricedPairs.length?pricedPairs.reduce((n,p)=>n+p.all_ai,0)/pricedPairs.length:null;
   const experimentCosts = run.calls.map(c=>cost(c,run.prices).usd);
-  return { arms, headline_eligible:eligible,
+  // Per-call input tokens of the first and last successful case show how each arm's prompt grows with history.
+  const growth = (stage:Call['stage']) => {
+    const ok = run.calls.filter(c=>c.stage===stage&&c.error===null&&c.input_tokens!==null);
+    return ok.length ? { first_case:ok[0].case_id, first_input_tokens:ok[0].input_tokens!, last_case:ok.at(-1)!.case_id, last_input_tokens:ok.at(-1)!.input_tokens!, n:ok.length } : null;
+  };
+  return { arms, headline_eligible:eligible, context_growth:{ sift_jev:growth('sift'), all_ai:growth('all_ai') },
     observed_serial_latency_difference_percent:complete && noErrors ? relative(arms.sift.modeled_serial_total_ms,arms.all_ai.modeled_serial_total_ms) : null,
     observed_cost_difference_percent:complete && noErrors ? relative(arms.sift.estimated_total_usd,arms.all_ai.estimated_total_usd) : null,
     cost_saving_percent: eligible ? relative(arms.sift.estimated_total_usd,arms.all_ai.estimated_total_usd) : null,
@@ -110,6 +115,7 @@ export function report(run:Run):string {
   const lines=[ '# Sift versus all-AI: cost and time', '',
     `Status: **${run.status}**. ${run.pairs.length}/${run.selected_cases} selected cases; ${run.planned_cases} in full dataset. Labels: **${run.reviewed?'human reviewed':'UNREVIEWED — exploratory only'}**.`,
     `Commit: ${run.commit}. Started: ${run.started_at}. Baseline deployment/model: ${run.baseline_model}.`, '',
+    ...(run.recheck ? [`**Recheck run.** Source run: ${run.recheck.source_dir} (commit ${run.recheck.source_commit}). Sift reused each case's saved extraction and reran code/Jev only (Sift extraction latency and cost are 0 by design here, not measured as 0). Direct-AI reread every PDF with its source-run history. ${run.recheck.learned_alias ? `One scoped alias was active for both arms: "${run.recheck.learned_alias.observed_vendor}" → ${run.recheck.learned_alias.canonical_vendor} (${run.recheck.learned_alias.scope.category}, ${run.recheck.learned_alias.scope.currency}).` : 'No alias was active.'} This models a policy or knowledge change applied to already-extracted claims.`, ''] : []),
     run.baseline_kind === 'direct_pdf' ? 'Sift runs actual PDF extraction followed by production CoreService/code/Jev with isolated memory storage. The direct-AI baseline independently reads each PDF, extracts fields and returns all checks/verdict in ONE call. Each arm accumulates its own prior extracted receipts in the same original order; baseline receives all its prior receipts and Sift uses production candidate filtering. Neither arm sees expected labels or the other arm’s extractions. No Ramp system was tested.' : 'Both arms share extraction and evidence; the baseline uses a general LLM for all checks.',
     'Serial concurrency 1; alternating whole-pipeline order; no discarded warmups. Sift total is extraction + reconciliation; direct-AI total is its single PDF-to-verdict call. Timings exclude upload/network-to-app/database/UI/human time. Sift reconciliation includes local candidate retrieval. These are not hosted application throughput measurements.', '',
     '| Metric | Sift: code + Jev | Direct PDF-to-verdict AI |','| --- | ---: | ---: |',
@@ -130,6 +136,7 @@ export function report(run:Run):string {
     `Paired successful cases: ${s.paired_successes}; median per-pair receipt-to-verdict time difference (AI minus Sift): ${num(s.paired_decision_delta_median_ms)} ms.`,
     `Actual experiment: ${s.experiment_calls} provider attempts, ${money(s.experiment_estimated_usd)} estimated cost. Each actual call is counted once here. Billed dollars are not measured.`, '',
     `Successfully processed, fully priced pairs ONLY (n=${s.paired_priced_successes}): mean Sift cost ${money(s.paired_sift_cost_per_case_usd)} per receipt; direct-AI ${money(s.paired_ai_cost_per_case_usd)}. Cost difference ${percent(s.paired_success_cost_difference_percent)}. This excludes failed/unpriced pairs and must not be described as total-run savings. Success means a valid response, not a correct verdict.`, '',
+    `Input tokens per call, first → last successful case: Sift Jev ${s.context_growth.sift_jev ? `${s.context_growth.sift_jev.first_input_tokens} → ${s.context_growth.sift_jev.last_input_tokens}` : 'N/A'}; direct-AI ${s.context_growth.all_ai ? `${s.context_growth.all_ai.first_input_tokens} → ${s.context_growth.all_ai.last_input_tokens}` : 'N/A'}. Growth reflects each arm's own accumulated history in this run, not a general scaling law.`, '',
     `Observed serial processing-time difference: ${percent(s.observed_serial_latency_difference_percent)}. Observed estimated-cost difference: ${percent(s.observed_cost_difference_percent)}. Positive means Sift used less; negative means more. These descriptive comparisons do not establish equal decision quality.`, '',
     '**Presentation claim gate:** '+(s.headline_eligible ? 'Passed: full reviewed run, no errors, zero Sift unsafe matches, and no lower observed correctness or valid-match yield than the baseline. This is not statistical proof of equivalence.' : 'BLOCKED. Require a complete, reviewed full dataset, no errors, zero Sift unsafe matches, and no worse observed correctness or valid-match yield than the baseline. Raw results remain above.'),
     `Eligible cost reduction: ${percent(s.cost_saving_percent)}. Eligible modeled serial processing-time reduction: ${percent(s.serial_latency_saving_percent)}. Negative values mean Sift was worse. Missing prices never become zero cost.`, '',
@@ -141,8 +148,20 @@ export function report(run:Run):string {
     const costs=calls.map(c=>cost(c,run.prices).usd);
     return `| ${stage==='extraction'?'Sift extraction':stage==='sift'?'Sift Jev':'Direct PDF-to-verdict AI'} | ${calls.length} | ${num(percentile(times,.5))} | ${num(percentile(times,.95))} | ${calls.length&&costs.every(c=>c!==null)?money(costs.reduce<number>((n,c)=>n+c!,0)):'N/A'} |`;
   });
+  const cohorts=[...new Set(run.pairs.map(p=>p.cohort))];
+  const cohortRows=cohorts.map(cohort=>{
+    const rows=run.pairs.filter(p=>p.cohort===cohort);
+    const cell=(arm:Arm)=>{
+      const correct=rows.filter(p=>!p[arm].error&&p[arm].assessment===p.expected).length;
+      const unsafe=rows.filter(p=>p.expected!=='matched'&&!p[arm].error&&p[arm].assessment==='matched').length;
+      const errors=rows.filter(p=>p[arm].error||p[arm].assessment===null).length;
+      return `${correct}/${rows.length} correct, ${unsafe} unsafe, ${errors} errors`;
+    };
+    return `| ${cohort} | ${rows.length} | ${cell('sift')} | ${cell('all_ai')} |`;
+  });
   const humanIndex=lines.indexOf('### Human time and money');
-  lines.splice(humanIndex,0,'### Provider stage breakdown','', '| Stage | Attempts | Median ms | p95 ms | Estimated model cost |','| --- | ---: | ---: | ---: | ---: |',...stageRows,'','Per-call provider round-trip timings; Sift code/retrieval overhead is included in the reconciliation timing above. These stage costs sum to the actual experiment, not one pipeline.','');
+  lines.splice(humanIndex,0,'### Cohort breakdown','','| Cohort | Cases | Sift | Direct PDF-to-verdict AI |','| --- | ---: | --- | --- |',...cohortRows,'','An unsafe outcome is a `matched` verdict on a case whose expected label is not approvable. Adversarial cases are all non-approvable by construction.','');
+  lines.splice(lines.indexOf('### Human time and money'),0,'### Provider stage breakdown','', '| Stage | Attempts | Median ms | p95 ms | Estimated model cost |','| --- | ---: | ---: | ---: | ---: |',...stageRows,'','Per-call provider round-trip timings; Sift code/retrieval overhead is included in the reconciliation timing above. These stage costs sum to the actual experiment, not one pipeline.','');
   const pricesIndex=lines.indexOf('### Human time and money');
   lines.splice(pricesIndex,0,'### Price assumptions','',...run.prices.map(p=>`- ${p.provider} / ${p.requested_model} → ${p.returned_model}: ${p.sku}; ${p.region}. USD per million: input ${p.input_usd_per_million}, output ${p.output_usd_per_million}, cached ${p.cached_input_usd_per_million}, cache write ${p.cache_write_usd_per_million??'unspecified'} (${p.cache_write_accounting??'unspecified'}). [Source](${p.source_url}), checked ${p.checked_at}.`),'');
   if(run.labor) {
