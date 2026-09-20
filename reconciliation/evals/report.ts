@@ -1,5 +1,8 @@
 import type { SubmissionStatus } from '../src/lib/contracts';
-import { csvRow, type Cohort, type EvalCase } from './dataset';
+import { csvRow, type Cohort } from './dataset';
+
+/** Scoring needs only the reviewed label of a case, whether it came from a generator or from disk. */
+export interface ScoredCase { case_id: string; cohort: Cohort; expected: SubmissionStatus }
 
 /** Pure metric calculation and export. Nothing here talks to the app, and nothing rewrites an expectation. */
 export type Phase = 'before' | 'after';
@@ -7,7 +10,13 @@ export interface CaseOutcome {
   case_id: string;
   submission_id: string | null;
   run_id: string | null;
+  /** Scored label, projected from the machine assessment only. */
   status: SubmissionStatus | null;
+  /** v2 assessment and the separate human decision, kept apart so a reviewer never scores the machine. */
+  assessment_status?: 'matched' | 'flagged' | 'needs_review' | null;
+  decision_status?: 'pending' | 'approved' | 'rejected' | null;
+  /** Provenance reported by the server for this receipt's extraction, never inferred from other providers. */
+  extraction_provenance?: string | null;
   /** Deterministic and semantic check verdicts by field, exactly as returned. */
   checks: Record<string, 'pass' | 'fail' | 'unknown'>;
   needs_investigation: boolean;
@@ -47,7 +56,7 @@ export function percentile(values: number[], p: number): number | null {
 }
 const by = <T>(rows: T[], f: (row: T) => boolean) => rows.filter(f);
 
-export function phaseMetrics(cases: EvalCase[], phase: PhaseResult): PhaseMetrics {
+export function phaseMetrics(cases: ScoredCase[], phase: PhaseResult): PhaseMetrics {
   const outcome = new Map(phase.outcomes.map(o => [o.case_id, o]));
   const paired = cases.map(c => ({ c, o: outcome.get(c.case_id) ?? null }));
   const valid = by(paired, x => x.c.expected === 'approved');
@@ -86,7 +95,7 @@ export function safetyViolations(before: PhaseResult, after: PhaseResult): strin
   });
 }
 
-export function buildReport(cases: EvalCase[], before: PhaseResult, after: PhaseResult | null, context: RunContext, usage: UsageTotal[]): Report {
+export function buildReport(cases: ScoredCase[], before: PhaseResult, after: PhaseResult | null, context: RunContext, usage: UsageTotal[]): Report {
   const firstOutcome = new Map(before.outcomes.map(o => [o.case_id, o]));
   const secondOutcome = new Map((after?.outcomes ?? []).map(o => [o.case_id, o]));
   const rows: CaseRow[] = cases.map(c => {

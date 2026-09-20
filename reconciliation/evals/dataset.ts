@@ -151,7 +151,7 @@ export function receiptBytes(c: EvalCase): Buffer { return receiptPdf(c.fields);
 export interface Manifest { seed: number; generated_by: string; cases: { case_id: string; file: string; sha256: string }[]; inputs_sha256: string; expected_sha256: string }
 
 /** Only neutral IDs, ordinary claim fields and receipt bytes may reach the application. */
-export const uploadFields = (c: EvalCase) => ({ ...c.input, amount_requested_minor: String(c.input.amount_requested_minor) });
+export const uploadFields = (c: Pick<EvalCase, 'input'>) => ({ ...c.input, amount_requested_minor: String(c.input.amount_requested_minor) });
 
 export async function writeDataset(dir: string, dataset: Dataset): Promise<Manifest> {
   const all = [dataset.source, ...dataset.scored];

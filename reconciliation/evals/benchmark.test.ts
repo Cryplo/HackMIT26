@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { bundledSampleHashes, COHORT_COUNTS, csvRow, generate, receiptBytes, sha256, uploadFields, validateReview, writeDataset } from './dataset';
 import { buildReport, casesCsv, markdownReport, percentile, phaseMetrics, safetyViolations, type CaseOutcome, type PhaseResult, type RunContext } from './report';
-import { datasetForReview, main, outcomes, parseArgs, preflight, runPhase, upload } from './run-heldout';
+import { claimOutputDir, loadReviewedDataset, main, observedExtraction, outcomes, parseArgs, preflight, runPhase, upload, type UploadableCase } from './run-heldout';
+
+const uploadable = (c: { case_id: string; input: UploadableCase['input'] } & { fields?: unknown }): UploadableCase =>
+  ({ case_id: c.case_id, input: c.input, bytes: receiptBytes(c as never) });
+const workspaceRow = (id: string, assessment: string | null, decisions: unknown[], extra: Record<string, unknown> = {}) =>
+  ({ id, assessment_status: assessment, decision_status: 'pending', latest_run_id: `run-${id}`, review_revision: 0, decisions, ...extra });
+const workspaceBody = (rows: unknown[]) => ({ contract_version: 2, snapshot_token: 'a'.repeat(64), knowledge_revision: 0, submissions: rows, summary: {}, demo_mode: false });
 
 const SEED = 20260919;
 const context = (): RunContext => ({
@@ -58,7 +64,7 @@ test('an upload carries only the seven documented fields and no answer-key text'
     sent = init!.body as FormData;
     return jsonResponse({ submission_id: 'sub-1', receipt_id: 'rec-1', extraction_status: 'succeeded' }, 201);
   }) as unknown as typeof fetch;
-  const result = await upload('http://127.0.0.1:3000', violation, transport);
+  const result = await upload('http://127.0.0.1:3000', uploadable(violation), transport);
   assert.equal(result.submission_id, 'sub-1');
   const keys = [...sent!.keys()].sort();
   assert.deepEqual(keys, ['amount_requested_minor', 'attendee_name', 'category', 'currency', 'email', 'file', 'origin_location']);
@@ -73,6 +79,7 @@ test('preflight refuses a live benchmark against the v1 backend and names every 
     : jsonResponse({ submissions: [], summary: {}, demo_mode: true, execution: { decisions: 'simulated fixtures', retrieval: 'simulated', storage: 'local files' } })) as unknown as typeof fetch;
   const gates = await preflight('http://127.0.0.1:3000', transport);
   assert.equal(gates.ok, false);
+  assert.equal(gates.observed.contract_version, null);
   assert.equal(gates.observed.rules_endpoint, 404);
   assert.ok(gates.missing.some(m => m.includes('contract_version')));
   assert.ok(gates.missing.some(m => m.includes('demo mode')));
@@ -80,16 +87,22 @@ test('preflight refuses a live benchmark against the v1 backend and names every 
   assert.ok(gates.missing.some(m => m.includes('decisions is simulated fixtures')));
 });
 
-test('preflight passes only when the server reports v2, live providers and a rule API', async () => {
-  const transport = (async (url: string | URL | Request) => String(url).endsWith('/api/rules')
-    ? jsonResponse({ rules: [] })
-    : jsonResponse({ contract_version: 2, submissions: [], summary: {}, demo_mode: false, execution: { decisions: 'live jev', retrieval: 'elasticsearch', storage: 'supabase', justification: 'live openai' } })) as unknown as typeof fetch;
+test('preflight reads the v2 workspace endpoint and passes only on live providers and a rule API', async () => {
+  const seen: string[] = [];
+  const transport = (async (url: string | URL | Request) => {
+    seen.push(new URL(String(url)).pathname);
+    return String(url).endsWith('/api/rules')
+      ? jsonResponse({ rules: [] })
+      : jsonResponse({ contract_version: 2, submissions: [], summary: {}, demo_mode: false, execution: { extraction: 'See each receipt extraction provenance', decisions: 'live jev', retrieval: 'elasticsearch', storage: 'supabase', investigation: 'not enabled' } });
+  }) as unknown as typeof fetch;
   assert.deepEqual(await preflight('http://127.0.0.1:3000', transport).then(g => g.missing), []);
+  assert.ok(seen.includes('/api/workspace/reviews'), `preflight read ${seen.join(', ')}`);
+  assert.ok(!seen.includes('/api/reviews'));
 });
 
 test('a phase records server evidence, keeps failed cases and never drops a case', async () => {
-  const cases = generate(SEED).scored.slice(0, 3);
-  const rows = cases.map((c, i) => ({ id: `sub-${i}`, status: ['approved', 'flagged', 'needs_review'][i], latest_run_id: `run-${i}`, decisions: [{ field_checked: 'amount', verdict: i === 1 ? 'fail' : 'pass' }, { field_checked: 'overall_status', verdict: 'pass' }] }));
+  const cases = generate(SEED).scored.slice(0, 3).map(uploadable);
+  const rows = cases.map((c, i) => workspaceRow(`sub-${i}`, ['matched', 'flagged', 'needs_review'][i], [{ field_checked: 'amount', check_method: 'deterministic', verdict: i === 1 ? 'fail' : 'pass' }, { field_checked: 'overall_status', check_method: 'deterministic', verdict: 'pass' }]));
   let uploads = 0;
   const transport = (async (url: string | URL | Request, init?: RequestInit) => {
     const href = String(url);
@@ -97,7 +110,7 @@ test('a phase records server evidence, keeps failed cases and never drops a case
     if (href.endsWith('/api/reconcile')) return JSON.parse(String(init!.body)).submission_ids[0] === 'sub-2'
       ? jsonResponse({ error: { code: 'DEMO_BUSY', message: 'busy' } }, 503)
       : jsonResponse({ results: [{ submission_id: 'x', run_id: 'r', status: 'approved' }] });
-    return jsonResponse({ submissions: rows, summary: {}, demo_mode: false });
+    return jsonResponse(workspaceBody(rows));
   }) as unknown as typeof fetch;
   const { phase } = await runPhase('http://127.0.0.1:3000', cases, 'before', null, transport);
   assert.equal(phase.outcomes.length, 3);
@@ -121,8 +134,7 @@ test('a missing review, stale hashes or a mismatched seed block a live evaluatio
     await assert.rejects(validateReview(dir, reviewPath), /no reviewers/);
     await writeFileJson(reviewPath, { ...review, expected_sha256: 'c'.repeat(64) });
     await assert.rejects(validateReview(dir, reviewPath), /stale/);
-    assert.equal((await datasetForReview(dir, SEED)).scored.length, 50);
-    await assert.rejects(datasetForReview(dir, SEED + 1), /does not reproduce/);
+    assert.equal((await loadReviewedDataset(dir)).length, 50);
     // Answers, cohorts and duplicate links live only in the answer key.
     const inputs = await readFile(path.join(dir, 'inputs.json'), 'utf8');
     for (const leak of ['cohort', 'expected', 'duplicate_of', 'violation']) assert.ok(!inputs.includes(leak), `inputs.json leaks ${leak}`);
@@ -198,15 +210,79 @@ test('an evaluation without human review is refused unless it is declared explor
   );
 });
 
-test('outcomes read back an unknown verdict as investigation and tolerate a missing row', async () => {
-  const transport = (async () => jsonResponse({ submissions: [{ id: 'sub-a', status: 'needs_review', latest_run_id: 'run-a', decisions: [{ field_checked: 'merchant', verdict: 'unknown' }] }], summary: {}, demo_mode: false })) as unknown as typeof fetch;
-  const rows = await outcomes('http://127.0.0.1:3000', [
-    { case_id: 'case-01', submission_id: 'sub-a', receipt_id: 'rec-a', extraction_status: 'succeeded' },
-    { case_id: 'case-02', submission_id: 'sub-missing', receipt_id: 'rec-b', extraction_status: 'failed' }
+test('outcomes score the machine assessment, never the human decision, and tolerate a missing row', async () => {
+  const rows = [
+    workspaceRow('sub-a', 'needs_review', [{ field_checked: 'merchant', check_method: 'jev', verdict: 'unknown' }], { receipt: { extraction_provenance: 'demo hash fixture' } }),
+    // A human already approved this claim; the machine still says flagged and that is what is scored.
+    workspaceRow('sub-b', 'flagged', [{ field_checked: 'amount', check_method: 'deterministic', verdict: 'fail' }, { field_checked: 'overall_status', check_method: 'human', verdict: 'pass' }], { decision_status: 'approved' })
+  ];
+  const transport = (async () => jsonResponse(workspaceBody(rows))) as unknown as typeof fetch;
+  const outcomeRows = await outcomes('http://127.0.0.1:3000', [
+    { case_id: 'case-01', submission_id: 'sub-a', receipt_id: 'rec-a', extraction_status: 'succeeded', document_sha256: 'a'.repeat(64) },
+    { case_id: 'case-02', submission_id: 'sub-b', receipt_id: 'rec-b', extraction_status: 'succeeded', document_sha256: 'b'.repeat(64) },
+    { case_id: 'case-03', submission_id: 'sub-missing', receipt_id: 'rec-c', extraction_status: 'failed', document_sha256: 'c'.repeat(64) }
   ], new Map([['case-01', 42]]), new Map(), transport);
-  assert.equal(rows[0].needs_investigation, true);
-  assert.equal(rows[0].latency_ms, 42);
-  assert.deepEqual([rows[1].status, rows[1].run_id, rows[1].latency_ms], [null, null, null]);
+  assert.equal(outcomeRows[0].needs_investigation, true);
+  assert.equal(outcomeRows[0].latency_ms, 42);
+  assert.deepEqual([outcomeRows[1].status, outcomeRows[1].decision_status], ['flagged', 'approved']);
+  assert.deepEqual(outcomeRows[1].checks, { amount: 'fail' });
+  assert.deepEqual([outcomeRows[2].status, outcomeRows[2].run_id, outcomeRows[2].latency_ms], [null, null, null]);
+  // Extraction provenance is the server's, not the decision provider's.
+  assert.equal(observedExtraction(outcomeRows), 'demo hash fixture');
+  assert.equal(observedExtraction([]), 'unknown');
+});
+
+test('a reviewed label, not the generator, decides the score and every uploaded PDF is its reviewed document', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'evals-reviewed-'));
+  try {
+    const dataset = generate(SEED);
+    await writeDataset(dir, dataset);
+    const expectedPath = path.join(dir, 'expected.json');
+    const expected = JSON.parse(await readFile(expectedPath, 'utf8'));
+    const corrected = expected.cases[0].case_id;
+    expected.cases[0].expected = 'needs_review'; // A reviewer corrected the generated label.
+    await writeFileJson(expectedPath, expected);
+    const reviewed = await loadReviewedDataset(dir);
+    assert.equal(reviewed.find(c => c.case_id === corrected)!.expected, 'needs_review');
+    assert.notEqual(generate(SEED).scored[0].expected, 'needs_review');
+    // Uploaded bytes are the reviewed document, bound to the manifest hash.
+    const document = await readFile(path.join(dir, `receipts/${corrected}.pdf`));
+    assert.equal(sha256(reviewed.find(c => c.case_id === corrected)!.bytes), sha256(document));
+    await writeFileJson(path.join(dir, `receipts/${corrected}.pdf`), { tampered: true });
+    await assert.rejects(loadReviewedDataset(dir), /not the reviewed/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a per-claim error inside a 200 response is an error outcome, not a silent result', async () => {
+  const cases = generate(SEED).scored.slice(0, 1).map(uploadable);
+  const transport = (async (url: string | URL | Request) => {
+    const href = String(url);
+    if (href.endsWith('/api/submissions')) return jsonResponse({ submission_id: 'sub-0', receipt_id: 'rec-0', extraction_status: 'succeeded' }, 201);
+    if (href.endsWith('/api/reconcile')) return jsonResponse({ results: [{ submission_id: 'sub-0', run_id: null, status: 'needs_review', error: 'Reconciliation failed; review required.' }] });
+    return jsonResponse(workspaceBody([workspaceRow('sub-0', 'needs_review', [])]));
+  }) as unknown as typeof fetch;
+  const { phase } = await runPhase('http://127.0.0.1:3000', cases, 'before', null, transport);
+  assert.match(phase.outcomes[0].error!, /review required/);
+  assert.equal(phase.outcomes[0].latency_ms, null);
+});
+
+test('a reused run directory is refused before any upload, and partial upload progress is persisted', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'evals-out-'));
+  try {
+    await claimOutputDir(dir);
+    await writeFileJson(path.join(dir, 'before.json'), { phase: 'before' });
+    await assert.rejects(claimOutputDir(dir), /Refusing to reuse/);
+    const cases = generate(SEED).scored.slice(0, 3).map(uploadable);
+    let uploads = 0;
+    const transport = (async (url: string | URL | Request) => {
+      if (!String(url).endsWith('/api/submissions')) return jsonResponse(workspaceBody([]));
+      if (uploads === 2) return jsonResponse({ error: { code: 'DEMO_BUSY', message: 'busy' } }, 503);
+      return jsonResponse({ submission_id: `sub-${uploads++}`, receipt_id: `rec-${uploads}`, extraction_status: 'succeeded' }, 201);
+    }) as unknown as typeof fetch;
+    const persisted: unknown[][] = [];
+    await assert.rejects(runPhase('http://127.0.0.1:3000', cases, 'before', null, transport, async u => { persisted.push(structuredClone(u)); }), /HTTP 503/);
+    assert.deepEqual(persisted.at(-1)!.length, 2);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 async function writeFileJson(file: string, value: unknown) {

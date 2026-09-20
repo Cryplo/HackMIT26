@@ -2,7 +2,7 @@
 
 Implements the measurement described in `docs/superpowers/plans/2026-09-19-sift-benchmark.md`: does one reviewed merchant alias improve assessment of 50 unseen synthetic claims without weakening financial or duplicate checks?
 
-Everything here is evaluator code. It talks to the application only through `POST /api/submissions`, `POST /api/reconcile` and `GET /api/reviews`, and it never writes to a store, never edits production behaviour, and never uses the answer key to build a request.
+Everything here is evaluator code. It talks to the application only through `POST /api/submissions`, `POST /api/reconcile` and `GET /api/workspace/reviews`, and it never writes to a store, never edits production behaviour, and never uses the answer key to build a request.
 
 ## Commands
 
@@ -47,7 +47,7 @@ One such run against the local demo app (simulated extraction, simulated decisio
 
 The benchmark has **not** been run. Preflight against the app on this branch (`main` behaviour, local demo deployment) reports the live prerequisites that do not exist yet:
 
-- `GET /api/reviews` does not report `contract_version` (the brief requires the v2 contract) or per-provider execution modes, so a run could not be honestly labelled live or simulated.
+- `GET /api/workspace/reviews` does not report `contract_version` (the brief requires the v2 contract) or per-provider execution modes, so a run could not be honestly labelled live or simulated.
 - `GET /api/rules` is not implemented, so a draft alias rule cannot be created, gate-tested or activated. The only learning path today is the legacy `vendor_alias` correction route, which the brief forbids for this experiment.
 - The local deployment reports `demo_mode: true`; demo extraction only recognises bundled sample hashes, so freshly generated receipts extract as all-null and every case would land in `needs_review` regardless of merchant learning. A live run needs live extraction and live Jev credentials, which are not provisioned here.
 
