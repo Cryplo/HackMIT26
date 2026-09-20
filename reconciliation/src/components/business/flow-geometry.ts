@@ -1,4 +1,4 @@
-export type FlowNode = "waiting" | "checking" | "investigations" | "passed" | "uncertain" | "failed";
+export type FlowNode = "sources" | "waiting" | "checking" | "investigations" | "passed" | "uncertain" | "failed";
 export type NodeBox = { left: number; top: number; right: number; bottom: number };
 export type Point = [number, number];
 export type FlowEdge = { from: FlowNode; to: FlowNode; points: Point[] };
@@ -12,7 +12,8 @@ export function flowEdges(boxes: Record<FlowNode, NodeBox>, width: number): Flow
   const cy = (box: NodeBox) => (box.top + box.bottom) / 2;
   const mobile = c.top >= w.bottom;
   const desktop = p.left > c.right;
-  const edges: FlowEdge[] = [{ from: "waiting", to: "checking", points: mobile
+  const edges: FlowEdge[] = [{ from: "sources", to: "waiting", points: [[cx(w), boxes.sources.bottom], [cx(w), w.top]] },
+  { from: "waiting", to: "checking", points: mobile
     ? [[cx(w), w.bottom], [cx(w), (w.bottom + c.top) / 2], [cx(c), (w.bottom + c.top) / 2], [cx(c), c.top]]
     : [[w.right, cy(w)], [(w.right + c.left) / 2, cy(w)], [(w.right + c.left) / 2, cy(c)], [c.left, cy(c)]] },
   { from: "checking", to: "investigations", points: [[cx(c), c.bottom], [cx(c), i.top]] }];

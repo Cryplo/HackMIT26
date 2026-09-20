@@ -68,7 +68,7 @@ export class SimulatedJev implements Jev {
       ...(evidence.booking_link ? [normalize(evidence.booking_link.canonical_vendor)] : []),
     ])];
     const vendor = canonicals.length === 1 ? canonicals[0] : normalize(p.vendor || '');
-    const known: Record<string, string[]> = { flight: ['synthetic sky airlines', 'northstar airlines'], hotel: ['synthetic harbor hotel', 'harbor hotel'], train: ['synthetic rail', 'maple rail'], bus: ['synthetic coach', 'cedar bus'], other: [] };
+    const known: Record<string, string[]> = { flight: ['synthetic sky airlines', 'northstar airlines', 'summit air', 'juniper airways'], hotel: ['synthetic harbor hotel', 'harbor hotel'], train: ['synthetic rail', 'maple rail', 'birch rail', 'coastline rail'], bus: ['synthetic coach', 'cedar bus', 'willow coach', 'elm express'], other: [] };
     const merchant: Choice = canonicals.length > 1 ? 'unknown' : known[s.category].includes(vendor) ? 'pass' : Object.values(known).flat().includes(vendor) ? 'fail' : 'unknown';
     const name: Choice = !p.names.length ? 'unknown' : p.names.some(n => normalize(n) === normalize(s.attendee_name)) ? 'pass' : 'fail';
     const duplicate = evidence.candidates.some(c => p.receipt_number && p.receipt_number === c.receipt.receipt_number && p.vendor && normalize(p.vendor) === normalize(c.receipt.vendor || '') && p.amount_minor === c.receipt.amount_minor && p.receipt_date === c.receipt.receipt_date);

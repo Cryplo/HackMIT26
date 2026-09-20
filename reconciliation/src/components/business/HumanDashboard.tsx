@@ -37,6 +37,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
   const [batchError, setBatchError] = useState("");
   const batchLock = useRef(false);
   const rows = data?.submissions ?? [];
+  const preparedCount = rows.filter(row => row.decisions.some(check => check.evidence_json.demo_baseline === true)).length;
   const learningRows = rows.filter(row => row.learning);
   const learningPending = learningRows.filter(row => ["queued", "checking", "testing"].includes(row.learning!.status)).length;
   const actions = data ? humanActions(data) : [];
@@ -131,6 +132,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
     {batchError && <p role="alert" className={styles.error}>{batchError}</p>}
     {!data && !error && <div role="status" className={styles.empty}><LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /><p>Loading saved claims…</p></div>}
     {data && <>
+      {preparedCount > 0 && <p className={styles.notice}>{preparedCount} claims have prepared demo history. New checks use this workspace’s configured providers.</p>}
       {(!data.coverage?.complete || data.coverage.returned !== rows.length || data.coverage.total !== rows.length) && <p className={styles.notice}>Showing {rows.length} loaded claims{data.coverage ? ` of ${data.coverage.total}` : ""}. Counts below describe this snapshot; coverage is incomplete.</p>}
       <AuditClaimsDialog returnFocusRef={bucketTrigger} title={buckets.find(b => b.key === expandedBucket)?.label ?? "Claims"} items={(buckets.find(b => b.key === expandedBucket)?.rows ?? []).map(row => ({ row, label: row.decision_status === "pending" ? claimReason(row) : row.decision_status === "approved" ? "Approved" : "Rejected" }))} open={expandedBucket !== null} onOpenChange={open => { if (!open) setExpandedBucket(null); }} onReview={startReview} />
       <section className={styles.statusSummary} aria-label="Claim status summary">
@@ -193,6 +195,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
         <div className={styles.completionIcon}><CircleCheck aria-hidden="true" /></div>
         <DialogTitle>{completion?.title}</DialogTitle>
         <DialogDescription>{completion?.detail} {pendingCount ? `${actions.length} awaiting a decision; ${pendingCount - actions.length} still unchecked or running.` : "Every claim has a saved decision."}</DialogDescription>
+        {audit.sources?.enabled && audit.sources.held.length > 0 && <p className="text-sm text-muted-foreground">{audit.sources.held.length} source inputs still need a connection or missing details. <Link className="underline" href="/import?audit=1">Inspect unresolved inputs</Link></p>}
         <Button onClick={() => { setCompletion(null); if (actions.length) startReview(actions[0].row.id); else if (!pendingCount) router.push(businessHref); }}>{actions.length ? "Review remaining claims" : pendingCount ? "Back to audit" : "View all claims"}<ArrowRight aria-hidden="true" /></Button>
       </DialogContent>
     </Dialog>

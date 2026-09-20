@@ -1,6 +1,6 @@
 # Sift: context for a fresh chat
 
-Updated September 20, 2026, after implementation commit `d030159` on `main`. This is the current orientation document. It describes the checked-in product and dated verification, not a guarantee that a local server is running or a remote database is unchanged. Inspect Git status and the actual runtime before continuing.
+Updated September 20, 2026, for the integrated Data sources and prepared live-reset baseline work. Earlier verification below records implementation commit `d030159`; it does not establish the current merge or deployment state. This is the current orientation document. It describes the checked-in product and dated verification, not a guarantee that a local server is running or a remote database is unchanged. Inspect Git status and the actual runtime before continuing.
 
 ## Read this first
 
@@ -23,6 +23,7 @@ Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` do
 - **Reimbursements (`/business-demo`):** all claims, a primary semantic-search field (press Enter or Search), category/result filters, bulk checks, selection/export, original evidence, and access to review. Learned rules are a view within this workspace, not a separate `/rules` route.
 - **Human review:** centered evidence view, amber for uncertainty, green approval, red rejection/failure; highlight the actual mismatch or missing evidence. Successful decisions advance to the next eligible claim. Completion offers review when actions remain, or the table when they do not. Technical detail and tool histories belong in collapsed sections.
 - **Investigations (`/investigations`):** persisted runs, concise findings, linked documents, and expandable recorded read-tool history. An investigator is not a web-browsing agent and its trace is not hidden model reasoning.
+- **Data sources (`/import`):** preview Forms/Gmail/Dropbox samples, upload loose synthetic paperwork, inspect extracted fields and suggested links, and explicitly confirm requests. Connections are mockups, not account integrations. Reading sample sources as part of Start audit is a separate opt-in.
 - **Submit (`/submit`):** upload a claim and original receipt. Successful extraction starts ordinary checks; useful added supporting evidence can trigger reassessment. Rechecks reuse extraction unless explicit reparse is requested.
 
 The user now prefers Ramp-inspired compact components with a black-and-white base: white cards, neutral-gray chrome, charcoal text, fine borders, and restrained corners. Use black primary actions, yellow review/inconclusive highlights, green passed/approved states, and red failures/rejections, spinners while work is running, and minimal jargon. Shared colors and radii live in `src/app/theme.css`; do not restore broad sage backgrounds. Summary values remain informational; their headings open expanded claim lists. Audit flow headers also expand, including investigation activity. Do not restore the manual “Sift investigate” button in ordinary review; automatic investigation and the history workspace cover that flow.
@@ -43,6 +44,18 @@ The generated Sift logo is served from `reconciliation/public/sift-logo.png` thr
 
 `auditBucket`, `humanActions`, and the queue filter define the displayed groups. The dashboard and flow must use the same saved decision semantics. A queue progress denominator counts that queue/session, not every pending claim. Explain the subset instead of pretending different counts are equivalent.
 
+## Integrated document inbox and source audit
+
+The Data sources work from `feat/document-inbox` is integrated at `/import`. It supports loose synthetic receipts, booking PDFs, and CSV/TXT/readable EML exports. Primary **Data sources** navigation opens connection mockups, file drop, and browsable Forms/Gmail/Dropbox samples with side-by-side extracted fields. Forms use a spreadsheet preview, Gmail uses an email-thread layout, and Dropbox displays original PDFs/images. These are source previews, not connected accounts or mailbox/Dropbox synchronization.
+
+The overview includes source cards inside its flowchart and observed upload/parse/confirm activity. One extraction per unique file feeds deterministic candidate matching, editable request details, original-source comparison, and explicit confirmation into the existing claim/review flow. Exact duplicate attachments are skipped before extraction. Unresolved matches can produce an editable unsent clarification draft. Requested amounts remain separate from receipt totals; conflicting or ambiguous requests require a person. Staging is private and server-local; unsaved manual edits remain in browser memory, so multiple servers need shared staging before use.
+
+**Source audit is separately enabled** with `RECONCILIATION_SOURCE_AUDIT=true` and `RECONCILIATION_SYNTHETIC_ONLY=true`. Keep it off for the ordinary live 80-claim rehearsal: Start audit should select the existing unchecked claims, not import additional sample requests. Opening source previews or `/import` does not enable source audit. The isolated `npm run demo:inbox -- --port 3017` launcher enables it in a new empty private store. There, Start audit reads eleven mixed PDF/PNG/EML/CSV samples before selecting eligible claims; one persisted batch supports pause/reload/resume, deduplication, automatic queuing of complete unambiguous requests, and held inputs inspectable on Data sources. Financial discrepancies are preserved for ordinary checks; incomplete evidence never invents a claim.
+
+Supabase confirmation of CSV/TXT/EML evidence requires `202609210013_inbox_text_evidence.sql`, including the allowed MIME types in the private evidence bucket. It does not reset claims or connect external accounts. Migrations `202609210013_inbox_text_evidence.sql` and `202609210014_live_demo_baseline.sql` were applied to the configured synthetic Supabase demo on September 20. Other deployments must apply them separately. Reset retains separate inbox staging: stale confirmations/source batches must be reviewed rather than replayed against removed claims. See [document inbox runbook](../reconciliation/docs/DOCUMENT_INBOX.md) for the isolated demo and failure/restart limits.
+
+Earlier branch verification included twelve focused tests and a passing production build, plus a 37.2-second live-extraction browser run with two checked claims and four held inputs; review was simulated. These dated observations do not establish the merged live assessment outcomes or migration state.
+
 ## What is implemented
 
 **Assessment and approval.** Code checks money, currency, dates, policy limits, and mandatory safeguards. Jev evaluates bounded identity/merchant/duplicate evidence. With `RECONCILIATION_AUTOMATION_MODE=policy-caps`, eligible clean claims are automatically approved under existing caps. Automatic approval is tied to current evidence and knowledge, and never counts as human feedback. Human decisions survive rechecks. Automatic rejection is off: a reviewer can explicitly reject supported failures, including the guarded bulk action.
@@ -61,12 +74,17 @@ This does **not** learn arbitrary business policies or retrain a model. Rejectio
 
 **Responsive data.** The shared workspace client caches snapshots, invalidates after mutations, and polls active work/learning approximately every two seconds and idle visible workspaces less often. Investigation details poll recorded progress. This is HTTP polling, not a WebSocket/token stream. Flow dots represent observed activity; they are not independent proof of a provider call. Short steps may finish between refreshes.
 
-**Reset.** Local reset archives then restores 14 claims; opt-in live reset archives then restores 80 claims (migration 011). Live reset is synthetic-only and guards active work, queued delivery, and changed snapshots. It retains original storage objects and advances revisions. Reset is an explicit demo operation, not a routine prerequisite to debugging. Never reset the user's live workspace just to obtain a clean test run.
+**Reset.** Local reset archives then restores 14 unchecked claims. The opt-in live reset restores an 80-claim baseline with 60 prepared checked claims and 20 unchecked claims (migration `202609210014_live_demo_baseline.sql`). It archives and clears custom checks as well as the prior claim history. Prepared history is explicitly authored demo data, not live provider/reviewer activity. Live reset is synthetic-only and guards active work, queued delivery, and changed snapshots. It retains original storage objects and advances revisions. Reset is an explicit demo operation, not a routine prerequisite to debugging. Never reset the user's live workspace just to obtain a clean test run.
 
 ## Modes and demo facts
 
-The live demo was expanded to **80 claims / 80 parsed receipts / 20 supporting documents** on September 20, 2026. The original 14 claims and all their stored records were preserved; 66 new claims were added as unchecked with cached authored transcriptions. No model calls or notices were triggered. The local showcase remains 14 claims. Live reset now restores the expanded 80-claim seed; migration `202609200011_expanded_live_demo.sql` is applied to this demo and required elsewhere for that reset.
+The live demo was expanded to **80 claims / 80 parsed receipts / 20 supporting documents** on September 20, 2026. That earlier expansion preserved the original 14 records and appended 66 unchecked claims with cached authored transcriptions, without model calls or notices. The local showcase remains 14 claims.
 
+The new live-reset baseline is designed to restore **60 prepared checked claims and 20 unchecked claims**. The 60 authored history examples are **52 approved, four rejected, and four inconclusive**, verified through the PostgreSQL reset and projection. Their saved checks and decision records are marked as prepared demo history: no live provider, real reviewer, investigation, or email action generated them. Seeded receipt/supporting transcriptions remain authored fixtures, not live OCR.
+
+The 20 unchecked claims are selected for **11 clean, six failed-check, and three inconclusive scenarios**, including **Morgan Blake and Riley Chen** as two automatic-investigation candidates. These are authored scenario targets, not guaranteed live-model results or saved rejections. Start audit evaluates those 20 through the normal configured live checks; investigation depends on actual unresolved checks, useful evidence, and safety eligibility. The four already-inconclusive prepared claims are checked history, not unchecked audit inputs.
+
+Migration `202609200011_expanded_live_demo.sql` previously enabled the 80-claim reset. The new prepared-baseline reset uses migration `202609210014_live_demo_baseline.sql`, while text-source imports use `202609210013_inbox_text_evidence.sql`; both are applied to this demo. Applying either migration does not itself reset the workspace. Only an explicit, guarded reset replaces current records with the new baseline.
 
 | Mode | Data and execution |
 | --- | --- |
@@ -77,9 +95,9 @@ The live demo was expanded to **80 claims / 80 parsed receipts / 20 supporting d
 
 Bare `npm run demo` retains a legacy local fixture path; use `--showcase` for the current 14-claim demonstration. `demo:jev` is a legacy launcher currently incompatible with the runtime requirement that live assessment use Supabase; do not recommend it as the live setup.
 
-The curated seed requests **$2,705.00** against **$2,695.00** in receipt totals. Merchants include Northstar Airlines, Maple Rail, Cedar Bus, Harbor Reservations, and Harbor Hotel. Dates, origins, receipt layouts, and booking evidence vary. Every document is fictional and marked not valid for payment. Seeded cached transcriptions are authored fixtures, even in live storage; only a new live upload/reparse exercises the extraction provider.
+The local 14-claim curated seed requests **$2,705.00** against **$2,695.00** in receipt totals. Merchants include Northstar Airlines, Maple Rail, Cedar Bus, Harbor Reservations, and Harbor Hotel. Dates, origins, receipt layouts, and booking evidence vary. Every document is fictional and marked not valid for payment. Seeded cached transcriptions are authored fixtures, even in live storage; only a new live upload/reparse exercises the extraction provider.
 
-The simulated baseline yields eight automatic approvals, three inconclusive cases, and three supported issues; it starts with zero human rejections and zero learned procedures. Live results are model-dependent and must not be forced to match those numbers. See the [case table](../reconciliation/docs/SHOWCASE.md) rather than inventing reviewer reasons to clear the queue.
+The local 14-claim simulated baseline yields eight automatic approvals, three inconclusive cases, and three supported issues; it starts with zero human rejections and zero learned procedures. Live results are model-dependent and must not be forced to match those numbers. See the [case table](../reconciliation/docs/SHOWCASE.md) rather than inventing reviewer reasons to clear the queue.
 
 **Learning demo caveat:** Sam and Taylor already pass the simulated baseline. To show a new human reason creating a check, use the separate automation-disabled private-store walkthrough in the showcase guide. Do not pass `--audit-ready`, which reenables automatic approvals. A 12/12 before and after result is a safety tie, not demonstrated accuracy improvement or reduced reviewer workload.
 
@@ -99,7 +117,8 @@ Paths below are relative to `reconciliation/`.
 | Shared UI data and categories | `src/lib/dashboard/client.ts`, `workspace-store.ts`, `human-actions.ts`, `audit-session.ts` |
 | Overview, flow, review | `src/components/business/HumanDashboard.tsx`, `AuditFlow.tsx`, `ReviewSheet.tsx`, `ClaimEvidence.tsx` |
 | Investigations / rules UI | `InvestigationsWorkspace.tsx`, `InvestigationRunView.tsx`, `ProcedurePanel.tsx`, `RulesPanel.tsx` in the same component directory |
-| Seed and designed receipts | `src/lib/demo/showcase.ts`, `showcase-documents.ts`, `scripts/seed-showcase.ts`, `scripts/check-showcase.ts` |
+| Seed and designed receipts | `src/lib/demo/showcase.ts`, `showcase-documents.ts`, `live-baseline.ts`, `scripts/seed-showcase.ts`, `scripts/check-showcase.ts` |
+| Data sources and source audit | `src/app/import/`, `src/app/api/inbox/`, `src/lib/inbox/`, `scripts/inbox-demo.ts` |
 | Design tokens | `src/app/theme.css`, component CSS modules; existing shadcn/Radix controls |
 
 Read the caller and shared helper before fixing a symptom. In particular, do not implement another independent count calculation or decision path to patch one page.
@@ -109,6 +128,8 @@ Semantic search sends each filtered claim to Jev independently in parallel (up t
 ## Verification and remaining work
 
 These are **dated observations**, not current service guarantees:
+
+- September 20 inbox/baseline integration: migrations 013 and 014 applied; the requested live reset archived the previous workspace (including its custom check). The write committed after the client lost confirmation; a subsequent direct database read and app API verified 80 claims, 60 checked, 20 unchecked, 52 approved, four rejected, four needing review, and zero failures/investigations. No provider or email calls occurred. Reset now allows 90 seconds for its response, without retrying uncertain writes. TypeScript, focused inbox/audit/geometry tests, and baseline SQL round-trip tests passed; desktop source-row layout was checked. The remaining 20 were left unchecked for the user’s demo.
 
 - `d030159` was pushed to `origin/main`. Its exact staged tree passed TypeScript checking and five focused feedback-learning/SQL tests. Earlier focused checks and a simulated browser rehearsal covered reason saving, tested activation, separate applicant wording, and Taylor citing Taylor’s own documents.
 - The configured demo Supabase received migrations through `202609200010_feedback_learning.sql` on September 20. A subsequent workspace read retained all 14 claims. Migration execution did not trigger model calls or a reset. A fresh deployment must independently apply the ordered migrations; platform version 4 alone does not establish that all additive migrations were applied.
@@ -126,4 +147,4 @@ At this handoff, unrelated pitch/benchmark changes and locally generated Next fi
 
 ## Copy into a new chat
 
-> We are working on Sift in `HackMIT26/reconciliation`. Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, `reconciliation/AGENTS.md`, and `reconciliation/README.md`, then inspect Git status. This is the integrated 14-claim audit/investigation/review-learning app, not the old browser prototype. Preserve unrelated edits and live data. Distinguish persisted live results, simulated fixtures, and unverified claims. Keep the UI simple and use focused verification. My next task is: [describe the task].
+> We are working on Sift in `HackMIT26/reconciliation`. Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, `reconciliation/AGENTS.md`, and `reconciliation/README.md`, then inspect Git status. This is the integrated audit/investigation/review-learning and Data sources app, with a local 14-claim simulation and an 80-claim live demo. The live reset restores 60 explicitly authored checked records and 20 unchecked claims; migrations 013/014 are applied to the configured demo, but inspect current state before changing it. It is not the old browser prototype. Preserve unrelated edits and live data. Distinguish persisted live results, simulated fixtures, and unverified claims. Keep the UI simple and use focused verification. My next task is: [describe the task].

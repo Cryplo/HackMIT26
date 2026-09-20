@@ -40,7 +40,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   }
 
   return <>
-    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : "Archive this demo and restore fresh unchecked demo claims"}
+    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : data.demo_mode ? "Archive this demo and restore fresh unchecked demo claims" : "Restore 60 prepared claims and 20 unchecked claims"}
       onClick={() => { setError(""); if (preview || data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
       {busy ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <RotateCcw aria-hidden="true" />}{busy ? "Resetting…" : "Reset demo"}
     </Button>
@@ -48,7 +48,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
     <Dialog open={!!confirmation} onOpenChange={open => { if (!open && !busy) { setConfirmation(null); setError(""); } }}>
       <DialogContent showCloseButton={!busy} onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
         <DialogHeader><DialogTitle>Reset the live demo?</DialogTitle><DialogDescription>
-          Archive the current {confirmation?.count ?? 0} claims and their results in Supabase, clear the active demo data, and restore fresh unchecked demo claims. Decisions, investigations, and learned rules will start fresh. Original documents stay archived.
+          Archive the current {confirmation?.count ?? 0} claims and their results in Supabase. Restore 80 claims: 60 with prepared demo history and 20 ready for live checks. Investigations and learned rules start fresh. Original documents stay archived.
         </DialogDescription></DialogHeader>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setConfirmation(null)}>Cancel</Button>

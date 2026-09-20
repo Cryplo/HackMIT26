@@ -21,7 +21,7 @@ begin
   update submissions set evidence_revision=evidence_revision+1,review_revision=review_revision+1,updated_at=now() where id=new.submission_id;
  end if;
  return new;
-end $function$
+end $function$;
 
 
 CREATE OR REPLACE FUNCTION public.core_rule(p_input jsonb)
@@ -75,5 +75,5 @@ begin
  end if;
  update platform_state set knowledge_revision=k where id = true;insert into rule_history(rule_id,doc)values(rid,rule);
  return jsonb_build_object('rule',rule,'knowledge_revision',k);
-end $function$
+end $function$;
 

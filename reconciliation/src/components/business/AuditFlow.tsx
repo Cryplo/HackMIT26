@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, CircleX, FileStack, LoaderCircle, Pause, Play, ScanLine, SearchCheck, Maximize2 } from "lucide-react";
+import { SourceFlow, useSourceActivity } from './SourceFlow';
 import { AuditClaimsDialog } from "./AuditClaimsDialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
   const { data } = useWorkspace(preview);
   const audit = useAudit(preview);
   const graph = useRef<HTMLDivElement>(null);
+  const sourceActivity = useSourceActivity();
   const [resetBusy, setResetBusy] = useState(false);
   const agentsTrigger = useRef<HTMLButtonElement>(null);
   const [agentsExpanded, setAgentsExpanded] = useState(false);
@@ -54,9 +56,9 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
     if (node === "checking") {
       checking.push({ row, label: row.receipt?.extraction_status === "pending" ? "Reading receipt" : "Checking claim" });
     } else if (node === "passed") {
-      passed.push({ row, label: row.decision_source === "automatic" ? "Approved automatically" : "Approved by reviewer" });
+      passed.push({ row, label: row.decisions.some(check => check.evidence_json.demo_baseline === true) ? "Prepared demo approval" : row.decision_source === "automatic" ? "Approved automatically" : "Approved by reviewer" });
     } else if (node === "failed") {
-      failed.push({ row, label: "Rejected by reviewer" });
+      failed.push({ row, label: row.decisions.some(check => check.evidence_json.demo_baseline === true) ? "Prepared demo rejection" : "Rejected by reviewer" });
     } else if (node === "waiting") {
       waiting.push({ row, label: row.receipt?.extraction_status === "pending" ? "Waiting for receipt parsing" : "Ready for checks" });
     } else {
@@ -69,6 +71,8 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
   }
   const eligible = rows.filter(isAuditEligible).length;
   const active = audit.status === "running" || audit.status === "stopping";
+  const sources = audit.sources?.enabled ? audit.sources : null;
+  const incoming = !!sources && sources.phase !== 'ready' && sources.phase !== 'failed';
   const runs = rows.flatMap(row => row.latest_investigation ? [{ row, run: row.latest_investigation }] : [])
     .sort((a, b) => b.run.started_at.localeCompare(a.run.started_at));
   const runningRuns = runs.filter(({ run }) => run.status === "running");
@@ -84,10 +88,12 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
   const nextAction = actions[0];
   const href = `/investigations${preview ? "?preview=1" : ""}`;
   const progress = audit.status === "stopping" ? "Stopping after active checks finish."
+    : active && incoming ? sources.phase === 'linking' ? 'Linking source evidence into claims…' : `Reading sources · ${sources.cursor} of ${sources.total} files processed${sources.current ? ` · ${sources.current.name}` : ''}`
     : active ? audit.total ? `This session: ${audit.done} of ${audit.total} claims checked` : "Preparing your audit…"
     : audit.status === "failed" ? "Audit paused. Review the error before continuing."
     : audit.status === "complete" ? `Session complete · ${audit.done} of ${audit.total} claims checked this session`
     : audit.startedAt ? `Session paused · ${audit.done} of ${audit.total} checked this session`
+    : incoming ? `${sources.total} sample files → extract facts → link evidence → audit complete claims`
     : eligible ? `${eligible} ${eligible === 1 ? "claim is" : "claims are"} ready to check` : waiting.length ? "Waiting for receipt parsing before checks can start" : "Showing saved claim results";
 
   const renderRun = ({ row, run }: typeof runs[number]) => {
@@ -112,13 +118,15 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
     <div className={styles.canvas}>
       <header className={styles.toolbar}>
         <div><h2 id="audit-title">Follow the audit</h2><p>{checked} of {rows.length} claims checked overall · {unchecked} unchecked</p><p role="status" aria-atomic="true">{active && <LoaderCircle aria-hidden="true" className={styles.spinner} />}{progress}</p></div>
-        <div className={styles.controls}>{active ? <Button variant="outline" disabled={resetBusy || audit.status === "stopping"} onClick={audit.stop}><Pause aria-hidden="true" />{audit.status === "stopping" ? "Stopping…" : "Stop after active checks"}</Button> : <Button disabled={resetBusy || !eligible} onClick={() => void audit.start()}><Play aria-hidden="true" />{audit.startedAt && eligible ? "Continue audit" : "Start audit"}</Button>}<ResetDemoButton preview={preview} onBusy={setResetBusy} /></div>
+        <div className={styles.controls}>{active ? <Button variant="outline" disabled={resetBusy || audit.status === "stopping"} onClick={audit.stop}><Pause aria-hidden="true" />{audit.status === "stopping" ? "Stopping…" : "Stop after active checks"}</Button> : <Button disabled={resetBusy || (!eligible && !incoming)} onClick={() => void audit.start()}><Play aria-hidden="true" />{audit.startedAt && (eligible || incoming) ? "Continue audit" : "Start audit"}</Button>}{!sources && <ResetDemoButton preview={preview} onBusy={setResetBusy} />}</div>
       </header>
       <div className={styles.progressTrack}>{audit.total > 0 && <progress value={audit.done} max={audit.total} aria-label="Claims checked in this session" />}</div>
       {audit.error && <p className={styles.error} role="alert">{audit.error}</p>}
       {audit.notice && <p role="status" className="text-sm text-[var(--status-review)]">{audit.notice}</p>}
+      {sources && <p className={styles.sourceAuditNote} role="status"><strong>{sources.extractionMode === 'live' ? 'Live AI reading' : 'Simulated sample reading'}</strong> · PDF scans · receipt images · email exports · form CSVs. {sources.phase === 'ready' ? `${sources.documents.length} unique inputs · ${sources.duplicates} repeated copy skipped · ${sources.imports.length} claims created · ${sources.held.length} inputs need a connection or details.` : 'Start audit reads the fictional source files and queues complete, unambiguous requests.'} <Link className="underline" href="/import?audit=1">Inspect inputs and connections</Link>{sources.error && <span role="alert"> {sources.error}</span>}</p>}
       <div className={styles.flow} ref={graph}>
-        <FlowConnectors graph={graph} events={activity.events} />
+        <FlowConnectors graph={graph} events={activity.events} sourceArrivalAt={Math.max(0, ...sourceActivity.filter(item => item.status === 'confirmed').map(item => item.at))} />
+        <SourceFlow items={sourceActivity} reading={active && incoming ? sources.current : null} />
         <ClaimStage title="Waiting" icon={<FileStack aria-hidden="true" />} items={waiting} tone="waiting" empty="No claims waiting" onReview={onReview} />
 
         <ClaimStage title="Checking" icon={checking.length ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : <ScanLine aria-hidden="true" />} items={checking} tone="checking" empty={active ? "Preparing the next claim" : "Ready when you are"} onReview={onReview} elapsed={activity.elapsed} />

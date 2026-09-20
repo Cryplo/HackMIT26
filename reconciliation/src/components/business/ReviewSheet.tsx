@@ -304,7 +304,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className={`${styles.decisionStatus} text-sm font-medium`} data-decision={row.decision_status} role="status">{row.decision_status === "pending" && queueRemaining !== undefined ? `${queueRemaining} ${queueRemaining === 1 ? "claim" : "claims"} left to review` : outcome}</p>
-        {simulation && <Badge variant="outline" className="rounded">{client.mode === "preview" ? "Preview" : "Simulated checks"}</Badge>}
+        {simulation && <Badge variant="outline" className="rounded">{row.decisions.some(check => check.evidence_json.demo_baseline === true) ? "Prepared demo history" : client.mode === "preview" ? "Preview" : "Simulated checks"}</Badge>}
       </div>
       {queueProgress && queueProgress.total > 0 && <div className={styles.queueProgress}>
         <label htmlFor="review-queue-progress" className="text-xs text-muted-foreground">{queueProgress.completed} of {queueProgress.total} reviewed</label>

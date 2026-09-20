@@ -1,0 +1,297 @@
+[
+  {
+    "name": "scan-017.pdf",
+    "asset": "scan-017.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "receipt",
+      "facts": {
+        "vendor": "Harbor Hotel",
+        "booking_reference": "STAY-AVA-901",
+        "receipt_number": "HH-901",
+        "names": [
+          "Ava Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 18000
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "HARBOR HOTEL\nGuest folio\n\nGUEST\nAva Demo\n\nReceipt: HH-901\nPurchase date: 2026-09-18\n\nBooking reference: STAY-AVA-901\n\nBoston stay / 1 guest / 1 night\nFolio charges\tUSD\nAccommodation\t156.59\nOccupancy taxes\t23.41\nTOTAL PAID\nUSD 180.00\n\nPaid by card. Balance due: USD 0.00.\nKeep this folio for your expense records.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "reservation-final.pdf",
+    "asset": "reservation-final.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "booking_confirmation",
+      "facts": {
+        "vendor": "Harbor Hotel",
+        "booking_reference": "STAY-AVA-901",
+        "receipt_number": null,
+        "names": [
+          "Ava Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 18000
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "RESERVATION CONFIRMATION\nYou're booked, Ava.\n\nHarbor Hotel\nBoston, Massachusetts\n\nBOOKING REFERENCE\nSTAY-AVA-901\n\nGuest: Ava Demo\nPurchase date: 2026-09-18\n\nYour stay\n\nOne standard room / one guest\nCheck-in: September 18, 2026\nCheck-out: September 19, 2026\n\nBooking total\nUSD 180.00\n\nThis confirms the reservation. Please keep your paid folio as proof of payment.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "Fwd-weekend-expenses.pdf",
+    "asset": "Fwd-weekend-expenses.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "email",
+      "facts": {
+        "vendor": "Harbor Hotel",
+        "booking_reference": "STAY-AVA-901",
+        "receipt_number": null,
+        "names": [
+          "Ava Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": null
+      },
+      "request": {
+        "attendee_name": "Ava Demo",
+        "email": "ava@example.invalid",
+        "amount_requested_minor": 19000,
+        "category": "hotel",
+        "origin_location": "Providence"
+      },
+      "raw_extracted_text": "MAIL / EXPORTED CONVERSATION\nFwd: Hotel reimbursement - STAY-AVA-901\n2 messages\nFrom: Ava Demo <ava@example.invalid>\nTo: Travel desk <travel@example.invalid>\nSent: September 20, 2026, 9:14 AM\nSubject: Fwd: Hotel reimbursement - STAY-AVA-901\n\nHi team,\n\nPlease reimburse USD 190.00 for my Harbor Hotel stay. I traveled from Providence. Category: hotel.\n\nThe attached receipt is from my purchase on 2026-09-18. The booking reference is STAY-AVA-901. I found the confirmation in a separate download, so I am forwarding that too.\n\nThanks,\nAva Demo\n\nAttachments: scan-017.pdf; reservation-final.pdf\nOn September 19, 2026, Travel desk wrote:\nFrom: travel@example.invalid\nTo: ava@example.invalid\n\nPlease send the booking confirmation with your receipt. A requested amount and a receipt total can differ; we will review both.\n\nThis email is a reimbursement request, not an approval.\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "phone-photo-A.pdf",
+    "asset": "phone-photo-A.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "receipt",
+      "facts": {
+        "vendor": "Maple Rail",
+        "booking_reference": null,
+        "receipt_number": "MR-90A",
+        "names": [
+          "Ben Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 12000
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket A\nNew York \u2192 Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90A\n\nDeparture: 09:10 / September 18, 2026\n1 adult / seat 12A\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "phone-photo-B.pdf",
+    "asset": "phone-photo-B.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "receipt",
+      "facts": {
+        "vendor": "Maple Rail",
+        "booking_reference": null,
+        "receipt_number": "MR-90B",
+        "names": [
+          "Ben Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 12000
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "MAPLE RAIL\nPassenger ticket receipt\nONE WAY / STANDARD\nTicket B\nNew York \u2192 Boston\n\nPassenger: Ben Demo\nPurchase date: 2026-09-18\nReceipt number: MR-90B\n\nDeparture: 14:30 / September 18, 2026\n1 adult / seat 18B\n\nTotal paid\nUSD 120.00\n\nPaid by card. Retain this purchase record.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "Re-train-tickets.pdf",
+    "asset": "Re-train-tickets.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "email",
+      "facts": {
+        "vendor": "Maple Rail",
+        "booking_reference": null,
+        "receipt_number": null,
+        "names": [
+          "Ben Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 12000
+      },
+      "request": {
+        "attendee_name": "Ben Demo",
+        "email": "ben@example.invalid",
+        "amount_requested_minor": 12000,
+        "category": "train",
+        "origin_location": "New York"
+      },
+      "raw_extracted_text": "MAIL / EXPORTED CONVERSATION\nRe: My train reimbursement\n2 messages\nFrom: Ben Demo <ben@example.invalid>\nTo: Travel desk <travel@example.invalid>\nSent: September 20, 2026, 9:14 AM\nSubject: Re: My train reimbursement\n\nHi,\n\nPlease reimburse USD 120.00 for one Maple Rail ticket. Passenger: Ben Demo. Purchase date: 2026-09-18.\n\nTicket total: USD 120.00. Category: train. Origin: New York.\n\nI uploaded two tickets; please ask which one. I do not remember which attachment was the one I used.\n\nThanks,\nBen Demo\n\nAttachments: phone-photo-A.pdf; phone-photo-B.pdf\nOn September 19, 2026, Travel desk wrote:\nFrom: travel@example.invalid\nTo: ben@example.invalid\n\nPlease send your receipt. We need the specific ticket you are requesting reimbursement for.\n\nThis email is a reimbursement request, not an approval.\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "IMG_2048.png",
+    "asset": "IMG_2048.png",
+    "file_type": "image/png",
+    "evidence": {
+      "document_kind": "receipt",
+      "facts": {
+        "vendor": "Cedar Bus",
+        "booking_reference": "BUS-MAYA-42",
+        "receipt_number": "CB-042",
+        "names": [
+          "Maya Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 4200
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "SYNTHETIC DEMO - NOT VALID FOR PAYMENT\nCEDAR BUS\nPASSENGER PURCHASE RECEIPT\nPassenger: Maya Demo\nPurchase date: 2026-09-18\nWorcester -> Boston\nBooking: BUS-MAYA-42\nReceipt: CB-042\n1 adult / one way\nTOTAL PAID: USD 42.00\nPaid by card / Balance USD 0.00\nFictional hackathon demonstration."
+    }
+  },
+  {
+    "name": "Fwd-bus-receipt.eml",
+    "asset": "Fwd-bus-receipt.eml",
+    "file_type": "message/rfc822",
+    "evidence": {
+      "document_kind": "email",
+      "facts": {
+        "vendor": "Cedar Bus",
+        "booking_reference": "BUS-MAYA-42",
+        "receipt_number": "CB-042",
+        "names": [
+          "Maya Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 4200
+      },
+      "request": {
+        "attendee_name": "Maya Demo",
+        "email": "maya@example.invalid",
+        "amount_requested_minor": 4200,
+        "category": "bus",
+        "origin_location": "Worcester"
+      },
+      "raw_extracted_text": "From: Maya Demo <maya@example.invalid>\nTo: Travel desk <travel@example.invalid>\nSubject: Fwd: Bus receipt / BUS-MAYA-42\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\n\nHi travel team,\n\nPlease reimburse USD 42.00 for my Cedar Bus ticket from Worcester to Boston. Category: bus. Passenger: Maya Demo.\n\nI purchased it on 2026-09-18. Ticket total: USD 42.00. Booking reference: BUS-MAYA-42. Receipt number: CB-042.\n\nI took a phone photo of the receipt and put it in the shared folder. The second upload is just another copy of the same photo.\n\nThanks,\nMaya Demo\n\nAttachments: IMG_2048.png\nOn September 19, 2026, Travel desk wrote:\nFrom: travel@example.invalid\nTo: maya@example.invalid\n\nA photo is fine if the passenger, amount and booking reference are readable. Please include your origin and requested amount.\n\nThis email is a reimbursement request, not an approval.\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "receipt-copy-final.png",
+    "asset": "IMG_2048.png",
+    "file_type": "image/png",
+    "evidence": {
+      "document_kind": "receipt",
+      "facts": {
+        "vendor": "Cedar Bus",
+        "booking_reference": "BUS-MAYA-42",
+        "receipt_number": "CB-042",
+        "names": [
+          "Maya Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": 4200
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "SYNTHETIC DEMO - NOT VALID FOR PAYMENT\nCEDAR BUS\nPASSENGER PURCHASE RECEIPT\nPassenger: Maya Demo\nPurchase date: 2026-09-18\nWorcester -> Boston\nBooking: BUS-MAYA-42\nReceipt: CB-042\n1 adult / one way\nTOTAL PAID: USD 42.00\nPaid by card / Balance USD 0.00\nFictional hackathon demonstration."
+    }
+  },
+  {
+    "name": "weekend-agenda-v3.pdf",
+    "asset": "weekend-agenda-v3.pdf",
+    "file_type": "application/pdf",
+    "evidence": {
+      "document_kind": "other",
+      "facts": {
+        "vendor": null,
+        "booking_reference": null,
+        "receipt_number": null,
+        "names": [],
+        "purchase_date": null,
+        "currency": null,
+        "amount_minor": null
+      },
+      "request": {
+        "attendee_name": null,
+        "email": null,
+        "amount_requested_minor": null,
+        "category": null,
+        "origin_location": null
+      },
+      "raw_extracted_text": "COMMUNITY BUILD WEEKEND\nWeekend agenda\n\nDraft v3 / activities and room assignments\n\nBring your laptop and your curiosity.\nAll sessions take place in the main event hall.\nTime\tActivity\n09:00\tDoors open and breakfast\n10:00\tProject introductions\n12:30\tLunch and team check-ins\n17:00\tProject demonstrations\n\nThis is an event schedule, not a purchase record or reimbursement request.\n\nPlease leave the event hall tidy. Questions? Visit the welcome table.\n\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+    }
+  },
+  {
+    "name": "event-form-response.csv",
+    "asset": "event-form-response.csv",
+    "file_type": "text/csv",
+    "evidence": {
+      "document_kind": "other",
+      "facts": {
+        "vendor": "Harbor Hotel",
+        "booking_reference": "STAY-AVA-901",
+        "receipt_number": null,
+        "names": [
+          "Ava Demo"
+        ],
+        "purchase_date": "2026-09-18",
+        "currency": "USD",
+        "amount_minor": null
+      },
+      "request": {
+        "attendee_name": "Ava Demo",
+        "email": "ava@example.invalid",
+        "amount_requested_minor": 19000,
+        "category": "hotel",
+        "origin_location": "Providence"
+      },
+      "raw_extracted_text": "Name,Email,Category,Traveling from,Merchant,Purchase date,Booking reference,Receipt number,Requested amount,Currency\nAva Demo,ava@example.invalid,hotel,Providence,Harbor Hotel,2026-09-18,STAY-AVA-901,HH-901,190.00,USD\n"
+    }
+  }
+]

@@ -1,7 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { LIVE_SHOWCASE_COUNT, showcaseFixture } from '../demo/showcase';
+import { liveBaseline } from '../demo/live-baseline';
 import { workspaceSnapshot } from './projection';
 import type { CoreService } from './service';
 import { SupabaseStore } from './store';
@@ -41,7 +41,7 @@ export async function resetLiveDemo(core: CoreService, expectedToken: string): P
   if (bucketInfo.error || !bucketInfo.data || bucketInfo.data.public) {
     throw new CoreError('PRIVATE_BUCKET_REQUIRED', 'A readable private evidence bucket is required.', 503);
   }
-  const fixture = showcaseFixture(LIVE_SHOWCASE_COUNT), bucket = client.storage.from(bucketName);
+  const fixture = await liveBaseline(expected), bucket = client.storage.from(bucketName);
   const originals = [...fixture.originals.map(({ receipt, bytes }) => ({ original: receipt, bytes })),
     ...fixture.supporting.map(({ document, bytes }) => ({ original: document, bytes }))];
   for (const { original, bytes } of originals) {
@@ -61,20 +61,16 @@ export async function resetLiveDemo(core: CoreService, expectedToken: string): P
       throw new CoreError('ORIGINAL_CONFLICT', 'An existing original differs from the showcase seed; it was retained unchanged.', 409);
     }
   }
-  for (const receipt of fixture.state.receipts) {
-    receipt.raw_extracted_text = receipt.raw_extracted_text?.replace(/^SIMULATED cached transcription/, 'SYNTHETIC cached transcription') ?? null;
-    receipt.extraction_provenance = 'synthetic showcase: cached transcription of generated original; no extraction provider called';
-  }
-  for (const document of fixture.state.supporting_documents ?? []) document.extraction_provenance =
-    'synthetic showcase: cached transcription of generated original; no extraction provider called';
   const seed = { submissions: fixture.state.submissions, receipts: fixture.state.receipts,
-    policies: fixture.state.policies, supporting_documents: fixture.state.supporting_documents };
+    policies: fixture.state.policies, supporting_documents: fixture.state.supporting_documents,
+    runs: fixture.state.runs, decisions: fixture.state.decisions, corrections: fixture.state.corrections };
   // The RPC rechecks the complete expected snapshot under locks after harmless storage writes.
   let response: Response;
   try {
     response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/core_reset_demo`, {
       method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_expected: expected, p_seed: seed }), cache: 'no-store', signal: AbortSignal.timeout(30_000),
+      // Archiving the prior ledger plus restoring 544 prepared checks can outlast 30 seconds.
+      body: JSON.stringify({ p_expected: expected, p_seed: seed }), cache: 'no-store', signal: AbortSignal.timeout(90_000),
     });
   } catch {
     throw new CoreError('RESET_UNCONFIRMED', 'Reset outcome is unconfirmed. Refresh the workspace before any further reset; the request was not retried.', 503);

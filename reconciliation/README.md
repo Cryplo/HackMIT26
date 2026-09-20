@@ -29,6 +29,14 @@ Each invocation creates a new temporary store. To choose its location, set `RECO
 
 See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are real private files, but their cached transcriptions are **authored fixtures, not OCR results**. Simulated uploads recognize exact bundled PDF bytes by hash; arbitrary files keep unknown extracted fields and require review. Form values never replace receipt evidence.
 
+## Import loose paperwork
+
+The integrated `/import` **Data sources** page accepts loose synthetic receipts, bookings, and PDF/CSV/TXT/readable EML exports. Inspect original sources alongside extracted fields, review suggested links, and explicitly confirm draft request details into ordinary claims. Forms samples use spreadsheet previews, Gmail samples use email-thread previews, and Dropbox samples display original PDFs/images. Connection controls are mockups; there is no real account connection or synchronization.
+
+**Source audit is a separate opt-in.** With `RECONCILIATION_SOURCE_AUDIT` unset or `false`, Start audit uses the workspace’s existing unchecked claims; browsing Data sources does not import sample requests. Keep that default for the 80-claim live rehearsal. To demonstrate source ingestion, run `npm run demo:inbox -- --port 3017` in a new empty isolated store. That launcher sets `RECONCILIATION_SOURCE_AUDIT=true` with synthetic-only mode. Start audit then reads eleven mixed PDF/PNG/EML/CSV sample files, groups complete unambiguous requests, and checks them; held inputs and the same saved extractions remain inspectable on Data sources. Manual **Read all sample inputs** remains available separately. Neither path erases financial discrepancies or invents missing request details.
+
+Supabase text-source confirmation requires migration `202609210013_inbox_text_evidence.sql` and corresponding MIME permissions on the private evidence bucket. This migration is applied to the configured synthetic demo; apply it separately for other deployments. Reset retains separate server-local inbox staging; removed claims make prior confirmations stale. See [Document inbox](docs/DOCUMENT_INBOX.md) for storage, pause/resume, explicit live-extraction options, and single-server limits.
+
 ## Pages and workflow
 
 | Page | Purpose |
@@ -37,6 +45,7 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 | `/business-demo` | Reimbursements, filters, Jev search, evidence review, export, and the Learned rules view |
 | `/investigations` | Persisted investigation runs and read-tool activity |
 | `/submit` | New synthetic claim and receipt intake |
+| `/import` | Data sources: source previews, loose paperwork, suggested links, and explicitly confirmed claims |
 
 `/` redirects to `/overview`; `/search` and `/demo` redirect to `/business-demo`. `?preview=1` on workspace pages is a separate UI fixture mode; it does not exercise the persisted backend or automatic learning. Use the private-store showcase for a complete simulated workflow.
 
@@ -63,8 +72,11 @@ Do not add `--audit-ready`, which reenables automation. Review Sam Mercer, choos
 
 ## Live setup
 
-The current live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The additional 66 claims were appended without changing the original 14 claims or their histories. They start unchecked: cached extraction avoids OCR latency, but assessments and investigations still run live. The live reset restores 80 unchecked claims; local simulation stays at 14. Migration 011 enables that expanded reset without modifying records on application.
+The live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The earlier expansion appended 66 unchecked claims while preserving the original 14 records. The new live-reset baseline is designed to restore **60 prepared checked claims plus 20 unchecked claims**, rather than starting the entire ledger unchecked. It requires `202609210014_live_demo_baseline.sql` (applied to the configured demo) and an explicit guarded reset. The reset also archives and clears custom checks so each run begins with the same configuration.
 
+The prepared 60 are **52 approved, four rejected, and four inconclusive**, verified through a PostgreSQL reset and projection. These are clearly marked authored demo history, not live assessments, actual reviewer decisions, investigations, or sent notices. Cached receipt and supporting-document transcriptions are also authored fixtures, not OCR results.
+
+The remaining 20 are selected to exercise **11 clean, six failed-check, and three inconclusive scenarios**. Morgan Blake and Riley Chen are two automatic-investigation candidates. These are scenario targets: the actual live model may produce different results, and investigation only runs when its evidence and safety conditions hold. With source audit disabled, **Start audit** checks the 20 unchecked claims; it does not rerun the prepared 60 or import sample requests. Failed checks are not saved rejections. The existing local 14-claim simulation and its reset remain unchanged.
 
 Use a dedicated synthetic-only Supabase project. Existing configured projects should retain their records: inspect migration history and apply only missing migrations in order. **Do not reset or reseed an existing live database as a setup step.** Migrations add schema/functions; applying the reset migrations does not itself reset claims.
 
@@ -81,6 +93,10 @@ Apply all files in [supabase/migrations](supabase/migrations), in this order:
 9. `202609200009_designed_demo_seed.sql`
 10. `202609200010_feedback_learning.sql`
 11. `202609200011_expanded_live_demo.sql`
+12. `202609210011_custom_checks.sql`
+13. `202609210012_safeupdate_platform_state.sql`
+14. `202609210013_inbox_text_evidence.sql` — text-source supporting evidence and private-bucket MIME permissions.
+15. `202609210014_live_demo_baseline.sql` — prepared 60-checked/20-unchecked live-reset baseline.
 
 The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
 
@@ -100,6 +116,8 @@ Copy `.env.example` to `.env.local` only if the local file does not already exis
 | `RECONCILIATION_JUSTIFICATION_MODE` | `simulated` for deterministic explanations; opt into `live` with Azure or OpenAI (`JUSTIFICATION_MODEL` overrides the direct OpenAI default) |
 | `RECONCILIATION_AUTOMATION_MODE` | `policy-caps` or `disabled` |
 | `RECONCILIATION_EMAIL_MODE`, `RECONCILIATION_EMAIL_DRAFT_MODE` | Keep `preview` and `template` for unsent notices |
+| `RECONCILIATION_SOURCE_AUDIT` | Keep unset or `false` for the 80-claim live audit; set `true` only for an explicitly intended synthetic sample-source audit |
+| `RECONCILIATION_INBOX_DIR` | Optional private server-local staging path; multiple replicas require shared staging |
 | `RECONCILIATION_ALLOW_DEMO_RESET` | Keep `false` unless explicitly preparing an archive-and-reset rehearsal |
 
 Start normally so Next.js reads `.env.local`:
@@ -123,6 +141,7 @@ Live email is a separate opt-in using `RESEND_API_KEY`, `RECONCILIATION_EMAIL_FR
 
 - [src/app](src/app): pages and API routes; [src/components/business](src/components/business): review UI; [src/lib/dashboard](src/lib/dashboard): workspace cache, audit session, and projections for the client.
 - [src/lib/core/runtime.ts](src/lib/core/runtime.ts): mode/provider wiring; [service.ts](src/lib/core/service.ts): assessment orchestration; [store.ts](src/lib/core/store.ts) and [file-store.ts](src/lib/core/file-store.ts): Supabase and local persistence.
+- [src/lib/inbox](src/lib/inbox) and `/api/inbox`: private source staging, extraction/linking, explicit confirmation, and separately enabled source audit.
 - [src/lib/intake](src/lib/intake): validation, private originals, extraction, and supporting uploads; [src/lib/providers/responses.ts](src/lib/providers/responses.ts): Azure/OpenAI configuration.
 - [src/lib/intelligence](src/lib/intelligence): intelligence implementations; [src/lib/core/feedback-learning.ts](src/lib/core/feedback-learning.ts): review learning; core investigation, procedure, and rule modules persist their guarded lifecycles.
 - [src/lib/email](src/lib/email) and core communication modules: immutable notices and delivery; [src/lib/demo/showcase.ts](src/lib/demo/showcase.ts): curated seed; [src/lib/review-contracts.ts](src/lib/review-contracts.ts): workspace API contracts.
