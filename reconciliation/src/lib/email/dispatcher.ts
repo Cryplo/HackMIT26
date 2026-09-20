@@ -10,12 +10,12 @@ export function messagePayload(message: ClaimMessage): EmailPayload {
   if (!message.from || !message.outcome_header || (!message.correction_id && !(message.decision_source==='automatic'&&message.automatic_decision_key)) || !message.rendered_text || !message.rendered_html) throw new CoreError('EMAIL_UNAVAILABLE','This notice has no confirmed decision and immutable content snapshot.',409);
   return {from:message.from,to:message.recipient,replyTo:message.reply_to,subject:message.subject,text:message.rendered_text,html:message.rendered_html};
 }
-export interface DispatchOptions { env?: Record<string,string|undefined>; config?: EmailConfig; provider?: EmailProvider; signal?: AbortSignal }
+export interface DispatchOptions { env?: Record<string,string|undefined>; config?: EmailConfig; provider?: EmailProvider; signal?: AbortSignal; messageId?: string }
 export async function dispatchEmailOnce(store: Store, options: DispatchOptions = {}): Promise<{processed:boolean;messageId?:string;status?:string}> {
   const config = options.config ?? emailConfig(options.env);
   if (config.mode !== 'live') return {processed:false};
   options.signal?.throwIfAborted();
-  const {message} = await store.messages({action:'lease'});
+  const {message} = await store.messages({action:'lease', ...(options.messageId ? { message_id: options.messageId } : {})});
   if (!message) return {processed:false};
   if (!message.lease_token) throw new CoreError('EMAIL_UNAVAILABLE','Email store did not return a send lease.',503);
   let result: EmailSendResult;

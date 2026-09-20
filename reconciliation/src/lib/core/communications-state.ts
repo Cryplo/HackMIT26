@@ -50,6 +50,7 @@ export interface ClaimMessage {
   created_at: string;
   updated_at: string;
   confirmed_at: string | null;
+  notification_confirmed_at?: string | null;
 }
 export type StoredMessage = ClaimMessage;
 export interface MessageDeliveryEvent { id: string; message_id: string; type: string; created_at: string; provider_event_id: string | null; error: string | null }
@@ -60,8 +61,10 @@ export type MessageCommand =
   | { action: 'confirm'; message_id: string; expected_draft_revision: number; correction: CorrectionInput; request_id: string; payload_hash: string; mode: 'preview' | 'live'; from: string; reply_to: string | null }
   | { action: 'list'; claim_id: string }
   | { action: 'get'; message_id: string }
+  | { action: 'outbox' }
+  | { action: 'release_batch'; expected: Snapshot; messages: { id: string; revision: number }[]; confirmed: true; mode: 'preview' | 'live'; from: string; reply_to: string | null }
   | { action: 'retry'; message_id: string; expected_message_revision: number }
-  | { action: 'lease' }
+  | { action: 'lease'; message_id?: string }
   | { action: 'settle'; message_id: string; lease_token: string; outcome: 'accepted' | 'failed' | 'delivery_unknown'; provider_message_id?: string; error?: string; retry_after_seconds?: number };
 export interface MessageResult { message: ClaimMessage | null; messages?: ClaimMessage[]; correction_id?: string; status?: SubmissionStatus }
 const conflict = (code: string, text: string): never => { throw new CoreError(code, text, 409); };
@@ -82,6 +85,14 @@ export function automaticNoticeKey(state: Snapshot, claimId: string): string | n
   return `${marker.policy}/${marker.evidence_identity}/${marker.knowledge_revision}`;
 }
 function currentDecision(state: Snapshot, m: ClaimMessage) { return m.decision_source==='automatic' ? !!m.automatic_decision_key&&automaticNoticeKey(state,m.claim_id)===m.automatic_decision_key : !!m.correction_id&&latestCorrection(state, m.claim_id)?.id === m.correction_id; }
+export function pendingNotice(state: Snapshot, m: ClaimMessage) {
+  const s = state.submissions.find(s => s.id === m.claim_id);
+  return (m.status === 'draft' || (['failed','delivery_unknown'].includes(m.status) && withinWindow(m) && m.attempt_count < 3))
+    && !!m.outcome_header && !!s && m.recipient === s.email && currentDecision(state, m)
+    && (m.decision_source === 'automatic'
+      ? !state.decisions.some(d => d.run_id === m.assessment_run_id && d.evidence_json.demo_baseline === true)
+      : latestCorrection(state, m.claim_id)?.correction_payload_json.demo_baseline !== true);
+}
 function withinWindow(m: ClaimMessage) { return !m.first_attempt_at || Date.now() - Date.parse(m.first_attempt_at) < 23 * 60 * 60 * 1000; }
 function event(state: Snapshot, m: ClaimMessage, type: string) { state.message_delivery_events!.push({id:crypto.randomUUID(),message_id:m.id,type,created_at:nowIso(),provider_event_id:null,error:m.error}); }
 export function guardCommunication(state: Snapshot, claimId: string) {
@@ -96,6 +107,25 @@ export function cancelObsoleteMessages(state: Snapshot, claimId: string, keepId?
 export function mutateMessages(state: Snapshot, cmd: MessageCommand, correct: (input: CorrectionInput, keepId?:string) => {correction_id:string;status:SubmissionStatus}): MessageResult {
   state.claim_messages ??= []; state.message_delivery_events ??= [];
   const messages = state.claim_messages;
+  if (cmd.action === 'outbox') {
+    if (messages.length > 1000) throw new CoreError('REVIEW_LIMIT', 'Too many notifications to list.', 503);
+    return { message: null, messages: structuredClone(messages) };
+  }
+  if (cmd.action === 'release_batch') {
+    if (cmd.confirmed !== true || !cmd.messages.length || cmd.messages.length > 1000 || new Set(cmd.messages.map(m => m.id)).size !== cmd.messages.length) throw new CoreError('INVALID_INPUT', 'Confirm a distinct notification batch.');
+    if (JSON.stringify(state) !== JSON.stringify(cmd.expected)) conflict('STALE_MESSAGE', 'Claims changed. Review the notification batch again.');
+    const batch = cmd.messages.map(item => {
+      const m = messages.find(m => m.id === item.id);
+      if (!m || !pendingNotice(state, m) || m.message_revision !== item.revision || m.mode !== cmd.mode || m.from !== cmd.from || m.reply_to !== cmd.reply_to) conflict('STALE_MESSAGE', 'Notifications changed. Review the batch again.');
+      return m!;
+    });
+    for (const m of batch) {
+      m.status = cmd.mode === 'live' ? 'queued' : 'previewed';
+      m.notification_confirmed_at = nowIso(); m.next_attempt_at = cmd.mode === 'live' ? nowIso() : null;
+      changed(m); event(state, m, m.status);
+    }
+    return { message: null, messages: structuredClone(batch) };
+  }
   if (cmd.action === 'list') {
     if(!state.submissions.some(s=>s.id===cmd.claim_id))throw new CoreError('NOT_FOUND','Claim not found.',404);
     return {message:null,messages:structuredClone(messages.filter(m => m.claim_id === cmd.claim_id))};
@@ -106,7 +136,7 @@ export function mutateMessages(state: Snapshot, cmd: MessageCommand, correct: (i
     const prior=messages.find(x=>x.claim_id===m.claim_id&&x.automatic_decision_key===m.automatic_decision_key);
     if(prior) return {message:structuredClone(prior)};
     guardCommunication(state,m.claim_id);validateText(m.subject,m.body);
-    Object.assign(m,{from:cmd.from,reply_to:cmd.reply_to,outcome_header:`${s.attendee_name} — claim ${s.id} (${s.category}): Approved for reimbursement. ${s.currency} ${(s.amount_requested_minor/100).toFixed(2)} approved.`,status:cmd.mode==='live'?'queued':'previewed',confirmed_at:nowIso(),next_attempt_at:cmd.mode==='live'?nowIso():null});
+    Object.assign(m,{from:cmd.from,reply_to:cmd.reply_to,outcome_header:`${s.attendee_name} — claim ${s.id} (${s.category}): Approved for reimbursement. ${s.currency} ${(s.amount_requested_minor/100).toFixed(2)} approved.`,status:'draft',confirmed_at:nowIso(),notification_confirmed_at:null,next_attempt_at:null});
     m.rendered_text=`${m.outcome_header}\n\n${m.body}`;m.rendered_html=`<div style="white-space:pre-wrap">${escapeHtml(m.rendered_text)}</div>`;
     messages.push(m);changed(m);event(state,m,m.status);return {message:structuredClone(m)};
   }
@@ -125,10 +155,11 @@ export function mutateMessages(state: Snapshot, cmd: MessageCommand, correct: (i
   }
   if(cmd.action === 'lease') {
     for(const m of messages) {
+      if (cmd.message_id && m.id !== cmd.message_id) continue;
       if(m.status === 'sending' && Date.parse(m.lease_expires_at ?? '') <= Date.now()) {
         m.status = 'delivery_unknown'; m.error = 'The previous send lease expired without a confirmed outcome.'; m.lease_token=null;m.lease_expires_at=null;m.next_attempt_at=nowIso();changed(m);event(state,m,'delivery_unknown');
       }
-      if(m.mode !== 'live' || !['queued','failed','delivery_unknown'].includes(m.status) || !m.next_attempt_at || Date.parse(m.next_attempt_at)>Date.now()) continue;
+      if(!m.notification_confirmed_at || m.mode !== 'live' || !['queued','failed','delivery_unknown'].includes(m.status) || !m.next_attempt_at || Date.parse(m.next_attempt_at)>Date.now()) continue;
       if(!currentDecision(state,m)) {m.status='cancelled';m.next_attempt_at=null;changed(m);event(state,m,'cancelled');continue;}
       if(!withinWindow(m) || m.attempt_count >= 3) {m.next_attempt_at=null;m.error='Automatic retry stopped. Reconcile any uncertain provider outcome before retrying.';changed(m);continue;}
       m.status='sending';m.attempt_count++;m.first_attempt_at??=nowIso();m.lease_token=crypto.randomUUID();m.lease_expires_at=new Date(Date.now()+30000).toISOString();m.next_attempt_at=null;changed(m);event(state,m,'attempt_started');
@@ -140,18 +171,18 @@ export function mutateMessages(state: Snapshot, cmd: MessageCommand, correct: (i
   if(!m) throw new CoreError('NOT_FOUND','Message not found.',404);
   if(cmd.action === 'get') return {message:structuredClone(m)};
   if(cmd.action === 'edit') {
-    if(m.status !== 'draft') conflict('MESSAGE_ALREADY_CONFIRMED','Confirmed messages are immutable.');
+    if(m.status !== 'draft' || m.correction_id || m.automatic_decision_key) conflict('MESSAGE_ALREADY_CONFIRMED','Saved decision notices are immutable.');
     if(m.draft_revision !== cmd.expected_draft_revision) conflict('STALE_MESSAGE','This draft changed. Refresh it before editing.');
     assertCurrent(state,m);validateText(cmd.subject,cmd.body);m.subject=cmd.subject.trim();m.body=cmd.body.trim();m.draft_revision++;changed(m);
   } else if(cmd.action === 'confirm') {
-    if(m.status !== 'draft') conflict('MESSAGE_ALREADY_CONFIRMED','This draft was already confirmed.');
+    if(m.status !== 'draft' || m.correction_id) conflict('MESSAGE_ALREADY_CONFIRMED','This draft was already confirmed.');
     if(m.draft_revision !== cmd.expected_draft_revision) conflict('STALE_MESSAGE','This draft changed. Review the current draft.');
     const s=assertCurrent(state,m);
     if(m.mode !== cmd.mode) conflict('STALE_MESSAGE','Email mode changed. Generate and review a fresh draft.');
     if(cmd.correction.submission_id !== m.claim_id || cmd.correction.human_verdict !== m.intended_verdict || cmd.correction.expected_review_revision !== m.source_review_revision) conflict('STALE_MESSAGE','The decision does not match this draft.');
     validateText(m.subject,m.body);
     const result=correct(cmd.correction,m.id); // existing approval, duplicate, revision and active-operation guards
-    Object.assign(m,{correction_id:result.correction_id,request_id:cmd.request_id,confirmation_payload_hash:cmd.payload_hash,mode:cmd.mode,from:cmd.from,reply_to:cmd.reply_to,outcome_header:`${s.attendee_name} — claim ${s.id} (${s.category}): ${m.intended_verdict === 'approved' ? 'Approved for reimbursement' : 'Rejected'}. ${s.currency} ${(s.amount_requested_minor/100).toFixed(2)} ${m.intended_verdict === 'approved' ? 'approved' : 'requested'}.`,status:cmd.mode==='live'?'queued':'previewed',confirmed_at:nowIso(),error:null,next_attempt_at:cmd.mode==='live'?nowIso():null});
+    Object.assign(m,{correction_id:result.correction_id,request_id:cmd.request_id,confirmation_payload_hash:cmd.payload_hash,mode:cmd.mode,from:cmd.from,reply_to:cmd.reply_to,outcome_header:`${s.attendee_name} — claim ${s.id} (${s.category}): ${m.intended_verdict === 'approved' ? 'Approved for reimbursement' : 'Rejected'}. ${s.currency} ${(s.amount_requested_minor/100).toFixed(2)} ${m.intended_verdict === 'approved' ? 'approved' : 'requested'}.`,status:'draft',confirmed_at:nowIso(),notification_confirmed_at:null,error:null,next_attempt_at:null});
     m.rendered_text=`${m.outcome_header}\n\n${m.body}`;m.rendered_html=`<div style="white-space:pre-wrap">${escapeHtml(m.rendered_text)}</div>`;
     changed(m);event(state,m,m.status);
     return {message:structuredClone(m),...result};

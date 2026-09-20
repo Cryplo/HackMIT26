@@ -14,6 +14,7 @@ import { claimedTotals, totalsLabel } from "@/lib/dashboard/review";
 import { getWorkspaceStore } from "@/lib/dashboard/client";
 import type { ReviewRow } from "@/lib/dashboard/types";
 import { useWorkspace } from "@/lib/dashboard/workspace-store";
+import { SendNotificationsButton } from "./SendNotificationsButton";
 import { AppShell } from "./AppShell";
 import { LearningStatus } from "./ProcedurePanel";
 import { ReviewSheet } from "./ReviewSheet";
@@ -111,7 +112,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
       }, input => client.decide(input), completed => setBatch({ completed, total: frozen.length }));
       if (result.error) setBatchError(result.error);
       else {
-        setNotice(`${result.completed} confirmed failures rejected. ${result.notification_summary || "Saved each displayed reason with its claim."}`);
+        setNotice(`${result.completed} confirmed failures rejected. Decisions are saved; notifications await your confirmation.`);
         const fresh = getWorkspaceStore(preview ? "preview" : "api").getSnapshot().data;
         if (fresh?.submissions.length && fresh.submissions.every(row => row.decision_status !== "pending")) setCompletion({ title: "Audit complete", detail: `${fresh.submissions.length} claims finished.` });
       }
@@ -123,7 +124,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
       <div><h1>Audit overview</h1><p>Watch claims move through checks, then resolve the exceptions.</p>
         {session && <div className={styles.sessionProgress}><span>Review queue · {completedIds.length} / {session.ids.length} decided</span><progress value={completedIds.length} max={session.ids.length || 1} aria-label="Review session progress" /></div>}
       </div>
-      <div className={styles.refresh}><Button data-review-focus-fallback variant="ghost" disabled={loading} aria-busy={loading} onClick={() => void refresh().catch(() => {})}><RefreshCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh"}</Button>{updatedAt > 0 && <span>Updated {new Date(updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}</div>
+      <div className={styles.refresh}><SendNotificationsButton client={client} refreshKey={updatedAt} disabled={!!batch} /><Button data-review-focus-fallback variant="ghost" disabled={loading} aria-busy={loading} onClick={() => void refresh().catch(() => {})}><RefreshCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh"}</Button>{updatedAt > 0 && <span>Updated {new Date(updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}</div>
     </header>
     {preview && <p className={styles.notice}>Synthetic preview. Claims, agent activity, and decisions here are simulated.</p>}
     {!preview && data?.demo_mode && <p className={styles.demoNote}>Demo workspace · Fictional claims and simulated checks</p>}

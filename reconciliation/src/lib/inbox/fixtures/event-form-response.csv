@@ -1,2 +1,22 @@
 Name,Email,Category,Traveling from,Merchant,Purchase date,Booking reference,Receipt number,Requested amount,Currency
 Ava Demo,ava@example.invalid,hotel,Providence,Harbor Hotel,2026-09-18,STAY-AVA-901,HH-901,190.00,USD
+Maya Demo,maya@example.invalid,bus,Worcester,Cedar Bus,2026-09-18,BUS-MAYA-42,CB-042,42.00,USD
+Ben Demo,ben@example.invalid,train,New York,Maple Rail,2026-09-18,,,120.00,USD
+Elena Brooks,elena.brooks@example.invalid,flight,Chicago,Northstar Airlines,2026-09-04,NS-EB-4821,NS-4821,248.60,USD
+Owen Patel,owen.patel@example.invalid,train,New Haven,Birch Rail,2026-09-12,BR-OP-1627,BR-1627,64.50,USD
+Lila Chen,lila.chen@example.invalid,bus,Hartford,Willow Coach,2026-09-16,WC-LC-3084,WC-3084,28.75,USD
+Noah Rivera,noah.rivera@example.invalid,hotel,Philadelphia,Harbor Hotel,2026-09-10,HH-NR-5528,HH-5528,214.35,USD
+Priya Shah,priya.shah@example.invalid,flight,Atlanta,Juniper Airways,2026-08-29,JA-PS-7419,JA-7419,286.40,USD
+Miles Carter,miles.carter@example.invalid,train,Newark,Coastline Rail,2026-09-08,CR-MC-2635,CR-2635,96.00,USD
+Sofia Bennett,sofia.bennett@example.invalid,bus,Portland,Elm Express,2026-09-17,EE-SB-4196,EE-4196,39.50,USD
+Theo Kim,theo.kim@example.invalid,flight,Seattle,Summit Air,2026-08-25,SA-TK-6852,SA-6852,418.20,USD
+Nadia Flores,nadia.flores@example.invalid,hotel,Albany,Harbor Hotel,2026-09-14,HH-NF-7314,HH-7314,176.80,USD
+Ethan Ward,ethan.ward@example.invalid,train,Baltimore,Maple Rail,2026-09-02,MR-EW-5920,MR-5920,134.25,USD
+Amara Lewis,amara.lewis@example.invalid,bus,Manchester,Cedar Bus,2026-09-19,CB-AL-8243,CB-8243,22.00,USD
+Lucas Reed,lucas.reed@example.invalid,flight,Denver,Northstar Airlines,2026-09-06,NS-LR-9076,NS-9076,327.90,USD
+Mina Park,mina.park@example.invalid,hotel,Burlington,Harbor Hotel,2026-09-15,HH-MP-1839,HH-1839,189.45,USD
+Julian Hayes,julian.hayes@example.invalid,train,Trenton,Birch Rail,2026-09-11,BR-JH-3461,BR-3461,88.00,USD
+Rosa Alvarez,rosa.alvarez@example.invalid,bus,Springfield,Willow Coach,2026-09-13,WC-RA-6572,WC-6572,31.25,USD
+Caleb Morgan,caleb.morgan@example.invalid,flight,Austin,Juniper Airways,2026-08-31,JA-CM-2198,JA-2198,304.70,USD
+Iris Nolan,iris.nolan@example.invalid,hotel,Portsmouth,Harbor Hotel,2026-09-07,HH-IN-4680,HH-4680,162.30,USD
+Dev Malik,dev.malik@example.invalid,train,Stamford,Coastline Rail,2026-09-09,CR-DM-5703,CR-5703,72.50,USD

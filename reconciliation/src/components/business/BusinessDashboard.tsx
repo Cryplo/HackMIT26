@@ -13,6 +13,7 @@ import { getWorkspaceStore } from "@/lib/dashboard/client";
 import { checkState, humanActions, nextHumanAction, type ReviewGroup } from "@/lib/dashboard/human-actions";
 import { DashboardError } from "@/lib/dashboard/helpers";
 import { claimedTotals, totalsLabel } from "@/lib/dashboard/review";
+import { SendNotificationsButton } from "./SendNotificationsButton";
 import { AppShell } from "./AppShell";
 import { ReviewTable } from "./ReviewTable";
 import { ReviewSheet } from "./ReviewSheet";
@@ -220,7 +221,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
       </div>
       <header className={styles.header}>
         <div><h1 tabIndex={-1} data-review-focus-fallback>{view === "reviews" ? "Reimbursements" : view === "checks" ? "Checks" : "Learned rules"}</h1><p>{view === "reviews" ? "Track every claim and resolve the exceptions." : view === "checks" ? "Every check that runs on a claim — local rules and the questions sent to Jev." : "Test and manage the merchant names your team has confirmed."}</p></div>
-        {view === "reviews" && <div className={styles.headerActions}><Button asChild variant="outline"><Link href="/submit"><Plus aria-hidden="true" /> New claim</Link></Button><Button variant="outline" disabled={!data?.snapshot_token || !data.capabilities?.export || !selected.length || exporting || busy} aria-describedby="export-availability" onClick={() => void exportSelected()}><Download aria-hidden="true" />{exporting ? "Exporting…" : "Export selected"}</Button><span id="export-availability" className="text-xs text-muted-foreground">{!data ? "Connecting…" : !data.capabilities?.export ? "Export unavailable" : selected.length ? `${selected.length} selected` : "Select claims to export"}</span></div>}
+        {view === "reviews" && <div className={styles.headerActions}><SendNotificationsButton client={client} refreshKey={updatedAt} disabled={busy} /><Button asChild variant="outline"><Link href="/submit"><Plus aria-hidden="true" /> New claim</Link></Button><Button variant="outline" disabled={!data?.snapshot_token || !data.capabilities?.export || !selected.length || exporting || busy} aria-describedby="export-availability" onClick={() => void exportSelected()}><Download aria-hidden="true" />{exporting ? "Exporting…" : "Export selected"}</Button><span id="export-availability" className="text-xs text-muted-foreground">{!data ? "Connecting…" : !data.capabilities?.export ? "Export unavailable" : selected.length ? `${selected.length} selected` : "Select claims to export"}</span></div>}
       </header>
       {error && <div role="alert" className={`${styles.error} motion-enter`}><AlertCircle aria-hidden="true" /><div><strong>{error}</strong><p>{data ? "Showing the last successful snapshot. Your selection and open claim are preserved." : "Check the connection and retry. Your stored claims have not been changed."}</p><div className={styles.inlineActions}><Button variant="outline" onClick={() => void refresh().catch(() => {})}>Retry connection</Button></div></div></div>}
       {actionError && <div className={`${styles.error} motion-enter`} role="alert"><AlertCircle aria-hidden="true" /><span>{actionError}</span></div>}

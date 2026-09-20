@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Check, FileText, LoaderCircle, RotateCw, Send, TriangleAlert, X } from "lucide-react";
+import { ArrowUpRight, Check, FileText, LoaderCircle, RotateCw, TriangleAlert, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -110,7 +110,6 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [communicationRefresh, setCommunicationRefresh] = useState(0);
-  const [emailNotice, setEmailNotice] = useState<string | null>(null);
   const [uncertainDecision, setUncertainDecision] = useState(false);
   const pendingDecision = useRef<DecisionRequest | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
@@ -221,7 +220,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
     };
     pendingDecision.current = request;
     mutationLock.current = true;
-    setBusy("decision"); setSavingVerdict(request.human_verdict); setError(null); setNotice(null); setEmailNotice(null);
+    setBusy("decision"); setSavingVerdict(request.human_verdict); setError(null); setNotice(null);
     try {
       const result = await client.decide(request);
       pendingDecision.current = null; setUncertainDecision(false);
@@ -234,19 +233,10 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
       }
       setUpdated(result.row); setDecision(null); setNote(""); setApplicantMessage(""); setNoteVerdict(null); setSavingVerdict(null);
       setCommunicationRefresh(value => value + 1);
-      const status = result.message?.status;
-      const notification = status === "previewed" ? "Email simulated" : status === "accepted" ? "Email accepted for delivery"
-        : status === "queued" || status === "sending" ? "Email queued" : null;
-      const deliveryProblem = result.email_error || (status === "failed" ? "Email failed."
-        : status === "delivery_unknown" ? "Email delivery outcome is unknown."
-        : status && !notification ? "Email was not queued." : emailEnabled && !result.message ? "Email status is unavailable." : null);
-      setNotice(result.row.decision_status === "approved" ? "Approval saved. No payment was made." : "Rejection saved.");
-      setEmailNotice(notification);
-      if (deliveryProblem) setError(`Decision saved. ${deliveryProblem} Review Applicant communication before retrying email.`);
-      if (!deliveryProblem && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        await new Promise<void>(resolve => window.setTimeout(resolve, notification ? 750 : 350));
-      }
-      if (await refresh(true) && !deliveryProblem) {
+      const notificationProblem = result.email_error || (emailEnabled && !result.message ? "Notification could not be prepared." : null);
+      setNotice(`${result.row.decision_status === "approved" ? "Approval saved. No payment was made." : "Rejection saved."}${result.message ? " Notification saved for sending." : ""}`);
+      if (notificationProblem) setError(`Decision saved. ${notificationProblem} Review Applicant communication before sending notifications.`);
+      if (await refresh(true) && !notificationProblem) {
         try { await onDecisionSaved?.(result.row); }
         catch (failure) { setError(`Your decision was saved, but the next claim could not open. ${message(failure)}`); }
       }
@@ -263,7 +253,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
   async function recheckOrRetry(action: "recheck" | "retry") {
     if (mutationLock.current || evidenceLock.current || actionsBusy || row.processing_status === "running" || (action === "retry" && (!capabilities?.extraction_retry || row.decision_status !== "pending"))) return;
     mutationLock.current = true;
-    setBusy(action); setError(null); setNotice(null); setEmailNotice(null);
+    setBusy(action); setError(null); setNotice(null);
     try {
       if (action === "retry") {
         const result = await client.retryExtraction(row.id, row.review_revision);
@@ -376,26 +366,26 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, simulat
     <footer className={`${styles.reviewFooter} shrink-0 space-y-3 border-t px-5 py-4`}>
       {error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}
       {notice && <div role="status" data-decision={row.decision_status} className={`${styles.decisionStatus} ${styles.savedNotice}`}>
-        {emailNotice && <Send aria-hidden="true" className={styles.noticePlane} />}
-        <div><p>{notice}</p>{emailNotice && <p className="font-medium">{emailNotice}</p>}</div>
+        <p>{notice}</p>
       </div>}
       {uncertainDecision && <Button variant="outline" disabled={!!busy || evidenceBusy} onClick={() => void saveDecision()}>Retry same decision</Button>}
       {(rejectionReason || approvalReason) && <div className={styles.decisionReason}>
         <details className="min-w-0 text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">{rejectionReason ? "Suggested rejection reason" : "Approval reason"}</summary><p className="mt-1">{rejectionReason || approvalReason}</p></details>
         <Button variant="ghost" size="sm" disabled={actionsBusy} onClick={(event) => chooseDecision(rejectionReason ? "rejected" : "approved", event.currentTarget, true)}>Edit reason</Button>
       </div>}
+      {emailEnabled && <p className="text-xs text-muted-foreground">Decisions save without sending email. Send notifications together from the overview or reimbursements page when you are ready.</p>}
       {!emailEnabled && capabilities?.email_error && <p className="text-xs text-muted-foreground">Applicant email is unavailable: {capabilities.email_error}. Decisions can still be recorded without email.</p>}
       {blocked && row.decision_status !== "approved" && <p id="approval-blocked" className="text-xs text-muted-foreground">{blocked}</p>}
       <div className={styles.decisionActions}>
-        <Button variant="destructive" size="lg" disabled={actionsBusy || row.processing_status === "running" || row.decision_status === "rejected"} aria-busy={busy === "decision"} onClick={(event) => chooseDecision("rejected", event.currentTarget)}>{savingVerdict === "rejected" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{savingVerdict === "rejected" ? (emailEnabled ? "Saving & notifying…" : "Saving rejection…") : row.decision_status === "rejected" ? "Rejected" : emailEnabled ? "Reject & notify" : advance ? "Reject and next" : "Reject claim"}</Button>
-        <Button variant="success" size="lg" aria-describedby={blocked && row.decision_status !== "approved" ? "approval-blocked" : undefined} aria-busy={busy === "decision"} disabled={actionsBusy || !!blocked || row.decision_status === "approved"} onClick={(event) => chooseDecision("approved", event.currentTarget)}>{savingVerdict === "approved" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{savingVerdict === "approved" ? (emailEnabled ? "Saving & notifying…" : "Saving approval…") : row.decision_status === "approved" ? "Approved" : emailEnabled ? "Approve & notify" : advance ? "Approve and next" : "Approve claim"}</Button>
+        <Button variant="destructive" size="lg" disabled={actionsBusy || row.processing_status === "running" || row.decision_status === "rejected"} aria-busy={busy === "decision"} onClick={(event) => chooseDecision("rejected", event.currentTarget)}>{savingVerdict === "rejected" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{savingVerdict === "rejected" ? "Saving rejection…" : row.decision_status === "rejected" ? "Rejected" : advance ? "Reject and next" : "Reject claim"}</Button>
+        <Button variant="success" size="lg" aria-describedby={blocked && row.decision_status !== "approved" ? "approval-blocked" : undefined} aria-busy={busy === "decision"} disabled={actionsBusy || !!blocked || row.decision_status === "approved"} onClick={(event) => chooseDecision("approved", event.currentTarget)}>{savingVerdict === "approved" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{savingVerdict === "approved" ? "Saving approval…" : row.decision_status === "approved" ? "Approved" : advance ? "Approve and next" : "Approve claim"}</Button>
       </div>
     </footer>
 
     <Dialog open={decision !== null} onOpenChange={(open) => { if (!open && busy !== "decision") setDecision(null); }}>
       <DialogContent className={styles.confirmation} showCloseButton={busy !== "decision"} onCloseAutoFocus={(event) => { event.preventDefault(); decisionOrigin.current?.focus(); }}>
         <DialogHeader><DialogTitle>{decision === "approved" ? "Approve reimbursement" : "Reject reimbursement"}</DialogTitle><DialogDescription>{row.decision_status !== "pending" ? "Why are you changing this decision?" : (decision === "approved" ? approvalReason : rejectionReason) ? "This reason will be saved with your decision." : decision === "approved" ? "What confirms that the unresolved details are acceptable?" : "Why should this claim be rejected?"}</DialogDescription></DialogHeader>
-        <form onSubmit={(event) => { event.preventDefault(); void saveDecision(); }} className="space-y-4"><div className="space-y-2"><Label htmlFor="decision-reason">Internal review reason</Label><Textarea id="decision-reason" value={note} onChange={(event) => setNote(event.target.value)} required maxLength={reasonLimit} aria-describedby="internal-reason-help" rows={3} disabled={actionsBusy} placeholder="What evidence supports your decision?" /><p id="internal-reason-help" className="text-xs text-muted-foreground">Saved with your review and checked for reusable learning. Not included in applicant emails.</p></div>{emailEnabled && decision === "rejected" && <details className="space-y-2 text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Applicant message (optional)</summary><Label htmlFor="applicant-message">Message to the applicant</Label><Textarea id="applicant-message" value={applicantMessage} onChange={event => setApplicantMessage(event.target.value)} maxLength={1500} rows={3} disabled={actionsBusy} /><p className="text-xs text-muted-foreground">Only this message is shared. Leave it blank to use the standard rejection notice.</p></details>}{changedDuringDecision && <p role="alert" className="motion-enter text-sm text-[var(--status-review)]">This claim changed. Review the updated evidence before deciding. Your note is kept.</p>}{error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" disabled={busy === "decision"} onClick={() => setDecision(null)}>{changedDuringDecision ? "Review updated claim" : "Cancel"}</Button><Button type="submit" variant={decision === "rejected" ? "destructive" : "success"} size="lg" aria-busy={busy === "decision"} disabled={actionsBusy || !note.trim() || note.length > reasonLimit || changedDuringDecision || (decision === "approved" && !!blocked)}>{busy === "decision" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "decision" ? (emailEnabled ? "Saving & notifying…" : "Saving…") : emailEnabled ? (decision === "approved" ? "Approve & notify" : "Reject & notify") : decision === "approved" ? "Confirm approval" : "Confirm rejection"}</Button></DialogFooter></form>
+        <form onSubmit={(event) => { event.preventDefault(); void saveDecision(); }} className="space-y-4"><div className="space-y-2"><Label htmlFor="decision-reason">Internal review reason</Label><Textarea id="decision-reason" value={note} onChange={(event) => setNote(event.target.value)} required maxLength={reasonLimit} aria-describedby="internal-reason-help" rows={3} disabled={actionsBusy} placeholder="What evidence supports your decision?" /><p id="internal-reason-help" className="text-xs text-muted-foreground">Saved with your review and checked for reusable learning. Not included in applicant emails.</p></div>{emailEnabled && decision === "rejected" && <details className="space-y-2 text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Applicant message (optional)</summary><Label htmlFor="applicant-message">Message to the applicant</Label><Textarea id="applicant-message" value={applicantMessage} onChange={event => setApplicantMessage(event.target.value)} maxLength={1500} rows={3} disabled={actionsBusy} /><p className="text-xs text-muted-foreground">Only this message is prepared for the applicant. Send it later from the overview or reimbursements page. Leave it blank to use the standard rejection notice.</p></details>}{changedDuringDecision && <p role="alert" className="motion-enter text-sm text-[var(--status-review)]">This claim changed. Review the updated evidence before deciding. Your note is kept.</p>}{error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" disabled={busy === "decision"} onClick={() => setDecision(null)}>{changedDuringDecision ? "Review updated claim" : "Cancel"}</Button><Button type="submit" variant={decision === "rejected" ? "destructive" : "success"} size="lg" aria-busy={busy === "decision"} disabled={actionsBusy || !note.trim() || note.length > reasonLimit || changedDuringDecision || (decision === "approved" && !!blocked)}>{busy === "decision" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "decision" ? "Saving…" : decision === "approved" ? "Confirm approval" : "Confirm rejection"}</Button></DialogFooter></form>
       </DialogContent>
     </Dialog>
   </div>;

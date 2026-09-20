@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowUpRight, Files, LayoutDashboard, ListChecks, Menu, ReceiptText, SearchCheck, SlidersHorizontal } from "lucide-react";
 import { SiftLogo } from "@/components/SiftLogo";
 import { Button } from "@/components/ui/button";
@@ -10,14 +11,16 @@ import styles from "./business.module.css";
 import investigationStyles from "./investigations.module.css";
 
 export function AppShell({ view, onViewChange, preview, children }: {
-  view: "overview" | "reviews" | "rules" | "checks" | "investigations";
-  onViewChange(view: "reviews" | "rules" | "checks"): void;
+  view: "overview" | "reviews" | "rules" | "checks" | "investigations" | "sources";
+  onViewChange?(view: "reviews" | "rules" | "checks"): void;
   preview: boolean;
   children: ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
   function navigate(next: "reviews" | "rules" | "checks") {
-    onViewChange(next);
+    if (onViewChange) onViewChange(next);
+    else router.push(`/business-demo?view=${next}${preview ? "&preview=1" : ""}`);
     setMenuOpen(false);
   }
   const navigation = (
@@ -30,7 +33,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
         <Link href={preview ? "/overview?preview=1" : "/overview"} className={investigationStyles.navLink} aria-current={view === "overview" ? "page" : undefined} onClick={() => setMenuOpen(false)}>
           <LayoutDashboard aria-hidden="true" /> Audit overview
         </Link>
-        <Link href="/import" className={investigationStyles.navLink} onClick={() => setMenuOpen(false)}>
+        <Link href="/import" className={investigationStyles.navLink} aria-current={view === "sources" ? "page" : undefined} onClick={() => setMenuOpen(false)}>
           <Files aria-hidden="true" /> Data sources
         </Link>
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>

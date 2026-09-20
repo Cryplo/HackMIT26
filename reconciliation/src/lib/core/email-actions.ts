@@ -7,7 +7,6 @@ import { composeApplicantMessage } from './applicant-message';
 import { emailConfig, assertEmailRecipient } from '../email/config';
 import { CoreError, correctionInput, isObject } from './validation';
 import { workspaceRows } from './projection';
-import { dispatchEmailOnce } from '../email/dispatcher';
 import { assertApprovable } from './safety';
 import { automaticDecisionSchema, emailInput, emailIdentifier, emailDraftSchema, emailEditSchema, emailConfirmationSchema, emailRetrySchema } from './email-validation';
 
@@ -151,7 +150,6 @@ export async function automaticDecisionEmail(core: CoreService, raw: unknown) {
   // Confirmation is committed: delivery/read errors must never turn into another decision write.
   message={...message,...confirmed.message,correction_id:confirmed.correction_id!};
   let emailError:string|null=null;
-  try{if(config.mode==='live')await dispatchEmailOnce(core.store,{config,signal:AbortSignal.timeout(10000)});}catch{emailError='Decision saved. Email delivery status could not be refreshed; check message history.';}
   try{message=requireMessage(await core.store.messages({action:'get',message_id:message.id}));}catch{emailError??='Decision saved. Refresh message history for delivery status.';}
   return decisionNoticeResult(core,input.submission_id,message,emailError);
 }
@@ -164,11 +162,11 @@ export async function sendAutomaticApprovalNotice(core:CoreService,claimId:strin
   const config=emailConfig();if(config.mode==='disabled')return {};
   const state=await core.store.snapshot(),key=automaticNoticeKey(state,claimId);
   if(!key)return {};
+  if(state.decisions.some(d=>d.run_id===state.submissions.find(s=>s.id===claimId)?.latest_run_id&&d.evidence_json.demo_baseline===true))return {};
   const history=(await core.store.messages({action:'list',claim_id:claimId})).messages??[];
   if(history.some(m=>m.automatic_decision_key===key))return {};
   const row=workspaceRows(state).find(r=>r.id===claimId)!;
   const notice=await draftDecisionEmail(core,claimId,{kind:'approval',expected_review_revision:row.review_revision,reason_check_ids:[]},undefined,{policyKey:key});
-  if(config.mode==='live')await dispatchEmailOnce(core.store,{config,signal:AbortSignal.timeout(10000)});
   const saved=requireMessage(await core.store.messages({action:'get',message_id:notice.message.id}));
   return saved.error?{email_error:saved.error}:{};
  }catch(error){return {email_error:error instanceof CoreError?error.message:'Approval saved. Automatic notice could not be published or its delivery status refreshed.'};}

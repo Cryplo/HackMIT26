@@ -18,6 +18,12 @@ export function spreadsheetRows(text: string): string[][] {
   return rows;
 }
 
+export function spreadsheetResponse(text: string, index: number): string {
+  const [headers, ...rows] = spreadsheetRows(text);
+  if (!headers || !rows[index]) throw new Error('Choose a response row from the spreadsheet.');
+  return [headers, rows[index]].map(row => row.map(cell => /[",\n\r]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell).join(',')).join('\n') + '\n';
+}
+
 // ponytail: presentation of readable text exports, not a MIME decoder. Unknown layouts retain raw text.
 export function emailMessages(text: string) {
   return text.replace(/\r\n?/g, '\n').split(/(?=^On .+wrote:\s*$)/m).map(part => {

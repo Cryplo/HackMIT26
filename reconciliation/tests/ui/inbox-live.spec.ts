@@ -8,7 +8,7 @@ test('live CSV and email text sources preserve requested amounts', async ({ page
   await page.goto('/import');
   await expect(page.getByText('Live AI reading · simulated review sandbox')).toBeVisible();
   const csvRead = page.waitForResponse(response => response.url().endsWith('/api/inbox'));
-  await page.getByRole('button', { name: 'Parse this input' }).click();
+  await page.getByRole('button', { name: 'Parse selected row' }).click();
   const csv: InboxDocument = await (await csvRead).json();
   expect(csv.error).toBeNull();
   expect(csv.provenance).not.toMatch(/simulated/i);

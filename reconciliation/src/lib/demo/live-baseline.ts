@@ -6,7 +6,7 @@ import { CoreService } from '../core/service';
 import { MemoryStore, type Snapshot } from '../core/store';
 import { LIVE_SHOWCASE_COUNT, showcaseFixture } from './showcase';
 
-export const LIVE_UNCHECKED_NUMBERS = [1, 2, 5, 6, 7, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 30, 44];
+export const LIVE_UNCHECKED_NUMBERS = [1, 2, 5, 6, 7, 9, 10, 12, 13, 14];
 export const BASELINE_PROVENANCE = 'Prepared demo history: authored fixture assessment; no live provider, investigation, reviewer, or email action occurred.';
 const baselineId = (kind: number, n: number) => `${kind}000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -15,7 +15,7 @@ function sqlTimestamp(value: string) {
   return new Date(value).toISOString().replace(/\.000Z$/, '+00:00').replace(/(\.\d*?[1-9])0*Z$/, '$1+00:00');
 }
 
-/** Builds historical demo outcomes offline; the remaining twenty use normal live assessment. */
+/** Builds historical demo outcomes offline; the remaining ten use normal live assessment. */
 export async function liveBaseline(previous: Pick<Snapshot, 'submissions' | 'knowledge_revision'>) {
   const fixture = showcaseFixture(LIVE_SHOWCASE_COUNT), state = fixture.state;
   const revision = Math.max(0, ...previous.submissions.flatMap(s => [s.review_revision ?? 0, s.evidence_revision ?? 0])) + 1;

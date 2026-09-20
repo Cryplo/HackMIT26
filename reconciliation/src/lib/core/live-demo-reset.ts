@@ -69,7 +69,7 @@ export async function resetLiveDemo(core: CoreService, expectedToken: string): P
   try {
     response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/core_reset_demo`, {
       method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      // Archiving the prior ledger plus restoring 544 prepared checks can outlast 30 seconds.
+      // Archiving the prior ledger plus restoring the prepared checks can outlast 30 seconds.
       body: JSON.stringify({ p_expected: expected, p_seed: seed }), cache: 'no-store', signal: AbortSignal.timeout(90_000),
     });
   } catch {

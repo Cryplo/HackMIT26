@@ -138,7 +138,7 @@ test('source reading is visible across tabs and later receipts link to earlier r
   await overview.goto('/overview');
   let release: (() => void) | undefined;
   await page.route('**/api/inbox', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.continue(); });
-  await page.getByRole('button', { name: 'Parse this input' }).click();
+  await page.getByRole('button', { name: 'Parse selected row' }).click();
   const flow = overview.getByRole('region', { name: 'Sources into the audit' });
   try { await expect(flow).toContainText('Reading 1 input'); await expect.poll(() => typeof release).toBe('function'); }
   finally { release?.(); }

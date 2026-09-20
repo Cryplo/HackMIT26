@@ -8,6 +8,8 @@ function createTransport(mode: "api" | "preview"): DashboardClient {
   return {
     mode: "api",
     getReviews: async signal => validateReviews(await api<ReviewsResponse>("/api/workspace/reviews", undefined, signal)),
+    getNotifications: signal => api("/api/workspace/notifications", undefined, signal),
+    sendNotifications: input => api("/api/workspace/notifications", input),
     getMessages: (id, signal) => api(`/api/submissions/${encodeURIComponent(id)}/messages`, undefined, signal),
     draftMessage: (id, input) => api(`/api/submissions/${encodeURIComponent(id)}/messages/draft`, input),
     async editMessage(id, input) {
@@ -188,6 +190,7 @@ function createWorkspaceStore(mode: "api" | "preview") {
     },
     reconcile: input => mutate(() => transport.reconcile(input), input.submission_ids),
     decide: input => mutate(() => transport.decide(input)),
+    sendNotifications: transport.sendNotifications ? input => mutate(() => transport.sendNotifications!(input)) : undefined,
     decisionAndSend: transport.decisionAndSend ? (id, input) => mutate(() => transport.decisionAndSend!(id, input)) : undefined,
     retryLearning: transport.retryLearning ? (id, revision) => mutate(() => transport.retryLearning!(id, revision)) : undefined,
     retryExtraction: (id, revision) => mutate(() => transport.retryExtraction(id, revision)),

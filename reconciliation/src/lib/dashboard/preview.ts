@@ -20,6 +20,8 @@ export function createPreviewClient(): DashboardClient {
   const procedures: ResolutionProcedure[] = [];
   const customChecks: CustomCheck[] = [];
   const messages: ClaimMessage[] = [];
+  const pendingNotifications = () => messages.filter(message => message.status === "draft" && message.correction_id && rows.some(row => row.id === message.claim_id && row.decision_status === message.intended_verdict && row.decisions.findLast(check => check.check_method === "human")?.evidence_json.correction_id === message.correction_id));
+  const notificationSnapshot = () => JSON.stringify([previewResponse(rows, knowledgeRevision).snapshot_token, pendingNotifications().map(message => [message.id, message.message_revision])]);
   const decisions = new Map<string, { payload: string; response: DecisionResponse }>();
   const evidenceRevisions = new Map(rows.map(row => [row.id, documents.some(document => document.claim_id === row.id) ? 1 : 0]));
   const originalUrls = new Map<string, string>();
@@ -161,6 +163,19 @@ export function createPreviewClient(): DashboardClient {
       signal?.throwIfAborted();
       const response = previewResponse(rows, knowledgeRevision);
       return copy({ ...response, capabilities: { ...response.capabilities!, supporting_documents: true, investigations: true, resolution_procedures: true, automatic_decision_emails: true, email_mode: "preview" } });
+    },
+    async getNotifications(signal) {
+      signal?.throwIfAborted();
+      return copy({ snapshot_token: notificationSnapshot(), mode: "preview" as const, messages: pendingNotifications() });
+    },
+    async sendNotifications(input) {
+      if (input.confirmed !== true || !Array.isArray(input.message_ids) || !input.message_ids.length || input.message_ids.length > 1000 || new Set(input.message_ids).size !== input.message_ids.length) fail("INVALID_INPUT", "Confirm a nonempty notification selection.", 400);
+      if (input.snapshot_token !== notificationSnapshot()) fail("STALE_SNAPSHOT", "Notifications changed. Review the pending list before confirming again.");
+      const pending = pendingNotifications();
+      if (input.message_ids.some(id => !pending.some(message => message.id === id))) fail("STALE_SNAPSHOT", "Notifications changed. Review the pending list before confirming again.");
+      const released = pending.filter(message => input.message_ids.includes(message.id));
+      for (const message of released) { message.status = "previewed"; message.message_revision++; message.updated_at = new Date().toISOString(); }
+      return copy({ messages: released, processed: released.length, mode: "preview" as const, delivery_error: null });
     },
     async getMessages(id, signal) {
       signal?.throwIfAborted(); getRow(id);
@@ -355,7 +370,7 @@ export function createPreviewClient(): DashboardClient {
         generation_provenance: "template", generation_model: "applicant-template-v1", correction_id: correctionId, request_id: input.request_id ?? null,
         mode: "preview", from: "onboarding@resend.dev", reply_to: null, outcome_header: header, rendered_text: text,
         rendered_html: `<div style="white-space:pre-wrap">${text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;")}</div>`,
-        status: "previewed", provider_message_id: null, first_attempt_at: null, attempt_count: 0, next_attempt_at: null, error: null,
+        status: "draft", provider_message_id: null, first_attempt_at: null, attempt_count: 0, next_attempt_at: null, error: null,
         created_at: now, updated_at: now, confirmed_at: now,
       } : undefined;
       row.decision_status = input.human_verdict;
@@ -376,6 +391,9 @@ export function createPreviewClient(): DashboardClient {
       }
       if (changed) knowledgeRevision++;
       touch(row);
+      for (const previous of messages) if (previous.claim_id === row.id && previous.status === "draft" && previous.correction_id) {
+        previous.status = "cancelled"; previous.message_revision++; previous.updated_at = now;
+      }
       if (message) messages.push(message);
       const response = copy({ correction_id: correctionId, row, ...(message ? { message } : {}), email_error: message ? null : "Decision saved. An applicant-facing reason is required to create this rejection notice." });
       if (input.request_id) decisions.set(input.request_id, { payload, response });

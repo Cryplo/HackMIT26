@@ -19,12 +19,15 @@ function seed(state: Snapshot) {
 }
 function assertBaseline(state: Snapshot) {
   const rows = workspaceRows(state);
-  assert.equal(rows.filter(isAuditEligible).length, 20);
-  assert.equal(rows.filter(r => r.latest_run_id).length, 60);
-  assert.equal(rows.filter(r => r.decision_status === 'approved').length, 52);
-  assert.equal(rows.filter(r => r.decision_status === 'rejected').length, 4);
+  assert.equal(rows.filter(isAuditEligible).length, 10);
+  assert.equal(rows.filter(r => r.latest_run_id).length, 70);
+  assert.equal(rows.filter(r => r.decision_status === 'approved').length, 59);
+  assert.equal(rows.filter(r => r.decision_status === 'rejected').length, 7);
   assert.equal(rows.filter(r => r.assessment_status === 'needs_review').length, 4);
-  assert.equal(state.runs.length, 60);
+  assert.equal(state.runs.length, 70);
+  assert.equal(state.decisions.length, 637);
+  assert.deepEqual(state.corrections.map(c => Number(c.submission_id.slice(-12))).sort((a, b) => a - b), [15, 30, 35, 37, 44, 59, 68]);
+  assert.deepEqual(rows.filter(isAuditEligible).map(r => Number(r.id.slice(-12))).sort((a, b) => a - b), [1, 2, 5, 6, 7, 9, 10, 12, 13, 14]);
   assert.ok(state.runs.every(r => r.status === 'completed' && (!r.evidence_snapshot || r.evidence_snapshot.demo_baseline === true)));
   assert.ok(state.decisions.every(d => d.evidence_json.demo_baseline === true && d.evidence_json.simulated === true));
   assert.ok(state.corrections.every(c => c.human_note.startsWith('Prepared demo decision:') && !c.correction_payload_json.feedback_learning));
@@ -32,7 +35,7 @@ function assertBaseline(state: Snapshot) {
   assert.deepEqual(state.claim_messages ?? [], []);
 }
 
-test('prepared live history leaves twenty varied claims and two automatic-investigation candidates', async t => {
+test('prepared live history leaves ten varied claims and two automatic-investigation candidates', async t => {
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('Provider/database calls forbidden in the baseline builder.'); });
   const fixture = await liveBaseline({ submissions: [], knowledge_revision: 0 });
   assertBaseline(fixture.state);
@@ -51,8 +54,8 @@ test('prepared live history leaves twenty varied claims and two automatic-invest
     await store.finish(run, checks, status);
   }
   const rows = workspaceRows(state).filter(r => ids.includes(r.id));
-  assert.equal(rows.filter(r => r.assessment_status === 'matched').length, 11);
-  assert.equal(rows.filter(r => r.assessment_status === 'flagged').length, 6);
+  assert.equal(rows.filter(r => r.assessment_status === 'matched').length, 4);
+  assert.equal(rows.filter(r => r.assessment_status === 'flagged').length, 3);
   assert.equal(rows.filter(r => r.assessment_status === 'needs_review').length, 3);
   assert.deepEqual(rows.filter(r => shouldInvestigateAutomatically(state, r)).map(r => r.attendee_name).sort(), ['Morgan Blake', 'Riley Chen']);
   assert.deepEqual(store.calls, []);
@@ -86,7 +89,7 @@ test('SQL reset restores prepared history with valid revisions, archives custom 
     assert.equal(archived.custom_checks.length, 1);
     assert.equal(archived.custom_check_history[0].doc.preserved, true);
     assert.equal(await scalar('select count(*)::int from model_calls'), 0);
-    assert.equal(await scalar("select count(*)::int from reconciliation_runs where evidence_snapshot->>'demo_baseline'='true'"), 60);
+    assert.equal(await scalar("select count(*)::int from reconciliation_runs where evidence_snapshot->>'demo_baseline'='true'"), 70);
     assert.equal(await scalar('select count(*)::int from claim_messages'), 0);
     const next = seed((await liveBaseline(after)).state), invalid = structuredClone(next);
     invalid.runs[0].knowledge_revision = 999;

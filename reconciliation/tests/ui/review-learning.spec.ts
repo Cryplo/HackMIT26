@@ -23,14 +23,14 @@ test('internal review reasons stay separate from applicant notices', async ({ pa
     return route.fulfill({ status: 404, json: { error: { code: 'TEST_FIXTURE', message: 'No fixture for this resource.' } } });
   });
   await page.goto(`/business-demo?claim=${fixtureId(3)}`);
-  await page.getByRole('button', { name: 'Reject & notify', exact: true }).click();
+  await page.getByRole('button', { name: /^Reject (claim|and next)$/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Reject reimbursement', exact: true });
   await dialog.getByLabel('Internal review reason').fill('PRIVATE finance discussion: supporting evidence remains uncertain.');
   await expect(dialog.getByLabel('Message to the applicant')).toBeHidden();
   await dialog.getByText('Applicant message (optional)', { exact: true }).click();
   await expect(dialog.getByLabel('Message to the applicant')).not.toHaveValue(/PRIVATE/);
   await dialog.getByLabel('Message to the applicant').fill('Please provide the original booking confirmation.');
-  await dialog.getByRole('button', { name: 'Reject & notify', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Confirm rejection', exact: true }).click();
   await expect.poll(() => requests.length).toBe(1);
   expect(requests[0].human_note).toContain('PRIVATE');
   expect(requests[0].applicant_reason).toBe('Please provide the original booking confirmation.');
@@ -38,7 +38,7 @@ test('internal review reasons stay separate from applicant notices', async ({ pa
   expect(JSON.stringify(notices)).not.toContain('PRIVATE');
   expect((await client.getReviews()).submissions.find(row => row.id === fixtureId(3))?.learning?.status).toBe('not_applicable');
   await page.goto(`/business-demo?claim=${fixtureId(1)}`);
-  await page.getByRole('button', { name: 'Approve & notify', exact: true }).click();
+  await page.getByRole('button', { name: /^Approve (claim|and next)$/ }).click();
   await expect.poll(() => requests.length).toBe(2);
   expect(requests[1].applicant_reason).toBeUndefined();
 });
@@ -64,7 +64,7 @@ test('failed learning retries with the current revision and refreshes without bl
   await page.getByRole('button', { name: 'Retry learning', exact: true }).click();
   await expect(page.getByText('Checking what can be learned', { exact: true })).toBeVisible();
   expect(retries).toBe(1);
-  await expect(page.getByRole('button', { name: 'Reject & notify', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: /^Reject (claim|and next)$/ })).toBeEnabled();
   row.learning = { status: 'testing', summary: 'Running the saved check safety tests.', updated_at: new Date().toISOString() };
   await expect(page.getByText('Testing saved check', { exact: true })).toBeVisible({ timeout: 8000 });
   row.learning = { status: 'active', summary: 'Supported check saved.', updated_at: new Date().toISOString() };

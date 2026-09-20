@@ -22,7 +22,7 @@ test("preview decisions create private-note-free notices and replay exactly once
     assert.deepEqual(await client.getReviews(), initial);
     const approved = await client.decide(input);
     assert.equal(approved.row.decision_source, "human");
-    assert.equal(approved.message?.status, "previewed");
+    assert.equal(approved.message?.status, "draft");
     assert.equal(approved.message?.source_review_revision, 1);
     assert.equal(approved.message?.assessment_run_id, initial.submissions[0].latest_run_id);
     assert.equal(approved.message?.attempt_count, 0);
@@ -35,6 +35,17 @@ test("preview decisions create private-note-free notices and replay exactly once
     assert.equal((await client.getMessages!(input.submission_id)).messages.length, 1);
     assert.equal((await client.getReviews()).submissions[0].review_revision, 2);
     await assert.rejects(client.decide({ ...input, human_note: "Changed private note" }), { code: "MESSAGE_CONFLICT" });
+    const pending = await client.getNotifications!();
+    assert.equal(pending.mode, "preview");
+    assert.deepEqual(pending.messages.map(message => message.id), [approved.message!.id]);
+    await assert.rejects(client.sendNotifications!({ snapshot_token: "stale", message_ids: [approved.message!.id], confirmed: true }), { code: "STALE_SNAPSHOT" });
+    assert.equal((await client.getMessages!(input.submission_id)).messages[0].status, "draft");
+    const generated = await client.sendNotifications!({ snapshot_token: pending.snapshot_token, message_ids: [approved.message!.id], confirmed: true });
+    assert.equal(generated.processed, 1);
+    assert.equal(generated.delivery_error, null);
+    assert.equal(generated.messages[0].status, "previewed");
+    assert.equal((await client.getNotifications!()).messages.length, 0);
+    await assert.rejects(client.sendNotifications!({ snapshot_token: pending.snapshot_token, message_ids: [approved.message!.id], confirmed: true }), { code: "STALE_SNAPSHOT" });
 
     const rejected = await client.decide({ ...input, submission_id: fixtureId(3), human_verdict: "rejected", request_id: crypto.randomUUID(), applicant_reason: "The supporting booking could not establish this expense." });
     assert.equal(rejected.message?.kind, "rejection");
@@ -62,7 +73,7 @@ test("shared preview decisions publish row totals and notices across refresh and
     const unsubscribe = store.subscribe(() => seen.push(store.getSnapshot().data!.summary.pending_review_count));
     try {
       const saved = await store.client.decide({ submission_id: claim.id, expected_review_revision: claim.review_revision, human_verdict: "approved", human_note: "Reviewed synthetic evidence", correction_type: "decision_override", correction_payload_json: {}, request_id: crypto.randomUUID() });
-      assert.equal(saved.message?.status, "previewed");
+      assert.equal(saved.message?.status, "draft");
       assert.equal(seen.at(-1), initial.summary.pending_review_count - 1);
       assert.equal(store.getSnapshot().data!.summary.approved_amount_minor, initial.summary.approved_amount_minor + claim.amount_requested_minor);
       await Promise.all([store.refresh(), store.refresh()]);
@@ -72,7 +83,7 @@ test("shared preview decisions publish row totals and notices across refresh and
       const navigated = getWorkspaceStore("preview");
       assert.equal(navigated, store);
       assert.equal((await navigated.client.getReviews()).summary.pending_review_count, initial.summary.pending_review_count - 1);
-      assert.equal((await navigated.client.getMessages!(claim.id)).messages[0].status, "previewed");
+      assert.equal((await navigated.client.getMessages!(claim.id)).messages[0].status, "draft");
     } finally { unsubscribe(); }
   } finally { globalThis.fetch = originalFetch; }
 });

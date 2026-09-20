@@ -1,5 +1,27 @@
 import { test, expect } from '@playwright/test';
 
+test('spreadsheet parses only the chosen response row without live calls', async ({ page }) => {
+  let upload = '';
+  await page.route('**/api/inbox/audit', route => route.fulfill({ json: { enabled: false } }));
+  await page.route('**/api/inbox', async route => {
+    upload = route.request().postDataBuffer()?.toString() || '';
+    await route.fulfill({ status: 422, json: { error: { message: 'Offline check: upload intercepted before extraction.' } } });
+  });
+  await page.goto('/import');
+  const sheet = page.getByRole('region', { name: 'Form response spreadsheet' });
+  await expect(sheet.locator('tbody tr')).toHaveCount(21);
+  await expect(page.getByLabel('Response to parse').locator('option')).toHaveCount(21);
+  await page.getByLabel('Response to parse').selectOption('3');
+  await expect(page.getByRole('link', { name: 'Download selected row' })).toHaveAttribute('download', 'event-form-response-row-4.csv');
+  await page.getByRole('button', { name: 'Parse selected row' }).click();
+  await expect.poll(() => upload).toContain('Elena Brooks,elena.brooks@example.invalid');
+  expect(upload).not.toContain('Ava Demo');
+  expect(upload).not.toContain('Owen Patel');
+  await expect(page.getByText('Offline check: upload intercepted before extraction.', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('source previews show a sheet, an email chain, and original PDFs and images', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -36,6 +58,7 @@ test('source previews show a sheet, an email chain, and original PDFs and images
   }
   await expect(sheet).toBeVisible();
   await sheet.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  await sheet.getByRole('cell', { name: '190.00', exact: true }).scrollIntoViewIfNeeded();
   await expect(sheet.getByRole('cell', { name: '190.00', exact: true })).toBeInViewport();
   await page.screenshot({ path: test.info().outputPath('spreadsheet-mobile.png'), fullPage: true });
   expect(errors).toEqual([]);

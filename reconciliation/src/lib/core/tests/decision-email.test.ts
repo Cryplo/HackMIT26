@@ -22,7 +22,7 @@ test('simulated email saves one decision, never dispatches, and rejects conflict
     const draft = await draftDecisionEmail(core, row.id, { kind: 'approval', expected_review_revision: row.review_revision, reason_check_ids: [] });
     const input = { expected_review_revision: row.review_revision, human_verdict: 'approved', human_note: 'Receipt verified.', message_id: draft.message.id, expected_draft_revision: draft.message.draft_revision, request_id: randomUUID() };
     const confirmed = await confirmDecisionEmail(core, row.id, input);
-    assert.equal(confirmed.message.status, 'previewed');
+    assert.equal(confirmed.message.status, 'draft');
     assert.equal(confirmed.row?.decision_status, 'approved');
     assert.equal((await confirmDecisionEmail(core, row.id, input)).correction_id, confirmed.correction_id);
     assert.equal((await store.snapshot()).corrections.length, 1);

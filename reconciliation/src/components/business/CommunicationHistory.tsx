@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RotateCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import type { ClaimMessage } from "@/lib/review-contracts";
 import styles from "./decision-message.module.css";
 
 export function communicationStatus(message: ClaimMessage): string {
+  if (message.status === "draft" && (message.correction_id || message.automatic_decision_key)) return "Decision saved — notification awaiting confirmation";
   if (message.status === "previewed") return "Email simulated — no email was sent";
   if (message.status === "accepted") return "Decision saved — email accepted by provider";
   if (message.status === "queued") return "Decision saved — email queued";
@@ -23,8 +24,6 @@ export function CommunicationHistory({ claimId, client, revision }: { claimId: s
   const [messages, setMessages] = useState<ClaimMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [retrying, setRetrying] = useState<string | null>(null);
-  const lock = useRef(false);
   const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!client.getMessages) return;
     try {
@@ -46,13 +45,6 @@ export function CommunicationHistory({ claimId, client, revision }: { claimId: s
     return () => window.clearTimeout(timer);
   }, [messages, refresh]);
 
-  async function retry(message: ClaimMessage) {
-    if (!client.retryMessage || lock.current) return;
-    lock.current = true; setRetrying(message.id); setError(null);
-    try { await client.retryMessage(message.id, { expected_message_revision: message.message_revision }); await refresh(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : "Email retry failed. The recorded decision is unchanged."); }
-    finally { lock.current = false; setRetrying(null); }
-  }
 
   return <section aria-labelledby="communication-history-title" className="space-y-3 border-t pt-4">
     <div className="flex items-center justify-between gap-2"><h3 id="communication-history-title" className="font-semibold">Applicant communication</h3><Button variant="ghost" size="sm" onClick={() => void refresh()} aria-label="Refresh message history"><RotateCw className="size-4" />Refresh</Button></div>
@@ -68,7 +60,8 @@ export function CommunicationHistory({ claimId, client, revision }: { claimId: s
       {item.correction_id && <p className="mt-1 break-all text-xs text-muted-foreground">Decision: {item.correction_id}</p>}
       <details className={styles.historySubject}><summary>{item.subject || "View saved message"}</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{item.rendered_text ?? item.body}</p></details>
       {item.error && <p className="mt-2 text-xs text-destructive">{item.error}</p>}
-      {item.status === "failed" && client.retryMessage && <Button className="mt-3" variant="outline" size="sm" disabled={!!retrying} onClick={() => void retry(item)}>{retrying === item.id ? "Queueing retry…" : "Retry email"}</Button>}
+      {item.status === "draft" && (item.correction_id || item.automatic_decision_key) && <p className="mt-2 text-xs text-muted-foreground">Send notifications together from the overview or reimbursements page when you are ready.</p>}
+      {(item.status === "failed" || item.status === "delivery_unknown") && <p className="mt-2 text-xs text-muted-foreground">Eligible delivery retries appear in the notifications action on the overview and reimbursements pages. Review this recorded outcome before confirming another batch.</p>}
     </li>)}</ol>
   </section>;
 }

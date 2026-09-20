@@ -31,7 +31,7 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 
 ## Import loose paperwork
 
-The integrated `/import` **Data sources** page accepts loose synthetic receipts, bookings, and PDF/CSV/TXT/readable EML exports. Inspect original sources alongside extracted fields, review suggested links, and explicitly confirm draft request details into ordinary claims. Forms samples use spreadsheet previews, Gmail samples use email-thread previews, and Dropbox samples display original PDFs/images. Connection controls are mockups; there is no real account connection or synchronization.
+The integrated `/import` **Data sources** page accepts loose synthetic receipts, bookings, and PDF/CSV/TXT/readable EML exports. Inspect original sources alongside extracted fields, review suggested links, and explicitly confirm draft request details into ordinary claims. Forms samples use a 21-row spreadsheet preview, Gmail samples use email-thread previews, and Dropbox samples display original PDFs/images. Select a row to import its response individually; the whole CSV is not submitted as one claim. Connection controls are mockups; there is no real account connection or synchronization.
 
 **Source audit is a separate opt-in.** With `RECONCILIATION_SOURCE_AUDIT` unset or `false`, Start audit uses the workspace’s existing unchecked claims; browsing Data sources does not import sample requests. Keep that default for the 80-claim live rehearsal. To demonstrate source ingestion, run `npm run demo:inbox -- --port 3017` in a new empty isolated store. That launcher sets `RECONCILIATION_SOURCE_AUDIT=true` with synthetic-only mode. Start audit then reads eleven mixed PDF/PNG/EML/CSV sample files, groups complete unambiguous requests, and checks them; held inputs and the same saved extractions remain inspectable on Data sources. Manual **Read all sample inputs** remains available separately. Neither path erases financial discrepancies or invents missing request details.
 
@@ -53,7 +53,7 @@ Checks enforce amount, currency, date, policy caps, identity, and duplicate cons
 
 The workspace Checks view lists every local and Jev-backed check and lets reviewers author up to 12 custom Jev questions (`/api/checks`), optionally scoped to a category. Active custom checks return calibrated pass/fail/needs-review verdicts, join the required set for `matched`, and can never override a failed financial or duplicate check. Changing the check configuration bumps `knowledge_revision` and marks in-flight assessments for recheck; in simulated mode custom checks honestly return needs-review.
 
-Decisions and policy approvals create saved applicant notices. Email defaults to **preview**, so no message is sent. Internal review reasons stay separate from applicant text; approval notices are generic, and discretionary rejections have a separate optional applicant message. Provider acceptance in live email mode is not proof of inbox delivery.
+Decisions and policy approvals create held applicant notices without sending. **Send all notifications** on the overview and reimbursements pages opens one confirmation for the current batch; only confirmation releases it. Email defaults to **preview**, where that action creates previews and sends no message. Internal review reasons stay separate from applicant text; approval notices are generic, and discretionary rejections have a separate optional applicant message. Provider acceptance in live email mode is not proof of inbox delivery.
 
 ## Learning from review reasons
 
@@ -72,11 +72,11 @@ Do not add `--audit-ready`, which reenables automation. Review Sam Mercer, choos
 
 ## Live setup
 
-The live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The earlier expansion appended 66 unchecked claims while preserving the original 14 records. The new live-reset baseline is designed to restore **60 prepared checked claims plus 20 unchecked claims**, rather than starting the entire ledger unchecked. It requires `202609210014_live_demo_baseline.sql` (applied to the configured demo) and an explicit guarded reset. The reset also archives and clears custom checks so each run begins with the same configuration.
+The live demo contains **80 claims with pre-parsed fictional receipts and 20 supporting documents**. The earlier expansion appended 66 unchecked claims while preserving the original 14 records. The new live-reset baseline is designed to restore **70 prepared checked claims plus 10 unchecked claims**, rather than starting the entire ledger unchecked. It requires `202609210015_live_demo_baseline_70.sql` (applied to the configured demo) and an explicit guarded reset. Migration application and the requested reset were confirmed through the application API. The reset also archives and clears custom checks so each run begins with the same configuration.
 
-The prepared 60 are **52 approved, four rejected, and four inconclusive**, verified through a PostgreSQL reset and projection. These are clearly marked authored demo history, not live assessments, actual reviewer decisions, investigations, or sent notices. Cached receipt and supporting-document transcriptions are also authored fixtures, not OCR results.
+The prepared 70 are **59 approved, seven rejected, and four inconclusive claims needing review**. The application API verified these counts after the September 20 reset. These are clearly marked authored demo history, not live assessments, actual reviewer decisions, investigations, or sent notices. Cached receipt and supporting-document transcriptions are also authored fixtures, not OCR results.
 
-The remaining 20 are selected to exercise **11 clean, six failed-check, and three inconclusive scenarios**. Morgan Blake and Riley Chen are two automatic-investigation candidates. These are scenario targets: the actual live model may produce different results, and investigation only runs when its evidence and safety conditions hold. With source audit disabled, **Start audit** checks the 20 unchecked claims; it does not rerun the prepared 60 or import sample requests. Failed checks are not saved rejections. The existing local 14-claim simulation and its reset remain unchanged.
+The remaining 10 (seed numbers **1, 2, 5, 6, 7, 9, 10, 12, 13, 14**) are selected to exercise **four matched, three flagged, and three inconclusive scenarios**. Morgan Blake and Riley Chen are two automatic-investigation candidates. These are scenario targets: the actual live model may produce different results, and investigation only runs when its evidence and safety conditions hold. With source audit disabled, **Start audit** checks the 10 unchecked claims; it does not rerun the prepared 70 or import sample requests. Failed checks are not saved rejections. The existing local 14-claim simulation and its reset remain unchanged.
 
 Use a dedicated synthetic-only Supabase project. Existing configured projects should retain their records: inspect migration history and apply only missing migrations in order. **Do not reset or reseed an existing live database as a setup step.** Migrations add schema/functions; applying the reset migrations does not itself reset claims.
 
@@ -96,7 +96,9 @@ Apply all files in [supabase/migrations](supabase/migrations), in this order:
 12. `202609210011_custom_checks.sql`
 13. `202609210012_safeupdate_platform_state.sql`
 14. `202609210013_inbox_text_evidence.sql` — text-source supporting evidence and private-bucket MIME permissions.
-15. `202609210014_live_demo_baseline.sql` — prepared 60-checked/20-unchecked live-reset baseline.
+15. `202609210014_live_demo_baseline.sql` — historical prepared 60-checked/20-unchecked live-reset baseline.
+16. `202609210015_live_demo_baseline_70.sql` — current prepared 70-checked/10-unchecked live-reset baseline.
+17. `202609210016_held_notifications.sql` — hold decision notices until explicit batch confirmation, including bounded failed-delivery retries (applied to the configured demo).
 
 The app requires platform version 4, introduced by migration 004; later migrations still matter even though they do not increment that version. Migrations create service-only tables/RPCs and a private receipt bucket. On a **new, empty** demo project only, `supabase/seed.sql` plus `npm run seed:receipts` provides the legacy five-claim seed, not the curated fourteen-claim showcase. Seeded parsed fields do not verify live extraction; upload a new synthetic file through `/submit` for that.
 
