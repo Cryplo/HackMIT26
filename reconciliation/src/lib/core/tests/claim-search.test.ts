@@ -65,3 +65,24 @@ test('database retrieval uses stored receipts and excludes the current/later cla
  prior.receipt_number=receipt.receipt_number;
  assert.ok((await new DatabaseRetrieval().retrieve(s,receipt,state)).candidates.some(c=>c.submission_id===state.submissions[0].id));
 });
+
+test('search retries only the throttled claim and logs each attempt', async () => {
+ const attempts=new Map<string,number>(); const usage:UsageRecord[]=[]; const good=mock();
+ const result=await search({query:'hotel',rows:[row('1'),row('2')]},{...options,log_usage:async record=>{usage.push(record)}},async(...args)=>{
+  const id=JSON.parse(String(args[1]?.body)).state.row.submission_id;
+  const n=(attempts.get(id)??0)+1;attempts.set(id,n);
+  return id==='1'&&n<3?new Response('',{status:429,headers:{'Retry-After':'0'}}):good(...args);
+ });
+ assert.deepEqual(result.judgments.map(r=>r.submission_id),['1','2']);
+ assert.equal(attempts.get('1'),3);assert.equal(attempts.get('2'),1);
+ assert.equal(usage.length,4);assert.equal(usage.filter(u=>u.input_tokens===null).length,2);
+});
+
+test('exhausted search rate limits return an error rather than partial matches', async () => {
+ let attempts=0;const good=mock();
+ await assert.rejects(search({query:'hotel',rows:[row('1'),row('2')]},options,async(...args)=>{
+  if(JSON.parse(String(args[1]?.body)).state.row.submission_id==='1'){attempts++;return new Response('',{status:429,headers:{'Retry-After':'0'}})}
+  return good(...args);
+ }),{code:'PROVIDER_UNAVAILABLE'});
+ assert.equal(attempts,4);
+});

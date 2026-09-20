@@ -1,3 +1,4 @@
+import { JevRateLimitError, withJevRateLimitRetries } from './jev-retry';
 import type { ModelCall, ParsedReceipt, Submission } from '../contracts';
 import type { Evidence } from './retrieval';
 import { aliasPayload, CoreError, isObject, normalize } from './validation';
@@ -29,17 +30,20 @@ export class LiveJev implements Jev {
   async evaluate(state: SemanticState, runId: string, log: (call: ModelCall) => Promise<void>, signal?: AbortSignal): Promise<Evaluation> {
     signal?.throwIfAborted();
     const requestSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(25000)]) : AbortSignal.timeout(25000);
-    const started = Date.now(); let raw: Record<string, unknown> | undefined;
-    try {
-      const res = await fetch(this.channel === 'gateway' ? 'https://ai-gateway.vercel.sh/typesafe/v1/systemone' : 'https://api.typesafe.ai/v1/systemone', { method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: this.model, state, questions }), signal: requestSignal });
-      requestSignal.throwIfAborted();
-      if (!res.ok) throw new CoreError('JEV_UNAVAILABLE', `Jev returned HTTP ${res.status}.`, 503);
-      const body: unknown = await res.json(); requestSignal.throwIfAborted(); if (!isObject(body)) throw new CoreError('JEV_INVALID', 'Invalid Jev response.', 503); raw = body;
-      return { answers: validateAnswers(raw.answers), model: typeof raw.model === 'string' ? raw.model : this.model, simulated: false, raw };
-    } finally {
-      const usage = isObject(raw?.usage) ? raw.usage : {};
-      await log({ id: crypto.randomUUID(), run_id: runId, receipt_id: null, provider: this.channel === 'gateway' ? 'vercel-typesafe' : 'typesafe', model: typeof raw?.model === 'string' ? raw.model : this.model, input_tokens: tokenCount(usage.input_tokens), output_tokens: tokenCount(usage.output_tokens), latency_ms: Date.now() - started, estimated_cost_usd: null, created_at: new Date().toISOString() });
-    }
+    return withJevRateLimitRetries(async () => {
+      const started = Date.now(); let raw: Record<string, unknown> | undefined;
+      try {
+        const res = await fetch(this.channel === 'gateway' ? 'https://ai-gateway.vercel.sh/typesafe/v1/systemone' : 'https://api.typesafe.ai/v1/systemone', { method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: this.model, state, questions }), signal: requestSignal });
+        requestSignal.throwIfAborted();
+        if (res.status === 429) { const retryAfter = res.headers.get('retry-after'); await res.body?.cancel(); throw new JevRateLimitError('JEV_UNAVAILABLE', 'Jev is rate limited; retry after a short wait.', retryAfter); }
+        if (!res.ok) throw new CoreError('JEV_UNAVAILABLE', `Jev returned HTTP ${res.status}.`, 503);
+        const body: unknown = await res.json(); requestSignal.throwIfAborted(); if (!isObject(body)) throw new CoreError('JEV_INVALID', 'Invalid Jev response.', 503); raw = body;
+        return { answers: validateAnswers(raw.answers), model: typeof raw.model === 'string' ? raw.model : this.model, simulated: false, raw };
+      } finally {
+        const usage = isObject(raw?.usage) ? raw.usage : {};
+        await log({ id: crypto.randomUUID(), run_id: runId, receipt_id: null, provider: this.channel === 'gateway' ? 'vercel-typesafe' : 'typesafe', model: typeof raw?.model === 'string' ? raw.model : this.model, input_tokens: tokenCount(usage.input_tokens), output_tokens: tokenCount(usage.output_tokens), latency_ms: Date.now() - started, estimated_cost_usd: null, created_at: new Date().toISOString() });
+      }
+    }, requestSignal);
   }
 }
 const simulatedAnswer = (choice: Choice): Answer => ({ type: 'choice', choice, probabilities: { pass: choice === 'pass' ? 1 : 0, fail: choice === 'fail' ? 1 : 0, unknown: choice === 'unknown' ? 1 : 0 }, confidence: 1 });

@@ -193,3 +193,14 @@ test('evidence strings cannot replace trusted questions or grant itinerary permi
   const simulation = await new SimulatedJev().evaluate(input);
   assert.equal(simulation.answers.name.choice, 'unknown'); assert.equal(simulation.answers.merchant.choice, 'unknown');
 });
+
+test('reconciliation retries 429 and logs rejected attempts separately from successful usage', async t => {
+  let attempts = 0; const calls: ModelCall[] = [];
+  t.mock.method(globalThis, 'fetch', async () => ++attempts < 3
+    ? new Response('', { status: 429, headers: { 'Retry-After': '0' } })
+    : Response.json({ answers: answers(), usage: { input_tokens: 12, output_tokens: 3 } }));
+  const result = await new LiveJev('synthetic-test-key').evaluate(state(), 'test-run', async call => { calls.push(call); });
+  assert.equal(result.answers.name.choice, 'pass');
+  assert.equal(attempts, 3); assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map(c => c.input_tokens), [null, null, 12]);
+});

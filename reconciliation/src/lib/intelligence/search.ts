@@ -1,3 +1,4 @@
+import { JevRateLimitError, withJevRateLimitRetries } from '../core/jev-retry';
 import type { ProviderOptions, SearchRow, SearchEvaluation, SearchJudgment } from '../review-contracts';
 import { CoreError, isObject } from '../core/validation';
 
@@ -30,25 +31,28 @@ export async function search(input: { query: string; rows: SearchRow[] }, option
   if (!config.key) throw new CoreError('CONFIG_ERROR', 'Configure AI_GATEWAY_API_KEY or TYPESAFE_API_KEY for search.', 503);
   const signal = AbortSignal.any([options.signal, AbortSignal.timeout(45000)]);
   async function call(state: unknown, questions: Record<string, unknown>): Promise<Record<string, unknown>> {
-    let raw: Record<string, unknown> | undefined; const callStarted = Date.now();
-    try {
-      signal.throwIfAborted();
-      const response = await transport(config.endpoint, { method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: config.model, state, questions }), signal: AbortSignal.any([signal, AbortSignal.timeout(25000)]) });
-      signal.throwIfAborted();
-      if (!response.ok) throw new CoreError('PROVIDER_UNAVAILABLE', `Jev search returned HTTP ${response.status}; retry the search.`, 503);
-      const body: unknown = await response.json();
-      signal.throwIfAborted();
-      if (!isObject(body)) throw new CoreError('INVALID_PROVIDER_OUTPUT', 'Invalid Jev response.', 503);
-      raw = body;
-      if (!isObject(body.answers) || Object.keys(body.answers).length !== Object.keys(questions).length || Object.keys(questions).some(k => !Object.hasOwn(body.answers as object, k))) throw new CoreError('INVALID_PROVIDER_OUTPUT', 'Jev did not evaluate exactly the requested claims.', 503);
-      return body.answers;
-    } catch (error) {
-      if (error instanceof CoreError) throw error;
-      throw new CoreError(signal.aborted || (error instanceof Error && error.name === 'TimeoutError') ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE', 'Jev search could not complete. No partial results were returned.', 503);
-    } finally {
-      const usage = isObject(raw?.usage) ? raw.usage : {};
-      await options.log_usage({ provider: config.provider, model: typeof raw?.model === 'string' ? raw.model : config.model, input_tokens: tokens(usage.input_tokens), output_tokens: tokens(usage.output_tokens), latency_ms: Date.now()-callStarted, estimated_cost_usd: null });
-    }
+    return withJevRateLimitRetries(async () => {
+      let raw: Record<string, unknown> | undefined; const callStarted = Date.now();
+      try {
+        signal.throwIfAborted();
+        const response = await transport(config.endpoint, { method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: config.model, state, questions }), signal: AbortSignal.any([signal, AbortSignal.timeout(25000)]) });
+        signal.throwIfAborted();
+        if (response.status === 429) { const retryAfter = response.headers.get('retry-after'); await response.body?.cancel(); throw new JevRateLimitError('PROVIDER_UNAVAILABLE', 'Jev search is rate limited; retry after a short wait.', retryAfter); }
+        if (!response.ok) throw new CoreError('PROVIDER_UNAVAILABLE', `Jev search returned HTTP ${response.status}; retry the search.`, 503);
+        const body: unknown = await response.json();
+        signal.throwIfAborted();
+        if (!isObject(body)) throw new CoreError('INVALID_PROVIDER_OUTPUT', 'Invalid Jev response.', 503);
+        raw = body;
+        if (!isObject(body.answers) || Object.keys(body.answers).length !== Object.keys(questions).length || Object.keys(questions).some(k => !Object.hasOwn(body.answers as object, k))) throw new CoreError('INVALID_PROVIDER_OUTPUT', 'Jev did not evaluate exactly the requested claims.', 503);
+        return body.answers;
+      } catch (error) {
+        if (error instanceof CoreError) throw error;
+        throw new CoreError(signal.aborted || (error instanceof Error && error.name === 'TimeoutError') ? 'PROVIDER_TIMEOUT' : 'PROVIDER_UNAVAILABLE', 'Jev search could not complete. No partial results were returned.', 503);
+      } finally {
+        const usage = isObject(raw?.usage) ? raw.usage : {};
+        await options.log_usage({ provider: config.provider, model: typeof raw?.model === 'string' ? raw.model : config.model, input_tokens: tokens(usage.input_tokens), output_tokens: tokens(usage.output_tokens), latency_ms: Date.now()-callStarted, estimated_cost_usd: null });
+      }
+    }, signal);
   }
   if (!input.rows.length) return { judgments: [], mode: 'live', model: null, latency_ms: 0 };
   // One independent request per claim, launched together (input is capped at 100).
