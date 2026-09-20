@@ -1,7 +1,9 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { CoreError } from './validation';
 
-/** Only explicit throttling is retryable; validation, auth and network errors are not. */
+/** Throttling and transient upstream failures are retryable; validation and auth errors are not. */
+export const isRetryableJevStatus = (status: number) => status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+
 export class JevRateLimitError extends CoreError {
   constructor(code: string, message: string, readonly retryAfter: string | null) {
     super(code, message, 503);

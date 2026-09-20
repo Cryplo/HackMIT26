@@ -30,16 +30,24 @@ test('binary no-match remains no-match and ternary or invalid probability output
  const result=await search({query:'flights',rows:[row('1')]},options,mock(a=>{a['1']=answer('no_match',['match','no_match'],.2)}));assert.equal(result.judgments[0].result,'no_match');
  for(const a of [answer('uncertain',['match','no_match','uncertain']),{...answer('match',['match','no_match']),probabilities:{match:.4,no_match:.6}}])await assert.rejects(search({query:'hotels',rows:[row('1')]},options,mock(v=>{v['1']=a})),{code:'INVALID_PROVIDER_OUTPUT'});
 });
-test('all one-claim requests run concurrently and preserve input order',async()=>{
+test('one-claim requests run through a bounded pool and preserve input order',async()=>{
  let active=0,peak=0;const good=mock();const rows=Array.from({length:9},(_,i)=>row(String(i)));
  const result=await search({query:'hotels',rows},options,async(...args)=>{active++;peak=Math.max(peak,active);try{await new Promise(r=>setTimeout(r,5));return await good(...args)}finally{active--}});
- assert.equal(peak,rows.length);assert.equal(active,0);assert.deepEqual(result.judgments.map(r=>r.submission_id),rows.map(r=>r.submission_id));
+ assert.equal(peak,5);assert.equal(active,0);assert.deepEqual(result.judgments.map(r=>r.submission_id),rows.map(r=>r.submission_id));
 });
 test('pre-aborted search makes no provider calls',async()=>{
  let n=0;await assert.rejects(search({query:'hotels',rows:[row('1')]},{...options,signal:AbortSignal.abort()},async()=>{n++;return Response.json({})}),{name:'AbortError'});assert.equal(n,0);
 });
-test('a failed individual request returns no partial results',async()=>{
- let n=0;const good=mock();await assert.rejects(search({query:'hotel claims',rows:Array.from({length:21},(_,i)=>row(String(i)))},options,async(...args)=>{n++;return n===3?new Response('',{status:503}):good(...args)}),{code:'PROVIDER_UNAVAILABLE'});
+test('a persistently failing individual request returns no partial results',async()=>{
+ const good=mock();await assert.rejects(search({query:'hotel claims',rows:Array.from({length:21},(_,i)=>row(String(i)))},options,async(...args)=>JSON.parse(String(args[1]?.body)).state.row.submission_id==='3'?new Response('',{status:400}):good(...args)),{code:'PROVIDER_UNAVAILABLE'});
+});
+test('a transient upstream failure is retried instead of failing the search',async()=>{
+ const attempts=new Map<string,number>();const good=mock();
+ const result=await search({query:'hotel claims',rows:[row('1'),row('2')]},options,async(...args)=>{
+  const id=JSON.parse(String(args[1]?.body)).state.row.submission_id;const n=(attempts.get(id)??0)+1;attempts.set(id,n);
+  return id==='1'&&n===1?new Response('',{status:503,headers:{'Retry-After':'0'}}):good(...args);
+ });
+ assert.deepEqual(result.judgments.map(r=>r.submission_id),['1','2']);assert.equal(attempts.get('1'),2);
 });
 test('empty corpus makes no paid calls; simulation does not impersonate Jev',async()=>{
  assert.equal((await search({query:'hotel',rows:[]},options,async()=>{throw Error('must not call')})).judgments.length,0);

@@ -1,4 +1,4 @@
-import { JevRateLimitError, withJevRateLimitRetries } from '../core/jev-retry';
+import { isRetryableJevStatus, JevRateLimitError, withJevRateLimitRetries } from '../core/jev-retry';
 import type { ProviderOptions, SearchRow, SearchEvaluation, SearchJudgment } from '../review-contracts';
 import { CoreError, isObject } from '../core/validation';
 
@@ -19,6 +19,7 @@ function choice(raw: unknown, allowed: readonly string[]) {
   if (Object.keys(ps).length !== allowed.length || [...nums, raw.confidence].some(n => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1) || Math.abs((nums as number[]).reduce((a,b) => a+b,0)-1) > .02 || Number(ps[String(raw.choice)]) < Math.max(...nums as number[])-1e-6) throw new CoreError('INVALID_PROVIDER_OUTPUT', 'Jev returned invalid search probabilities.', 503);
   return { choice: String(raw.choice), confidence: Math.min(Number(raw.confidence), Number(ps[String(raw.choice)])) };
 }
+const SEARCH_CONCURRENCY = Math.max(1, Number(process.env.RECONCILIATION_SEARCH_CONCURRENCY) || 5);
 const tokens = (v: unknown): number | null => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
 
 /** Compatible with the V2 IntelligencePort.search seam; no writes or approvals. */
@@ -37,7 +38,7 @@ export async function search(input: { query: string; rows: SearchRow[] }, option
         signal.throwIfAborted();
         const response = await transport(config.endpoint, { method: 'POST', headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: config.model, state, questions }), signal: AbortSignal.any([signal, AbortSignal.timeout(25000)]) });
         signal.throwIfAborted();
-        if (response.status === 429) { const retryAfter = response.headers.get('retry-after'); await response.body?.cancel(); throw new JevRateLimitError('PROVIDER_UNAVAILABLE', 'Jev search is rate limited; retry after a short wait.', retryAfter); }
+        if (isRetryableJevStatus(response.status)) { const retryAfter = response.headers.get('retry-after'); await response.body?.cancel(); throw new JevRateLimitError('PROVIDER_UNAVAILABLE', response.status === 429 ? 'Jev search is rate limited; retry after a short wait.' : `Jev search returned HTTP ${response.status}; retry the search.`, retryAfter); }
         if (!response.ok) throw new CoreError('PROVIDER_UNAVAILABLE', `Jev search returned HTTP ${response.status}; retry the search.`, 503);
         const body: unknown = await response.json();
         signal.throwIfAborted();
@@ -55,11 +56,13 @@ export async function search(input: { query: string; rows: SearchRow[] }, option
     }, signal);
   }
   if (!input.rows.length) return { judgments: [], mode: 'live', model: null, latency_ms: 0 };
-  // One independent request per claim, launched together (input is capped at 100).
+  // One independent request per claim, run through a bounded pool so a wide queue
+  // does not exhaust the provider request budget.
   // Await every attempt so usage is retained; never return a partial match set.
   const results: SearchJudgment[] = new Array(input.rows.length);
   let failed=false; let failure: unknown;
-  await Promise.all(input.rows.map(async (row,i) => {
+  let next=0;
+  const evaluate = async (row: SearchRow, i: number) => {
       try {
         signal.throwIfAborted();
         const answers = await call({ query: input.query, row }, {
@@ -72,6 +75,9 @@ export async function search(input: { query: string; rows: SearchRow[] }, option
         const a=choice(answers[row.submission_id],labels);
         results[i]={submission_id:row.submission_id,result:a.choice as 'match'|'no_match',confidence:a.confidence};
       } catch(error) { if(!failed)failure=error; failed=true; }
+  };
+  await Promise.all(Array.from({ length: Math.min(SEARCH_CONCURRENCY, input.rows.length) }, async () => {
+    for (let i = next++; i < input.rows.length; i = next++) await evaluate(input.rows[i], i);
   }));
   if (failed) throw failure;
   signal.throwIfAborted();
