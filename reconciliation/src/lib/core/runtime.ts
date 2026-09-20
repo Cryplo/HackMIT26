@@ -27,7 +27,8 @@ export function getCore(): CoreService {
   const demoMode = !url || !liveJev || !liveSearch;
   if (e.RECONCILIATION_JUSTIFICATION_MODE && !['simulated','live'].includes(e.RECONCILIATION_JUSTIFICATION_MODE)) throw new CoreError('CONFIG_ERROR', 'RECONCILIATION_JUSTIFICATION_MODE must be live or simulated.', 503);
   if (e.RECONCILIATION_JUSTIFICATION_MODE === 'live' && (simulated || !e.OPENAI_API_KEY)) throw new CoreError('CONFIG_ERROR', 'Live justifications require OPENAI_API_KEY outside simulated mode.', 503);
-  const liveJustification = !simulated && e.RECONCILIATION_JUSTIFICATION_MODE !== 'simulated' && !!e.OPENAI_API_KEY;
+  // Opt-in only: an OPENAI_API_KEY in the environment must never start spending on narratives by itself.
+  const liveJustification = e.RECONCILIATION_JUSTIFICATION_MODE === 'live';
   globalCore.reimbursementCore = new CoreService(store, liveSearch ? new ElasticsearchRetrieval(e.ELASTICSEARCH_URL!, e.ELASTICSEARCH_API_KEY!, e.ELASTICSEARCH_INDEX) : new SimulatedRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: liveSearch ? 'Elasticsearch' : 'local simulated', storage: url ? 'Supabase' : 'local disk', justification: liveJustification ? 'live OpenAI' : 'deterministic summary' }, liveJustification ? new OpenAiJustifier(e.OPENAI_API_KEY!, e.JUSTIFICATION_MODEL || 'gpt-4.1-mini') : new SimulatedJustifier());
   return globalCore.reimbursementCore;
 }

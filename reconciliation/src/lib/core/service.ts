@@ -1,7 +1,7 @@
 import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse, SubmissionStatus } from '../contracts';
 import { decision, deterministic, overall } from './checks';
 import type { Jev, SemanticField } from './jev';
-import type { Justification, Justifier, JustificationRequest } from './justification';
+import type { Justification, Justifier, JustificationRequest, ReviewOverride } from './justification';
 import { deterministicJustification, SimulatedJustifier } from './justification';
 import type { Retrieval } from './retrieval';
 import type { Store } from './store';
@@ -68,17 +68,22 @@ export class CoreService {
     try { return await this.justifier.explain(request, runId, call => this.store.usage(call)); }
     catch (error) { return deterministicJustification(request, error instanceof CoreError ? error.code : 'JUSTIFICATION_UNAVAILABLE'); }
   }
-  /** On-demand narrative for the latest completed run. Read-only: nothing is persisted. */
+  /** On-demand narrative for the latest completed run. Read-only apart from usage logging. */
   async justify(id: string): Promise<{ submission_id: string; run_id: string; status: SubmissionStatus; justification: Justification }> {
     const state = await this.store.snapshot();
     const s = state.submissions.find(x => x.id === id);
     if (!s) throw new CoreError('NOT_FOUND', 'Submission not found.', 404);
     const run = state.runs.find(r => r.id === s.latest_run_id && r.status === 'completed');
     if (!run) throw new CoreError('NO_COMPLETED_RUN', 'Reconcile this submission before requesting a justification.', 409);
-    const decisions = state.decisions.filter(d => d.run_id === run.id && d.field_checked !== 'overall_status');
+    const runDecisions = state.decisions.filter(d => d.run_id === run.id);
+    const decisions = runDecisions.filter(d => d.field_checked !== 'overall_status' && d.check_method !== 'human');
+    // A human override owns the status; the machine checks explain the run, not the outcome.
+    const human = runDecisions.filter(d => d.field_checked === 'overall_status' && d.check_method === 'human').at(-1);
+    const machine = runDecisions.find(d => d.field_checked === 'overall_status' && d.check_method !== 'human');
+    const override: ReviewOverride | null = human ? { verdict: s.status === 'rejected' ? 'rejected' : 'approved', note: human.rationale_text, machine_status: (machine?.answer_json.value as SubmissionStatus | undefined) ?? null } : null;
     const receipt = state.receipts.find(r => r.submission_id === id)?.parsed_fields_json ?? null;
-    const request: JustificationRequest = { submission: s, receipt, decisions, status: s.status };
-    return { submission_id: id, run_id: run.id, status: s.status, justification: await this.justifier.explain(request, run.id, call => this.store.usage(call)) };
+    const request: JustificationRequest = { submission: s, receipt, decisions, status: s.status, override };
+    return { submission_id: id, run_id: run.id, status: s.status, justification: await this.narrate(request, run.id) };
   }
   correct(input: CorrectionInput) { return this.store.correct(input); }
   async reviews(): Promise<ReviewsResponse> {
