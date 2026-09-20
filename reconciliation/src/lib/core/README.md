@@ -82,19 +82,20 @@ The workspace review response retains `contract_version: 2`. Mutation errors use
 
 ## Deployment, backfill, and recovery
 
-**Remote deployment:** SQL inspection confirmed the original schema only; platform migrations `202609200002` and `202609200003` were then applied together in one transaction on September 20, 2026. Readiness is now 3, existing row counts are preserved, and the receipt bucket remains private. The restarted local app reads all 122 claims successfully. Original-byte hash backfill completed with 122 hashed and 0 unavailable; affected historical assessments require reassessment. No model calls were made. See [the handoff](INVESTIGATION_HANDOFF.md) for inspection, applied checksums, and backfill results. Do not replay these migrations against this target.
+**Recorded deployment before decision-email work (not re-inspected for this PR):** SQL inspection confirmed the original schema only; platform migrations `202609200002` and `202609200003` were then applied together in one transaction on September 20, 2026. Readiness was 3, existing row counts are preserved, and the receipt bucket remains private. The restarted local app reads all 122 claims successfully. Original-byte hash backfill completed with 122 hashed and 0 unavailable; affected historical assessments require reassessment. No model calls were made. See [the handoff](INVESTIGATION_HANDOFF.md) for inspection, applied checksums, and backfill results. Do not replay these migrations against this target.
 
-Migration order for a new target (inspect first; already applied on this target):
+Migration order for a new target (inspect first; 001–003 were previously applied on the configured target; 004 is not applied by this PR):
 
 1. `supabase/migrations/202609190001_reimbursement_core.sql`
 2. `supabase/migrations/202609200002_platform.sql`
 3. `supabase/migrations/202609200003_investigations.sql`
+4. `supabase/migrations/202609200004_communications.sql`
 
-The platform migration is additive and preserves the existing shared rehearsal claims and their history. Do not rerun a seed or reset shared data. Version `202609200002` avoids a concurrent migration-number collision; integration owns reconciliation with PR #5. Deploy the migration before this application: shared platform operations are unavailable until its tables and RPCs exist. **Both platform migrations are now applied on the configured target.**
+The platform migration is additive and preserves the existing shared rehearsal claims and their history. Do not rerun a seed or reset shared data. Version `202609200002` avoids a concurrent migration-number collision; integration owns reconciliation with PR #5. Deploy the migration before this application: shared platform operations are unavailable until its tables and RPCs exist. **Migrations 002/003 were previously applied; this PR does not apply 004.**
 
-Every Supabase core operation and intake write first checks the service-only, read-only `core_platform_version()` RPC and requires exactly `3`; readiness is never cached. Missing/older schemas fail with `SCHEMA_MISMATCH` (intake: `schema_mismatch`) before legacy approval RPCs or uploads. GET/startup makes no model calls. The atomic `core_snapshot` omits unused run/decision audit snapshots and raw provider responses from its JSON; those remain stored in Postgres. Public reviews also omit raw provider responses in local mode, preserving structured answers and financial/duplicate evidence.
+Every Supabase core operation and intake write first checks the service-only, read-only `core_platform_version()` RPC and requires exactly `4`; readiness is never cached. Missing/older schemas fail with `SCHEMA_MISMATCH` (intake: `schema_mismatch`) before legacy approval RPCs or uploads. GET/startup makes no model calls. The atomic `core_snapshot` omits unused run/decision audit snapshots and raw provider responses from its JSON; those remain stored in Postgres. Public reviews also omit raw provider responses in local mode, preserving structured answers and financial/duplicate evidence.
 
-Use SQL-editor/database-owner access to apply the reviewed migration in one transaction; the application's service-role REST credentials are not a DDL connection. With an independently configured connection, the equivalent command from `reconciliation/` is `psql "$SIFT_DATABASE_URL" --single-transaction --set=ON_ERROR_STOP=1 --file=supabase/migrations/202609200002_platform.sql`. First confirm the base migration exists and the platform migration has not already been applied. Do not rerun this non-idempotent migration; a database with an earlier platform revision requires a reviewed forward migration. After the platform prerequisite, apply the reviewed `202609200003_investigations.sql` once in a transaction. Check `select core_platform_version();` returns `3`, retained claim/history counts, and the private bucket before restarting the app.
+Use SQL-editor/database-owner access to apply the reviewed migration in one transaction; the application's service-role REST credentials are not a DDL connection. With an independently configured connection, the equivalent command from `reconciliation/` is `psql "$SIFT_DATABASE_URL" --single-transaction --set=ON_ERROR_STOP=1 --file=supabase/migrations/202609200002_platform.sql`. First confirm the base migration exists and the platform migration has not already been applied. Do not rerun this non-idempotent migration; a database with an earlier platform revision requires a reviewed forward migration. After the platform prerequisite, apply the reviewed `202609200003_investigations.sql`, then `202609200004_communications.sql`, each once in a transaction. Version 4 adds service-only decision messages and the durable outbox; it does not queue historical decisions. Check `select core_platform_version();` returns `4`, retained claim/history counts, and the private bucket before restarting the app.
 
 Hash backfill is the explicit server helper `backfillReceiptHashes` in `src/lib/core/receipts.ts`, called with the configured core and intake store:
 
@@ -255,3 +256,14 @@ Retry response for another pending claim:
   }
 }
 ```
+
+
+## Reviewer decision emails
+
+Release 1 adds persisted, editable approval/rejection drafts and `decision-and-send`, which commits the existing guarded human correction and its frozen outbox message together. Default `RECONCILIATION_EMAIL_MODE=preview` saves a preview and makes no Resend call; `disabled` retains decision-only controls. The key alone does not enable sending. Live delivery requires a private synthetic reviewer environment and an exact recipient allowlist.
+
+Approval uses a deterministic template. Rejection optionally uses one bounded Azure drafting call when `RECONCILIATION_EMAIL_DRAFT_MODE=live`; selected public check descriptions and an explicitly applicant-facing reason are the only narrative input. Internal reviewer notes are saved only in correction history. Generated text is editable and has visible fallback errors. Drafts bind source revisions and mode; confirmation rechecks those bindings and the existing financial/duplicate guards.
+
+The separate `npm run email:worker` process acquires durable leases and sends frozen payloads with stable Resend keys. It records provider acceptance without claiming inbox delivery. A saved decision survives delivery failure; retries operate on the same message and never create another correction. Later decisions cancel obsolete unsent messages and respect active send leases. Confirmation request IDs let clients recover interrupted responses without creating another decision.
+
+Migration 004 and application readiness version 4 must roll out together. No migration, live email, or model call was performed as part of this implementation. See [Resend setup and rollout](../../../docs/resend-setup.md) for configuration and worker operation. Request-information/resumption and webhook delivery tracking remain later phases.

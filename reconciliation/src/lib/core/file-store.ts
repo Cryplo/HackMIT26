@@ -1,3 +1,4 @@
+import type { MessageCommand } from './communications-state';
 import type { SupportingCommand, InvestigationCommand } from './investigation-state';
 import type { ProcedureCommand } from './procedure-state';
 import 'server-only';
@@ -117,6 +118,7 @@ export class FileStore implements Store {
     await store.importIntakeRecord(submission,receipt);
     await this.put(`${receipt.id}.receipt.json`,receipt);
   });}
+  messages(command:MessageCommand){return this.transaction(store=>store.messages(command));}
   supporting(command:SupportingCommand){return this.transaction(store=>store.supporting(command));}
   investigation(command:InvestigationCommand){return this.transaction(store=>store.investigation(command));}
   procedure(command:ProcedureCommand){return this.transaction(store=>store.procedure(command));}

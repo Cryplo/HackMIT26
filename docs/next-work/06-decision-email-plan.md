@@ -1,6 +1,6 @@
 # Decision emails and applicant follow-up — implementation plan
 
-Planning baseline: `main` at `8ae21c0`. This document proposes work; none of the email features below is implemented by this planning task. The user selected Resend. No tests, provider calls, emails, or database changes are part of this planning task. Future implementation should use parallel agents within the ownership boundaries below; do not run tests unless the user requests them.
+Design baseline: `main` at `8ae21c0`. Release 1 is implemented by the decision-email PR: drafts, guarded decision/outbox persistence, reviewer UI, and a separate Resend worker. Deployment remains a separate step: migration 004 has not been applied by this work and live sending remains disabled locally. Release 2 and optional delivery webhooks below remain proposed. No tests, live provider calls, emails, or database changes were performed; the user requested no tests. See [setup and rollout](../../reconciliation/docs/resend-setup.md) for the implemented commands.
 
 ## Product behavior and scope
 
@@ -36,7 +36,7 @@ RESEND_WEBHOOK_SECRET=
 - Public HTTPS origin is needed only for applicant links/webhooks. Never email a localhost upload URL to an external applicant.
 - Keep credentials in ignored environment configuration. No secrets in shared DTOs or browser bundles.
 
-These settings are reserved placeholders until implementation; the current app does not read them. Configuring a key does not implement the composer, outbox, worker, or UI.
+Release 1 consumes the email/draft mode, key, sender, reply-to, and allowlist settings. Public origin and webhook secret remain reserved for future work. The key alone never enables sending. The worker must run separately after the coordinated migration/app rollout.
 
 ```mermaid
 sequenceDiagram
