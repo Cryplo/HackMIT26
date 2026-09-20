@@ -30,6 +30,8 @@ The user now prefers Ramp-inspired compact components with a black-and-white bas
 
 The generated Sift logo is served from `reconciliation/public/sift-logo.png` through the shared `SiftLogo` component in desktop/mobile navigation and the submission header. CSS frames the original transparent artwork. This replacement passed TypeScript checking; browser visual verification remains outstanding.
 
+Navigation includes a global ⌘K / Ctrl+K section palette and a “Jump to…” button in the workspace navigation. It filters section names and synonyms, supports arrows/Enter/Escape, and preserves preview mode for supported workspaces. It only navigates; no model call or workflow action is triggered. Dashboard subviews use the `view` URL parameter so palette jumps and browser history select the correct section.
+
 ## Statuses: keep these separate
 
 | Concept | Meaning |
