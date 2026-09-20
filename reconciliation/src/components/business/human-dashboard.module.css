@@ -120,6 +120,11 @@
 .statusSummary { margin-bottom: 24px; }
 .statusCards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .statusCard { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 16px; background: var(--card); }
+/* Restrained status tints retain the neutral workspace and readable numbers. */
+.statusCard[data-tone="unchecked"] { background: var(--muted); }
+.statusCard[data-tone="approved"] { background: var(--status-good-bg); border-color: color-mix(in srgb, var(--status-good) 18%, var(--border)); }
+.statusCard[data-tone="review"] { background: color-mix(in srgb, var(--status-review-bg) 48%, var(--card)); border-color: color-mix(in srgb, var(--status-review-accent) 24%, var(--border)); }
+.statusCard[data-tone="rejected"] { background: var(--status-bad-bg); border-color: color-mix(in srgb, var(--status-bad) 16%, var(--border)); }
 .statusCard dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
 .statusCard svg { width: 17px; height: 17px; flex-shrink: 0; }
 .statusCard[data-tone="approved"] svg { color: var(--status-good); }
