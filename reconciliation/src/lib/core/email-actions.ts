@@ -112,6 +112,7 @@ export async function retryDecisionEmail(core: CoreService, messageId: string, r
   if (config.mode !== 'live') throw new CoreError('EMAIL_UNAVAILABLE', 'Enable live email delivery before retrying an existing message.', 503);
   const existing = requireMessage(await core.store.messages({action:'get',message_id:messageId}));
   assertEmailRecipient(config, existing.recipient);
+  if (existing.from !== config.from || existing.reply_to !== config.replyTo) throw new CoreError('EMAIL_UNAVAILABLE', 'Restore the saved sender configuration before retrying this message.', 503);
   const message = requireMessage(await core.store.messages({action:'retry',message_id:messageId,...input}));
   return {message:publicMessage(message)};
 }

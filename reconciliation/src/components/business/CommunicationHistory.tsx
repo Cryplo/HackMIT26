@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DashboardClient } from "@/lib/dashboard/ui-contracts";
 import type { ClaimMessage } from "@/lib/review-contracts";
+import styles from "./decision-message.module.css";
 
 export function communicationStatus(message: ClaimMessage): string {
-  if (message.status === "previewed") return "Preview saved — no email sent";
+  if (message.status === "previewed") return "Email simulated — no email was sent";
   if (message.status === "accepted") return "Decision saved — email accepted by provider";
   if (message.status === "queued") return "Decision saved — email queued";
   if (message.status === "sending") return "Decision saved — sending email";
@@ -58,14 +59,14 @@ export function CommunicationHistory({ claimId, client, revision }: { claimId: s
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {!loaded && !error && <p role="status" className="text-sm text-muted-foreground">Loading saved messages…</p>}
     {loaded && !messages.length && <p className="text-sm text-muted-foreground">No applicant messages have been saved for this claim.</p>}
-    <ol className="space-y-3">{messages.map(item => <li key={item.id} className="rounded-lg border p-3">
-      <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{item.mode === "preview" ? "Preview" : item.mode === "live" ? "Live email" : "Draft"}</Badge><span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</span></div>
+    <ol className="space-y-3">{messages.map(item => <li key={item.id} className={styles.historyItem}>
+      <div className={styles.historyMeta}><Badge variant="outline" className={item.mode === "preview" ? styles.previewBadge : undefined}>{item.mode === "preview" ? "Simulation" : item.mode === "live" ? "Live email" : "Draft"}</Badge><span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString()}</span></div>
       <p className="mt-2 text-sm font-medium">{communicationStatus(item)}</p>
       {item.status === "accepted" && <p className="mt-1 text-xs text-muted-foreground">Provider acceptance does not confirm inbox delivery.</p>}
       {item.status === "delivery_unknown" && <p className="mt-1 text-xs text-muted-foreground">Check provider records before a new send. Any permitted retry reuses this message and delivery key.</p>}
       <p className="mt-2 break-all text-xs text-muted-foreground">To: {item.recipient}</p>
       {item.correction_id && <p className="mt-1 break-all text-xs text-muted-foreground">Decision: {item.correction_id}</p>}
-      <details className="mt-2 text-sm"><summary className="cursor-pointer py-1">{item.subject || "View saved message"}</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{item.rendered_text ?? item.body}</p></details>
+      <details className={styles.historySubject}><summary>{item.subject || "View saved message"}</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{item.rendered_text ?? item.body}</p></details>
       {item.error && <p className="mt-2 text-xs text-destructive">{item.error}</p>}
       {item.status === "failed" && client.retryMessage && <Button className="mt-3" variant="outline" size="sm" disabled={!!retrying} onClick={() => void retry(item)}>{retrying === item.id ? "Queueing retry…" : "Retry email"}</Button>}
     </li>)}</ol>

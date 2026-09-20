@@ -2,6 +2,10 @@
 
 Release 1 provides reviewer-confirmed decision emails: editable drafts, an atomic decision/outbox transaction, saved message history, and a separate Resend delivery worker. Preview mode saves the decision and message without sending. The SQL migration must be deployed alongside this app version before using Supabase. Request-information links and delivery webhooks remain future work; see the [architecture](../../docs/next-work/06-decision-email-plan.md).
 
+## Simulated send
+
+Leave `RECONCILIATION_EMAIL_MODE=preview` and `RECONCILIATION_EMAIL_DRAFT_MODE=template` (the defaults). No Resend account, key, or worker is needed. Review the applicant message, then choose **Save decision & simulate email**. After the server confirms the saved decision, Sift shows a paper-plane animation and **Email simulated — No email was sent**. Choose **Continue review** to return to the claim. Reduced-motion preferences skip the flight animation. Failed saves show recovery actions, never a success animation. Private review notes stay separate from applicant text.
+
 ## 1. Create your account
 
 Open [Resend signup](https://resend.com/signup), create an account using the inbox where you want demo notifications, and complete email verification. For this demo, skip custom domain setup.
