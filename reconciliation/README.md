@@ -61,6 +61,10 @@ npm run dev -- --hostname 127.0.0.1
 
 Live mode fails closed on missing configuration and never silently simulates provider failure. Restart after changing environment settings.
 
+## Decision justifications
+
+Every completed run stores a reviewer-facing justification inside the `overall_status` decision, shown as "Why this outcome" in the dashboard evidence panel, and `POST /api/justifications` with `{"submission_id": "<uuid>"}` regenerates one on demand from the latest completed run. The narrative only restates checks that already ran: it cannot change a verdict, a status, or a stored decision, and a narrative that argues for a different outcome or does not describe the recorded one is discarded. When a human correction owns the status, the narrative says so instead of crediting the machine checks. Demo and simulated modes emit a deterministic template. OpenAI narratives are opt-in: set `RECONCILIATION_JUSTIFICATION_MODE=live` with `OPENAI_API_KEY` (model override: `JUSTIFICATION_MODEL`, default `gpt-4.1-mini`) outside simulated mode; an `OPENAI_API_KEY` alone never starts spending on narratives. Live usage is logged in `model_calls`, one row per provider call. If OpenAI refuses, times out, or returns an unusable narrative, both paths keep the outcome and fall back to the deterministic summary with an `error` code attached.
+
 Optional local live extraction: keep intake mode `demo`, set extraction mode `live`, configure `OPENAI_API_KEY`, and use `npm run dev`, not `npm run demo` (which forces simulation). Keep reconciliation mode `simulated` for simulated checks, or leave it unset with a Jev key for live decisions and local retrieval. Inspect the dashboard execution label.
 
 ## Test
@@ -82,6 +86,7 @@ SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase har
 - Code enforces amounts, dates, and caps. Jev judges merchant/category compatibility, attendee identity, and duplicate evidence. Code combines independent checks. Missing fields and uncertainty require review. Thresholds are conservative starting values, not calibrated on representative data.
 - Reusable aliases are scoped to observed vendor/category/currency. One-time overrides teach nothing. Explicitly rerunning a manually resolved claim creates a new machine outcome; old decisions remain stored. Related claims need a rerun to use a correction.
 - Usage is logged once per call; unknown costs stay null. Highest-value next sponsor feature: a fair labeled Jev-versus-LLM benchmark with measured latency/cost and decision quality, plus visible usage reporting.
+- Justifications are explanations of recorded checks, not model reasoning traces and not an independent audit of the outcome.
 - Dashboard shows current decisions and the applicable human override. A historical run comparison/export, extraction edit/retry controls, and policy editor would improve usability. Rationale is an evidence-based template, not a claim to expose model reasoning.
 - Elasticsearch retrieval is bounded to a small demo corpus (1000 records), not production incremental indexing. Evaluate varied receipts and near-duplicates before broad quality claims.
 - Before real users: authentication/authorization, retention controls, upload abuse limits, and background jobs/retries. No payments, DOCX, currency conversion, or independent auditor.

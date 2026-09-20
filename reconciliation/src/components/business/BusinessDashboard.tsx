@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   CorrectionInput,
+  DecisionSummary,
   ReviewRow,
   ReviewsResponse,
   Status,
@@ -16,6 +17,71 @@ import {
 } from "../../lib/dashboard/helpers";
 import { fixtureReviews } from "../../lib/dashboard/fixtures";
 import styles from "./business.module.css";
+
+interface JustificationView {
+  summary: string;
+  reasons: string[];
+  next_step: string;
+  model: string;
+  simulated: boolean;
+  error: string | null;
+}
+
+/** Narrative stored with the run; it restates the outcome and never sets it. */
+function justificationOf(
+  decisions: DecisionSummary[],
+): JustificationView | null {
+  const evidence = decisions.find(
+    (decision) => decision.field_checked === "overall_status",
+  )?.evidence_json;
+  const value =
+    typeof evidence === "object" && evidence !== null
+      ? (evidence as { justification?: unknown }).justification
+      : null;
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Partial<JustificationView>;
+  if (
+    typeof candidate.summary !== "string" ||
+    typeof candidate.next_step !== "string" ||
+    !Array.isArray(candidate.reasons)
+  )
+    return null;
+  return {
+    summary: candidate.summary,
+    reasons: candidate.reasons.filter(
+      (reason): reason is string => typeof reason === "string",
+    ),
+    next_step: candidate.next_step,
+    model: typeof candidate.model === "string" ? candidate.model : "unknown",
+    simulated: candidate.simulated !== false,
+    error: typeof candidate.error === "string" ? candidate.error : null,
+  };
+}
+
+function JustificationPanel({ decisions }: { decisions: DecisionSummary[] }) {
+  const justification = justificationOf(decisions);
+  if (!justification) return null;
+  return (
+    <section className={styles.justification}>
+      <h3>Why this outcome</h3>
+      <p>{justification.summary}</p>
+      <ul>
+        {justification.reasons.map((reason) => (
+          <li key={reason}>{reason}</li>
+        ))}
+      </ul>
+      <p>{justification.next_step}</p>
+      <p className={styles.footnote}>
+        {justification.simulated
+          ? "Deterministic summary"
+          : `Written by ${justification.model}`}
+        {justification.error
+          ? ` · model unavailable (${justification.error}), outcome unchanged`
+          : ""}
+      </p>
+    </section>
+  );
+}
 
 export default function BusinessDashboard() {
   const [mode, setMode] = useState<"api" | "fixtures">("api");
@@ -476,6 +542,7 @@ export default function BusinessDashboard() {
               create an evidence trail.
             </p>
           )}
+          <JustificationPanel decisions={current.decisions} />
           <div className={styles.decisions}>
             {current.decisions.map((decision) => (
               <article key={decision.id}>

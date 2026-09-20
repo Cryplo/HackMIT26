@@ -397,6 +397,23 @@
 .evidenceActions a {
   font-size: 12px;
 }
+.justification {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.justification h3 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+.justification ul {
+  margin: 12px 0;
+  padding-left: 18px;
+}
+.justification li {
+  font-size: 13px;
+}
 .decisions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
