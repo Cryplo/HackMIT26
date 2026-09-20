@@ -18,7 +18,7 @@ export function checkOrigin(request: Request) {
       403,
     );
 }
-export async function parseUpload(request: Request) {
+export async function boundedMultipart(request: Request) {
   checkOrigin(request);
   if (!request.headers.get("content-type")?.startsWith("multipart/form-data;"))
     throw new IntakeError(
@@ -56,6 +56,10 @@ export async function parseUpload(request: Request) {
       "The multipart form could not be read.",
     );
   }
+  return form;
+}
+export async function parseUpload(request:Request){
+  const form=await boundedMultipart(request);
   const allowed = [...Object.keys(Submission.shape), "file"];
   for (const key of form.keys())
     if (!allowed.includes(key) || form.getAll(key).length !== 1)

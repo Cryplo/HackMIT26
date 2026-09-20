@@ -1,9 +1,19 @@
+import {bookingReferences} from './evidence';
+import type { EvidenceRef, PolicyRule, SupportingDocument } from '../review-contracts';
 import type { Correction, ParsedReceipt, Submission } from '../contracts';
 import type { Snapshot } from './store';
 import { activeAliases, aliasCorrections } from './rule-state';
 import { aliasPayload, normalize, CoreError } from './validation';
 export interface Candidate { submission_id: string; attendee_name: string; category: string; currency: string; receipt: ParsedReceipt; search_score?: number }
-export interface Evidence { candidates: Candidate[]; aliases: Correction[]; retrieval_mode: 'elasticsearch' | 'simulated' | 'database'; }
+export interface Evidence {
+  candidates: Candidate[]; aliases: Correction[]; retrieval_mode: 'elasticsearch' | 'simulated' | 'database';
+  /** Core attaches bounded stored evidence after retrieval; optional for existing callers. */
+  receipt_text?: string | null;
+  supporting_documents?: SupportingDocument[];
+  policies?: PolicyRule[];
+  procedure_matches?: {procedure_id:string;reference:string;canonical_vendor:string;evidence_refs:EvidenceRef[]}[];
+  identity_evidence_refs?: EvidenceRef[];
+}
 export interface Retrieval { retrieve(s: Submission, receipt: ParsedReceipt, state: Snapshot): Promise<Evidence> }
 export function applicableAliases(s: Submission, p: ParsedReceipt, cs: Correction[]): Correction[] {
   return cs.filter(c => {
@@ -12,7 +22,7 @@ export function applicableAliases(s: Submission, p: ParsedReceipt, cs: Correctio
   });
 }
 function candidates(s: Submission, state: Snapshot): Candidate[] {
-  return state.submissions.filter(x => x.id !== s.id && (x.submitted_at < s.submitted_at || (x.submitted_at === s.submitted_at && x.id < s.id))).flatMap(x => {
+  return state.submissions.toSorted((a,b)=>a.submitted_at.localeCompare(b.submitted_at)||a.id.localeCompare(b.id)).filter(x => x.id !== s.id && (x.submitted_at < s.submitted_at || (x.submitted_at === s.submitted_at && x.id < s.id))).flatMap(x => {
     const p = state.receipts.find(r => r.submission_id === x.id && r.extraction_status === 'succeeded')?.parsed_fields_json;
     return p ? [{ submission_id: x.id, attendee_name: x.attendee_name, category: x.category, currency: x.currency, receipt: p }] : [];
   });
@@ -63,11 +73,20 @@ export class DatabaseRetrieval implements Retrieval {
   async retrieve(s: Submission, p: ParsedReceipt, state: Snapshot): Promise<Evidence> {
     if (state.submissions.length > 1000) throw new CoreError('RETRIEVAL_LIMIT', 'Candidate scan supports up to 1000 claims; narrow the corpus before reconciling.', 503);
     return {
-      candidates: candidates(s, state).filter(c =>
-        (p.receipt_number && c.receipt.receipt_number && normalize(c.receipt.receipt_number) === normalize(p.receipt_number)) ||
-        (p.amount_minor !== null && c.receipt.amount_minor === p.amount_minor) ||
-        (p.vendor && c.receipt.vendor && normalize(p.vendor) === normalize(c.receipt.vendor)) ||
-        (p.receipt_date && c.receipt.receipt_date === p.receipt_date)),
+      candidates: candidates(s, state).filter(c => {
+        const q=c.receipt;
+        const sameNumber=!!p.receipt_number?.trim()&&!!q.receipt_number?.trim()&&normalize(p.receipt_number)===normalize(q.receipt_number);
+        const sameVendor=!!p.vendor?.trim()&&!!q.vendor?.trim()&&normalize(p.vendor)===normalize(q.vendor);
+        const sameAmount=p.amount_minor!==null&&p.amount_minor===q.amount_minor;
+        const sameDate=!!p.receipt_date&&p.receipt_date===q.receipt_date;
+        const currentRefs=bookingReferences(state.receipts.find(r=>r.submission_id===s.id)?.raw_extracted_text??null);
+        const priorRefs=bookingReferences(state.receipts.find(r=>r.submission_id===c.submission_id)?.raw_extracted_text??null);
+        const sharedBooking=currentRefs.length===1&&priorRefs.length===1&&currentRefs[0]===priorRefs[0];
+        // Different document numbers can represent one purchase: retain corroborated booking evidence for Jev.
+        if(sharedBooking&&sameAmount&&sameDate&&p.currency!==null&&p.currency===q.currency)return true;
+        if(p.receipt_number?.trim()&&q.receipt_number?.trim()&&!sameNumber)return false;
+        return (sameNumber&&(sameVendor||sameAmount||sameDate))||(sameVendor&&sameAmount&&sameDate);
+      }),
       aliases: applicableAliases(s, p, aliasCorrections(activeAliases(state))), retrieval_mode: 'database',
     };
   }

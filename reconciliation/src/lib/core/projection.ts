@@ -1,11 +1,17 @@
 import { createHash } from 'node:crypto';
-import type { ReviewRow } from '../review-contracts';
+import type { ReviewRow, InvestigationRun } from '../review-contracts';
 import type { Snapshot } from './store';
 import { overall } from './checks';
 import { CoreError } from './validation';
 import { confirmedDuplicates, latestCorrection, reviewRevision } from './safety';
 
 export function publicEvidence({provider_response: _raw, ...evidence}: Record<string, unknown>) { return evidence; }
+
+export function publicInvestigation(run:InvestigationRun):InvestigationRun {
+ const value=structuredClone(run);
+ if(value.status==='running'&&Date.now()-Date.parse(value.started_at)>300000){value.status='failed';value.outcome=null;value.after_assessment=null;value.error='Run lease expired. Retry the investigation.';value.steps=value.steps.map(s=>s.status==='running'?{...s,status:'failed',error:value.error}:s);}
+ return value;
+}
 
 /** Project persisted machine checks and human corrections independently. Machine
  * status never implies a human approval, even for historical v1 records. */
@@ -30,7 +36,7 @@ export function workspaceRows(state: Snapshot): ReviewRow[] {
    processing_status:running?'running':last?.status==='failed'?'failed':'idle',processing_error:last?.status==='failed'?last.error:null,
    status:decision_status!=='pending'?decision_status:assessment_status==='matched'?'approved':assessment_status||'pending',
    receipt:receipt?{id:receipt.id,file_type:receipt.file_type,sha256:receipt.sha256??null,extraction_provenance:receipt.extraction_provenance??'historical fixture / unknown',extraction_status:receipt.extraction_status,extraction_error:receipt.extraction_error,parsed_fields_json:receipt.parsed_fields_json}:null,
-   decisions,duplicate_submission_ids:confirmedDuplicates(state,s.id).map(d=>d.submission_id),investigation:null} satisfies ReviewRow;
+   decisions,duplicate_submission_ids:confirmedDuplicates(state,s.id).map(d=>d.submission_id),investigation:null,latest_investigation:((state.investigations??[]).filter(r=>r.claim_id===s.id).toSorted((a,b)=>a.started_at.localeCompare(b.started_at)||a.run_id.localeCompare(b.run_id)).map(publicInvestigation).at(-1)??null)} satisfies ReviewRow;
  });
 }
 export function workspaceSnapshot(state: Snapshot) {

@@ -1,3 +1,5 @@
+import type { SupportingCommand, InvestigationCommand } from './investigation-state';
+import type { ProcedureCommand } from './procedure-state';
 import 'server-only';
 import { mkdir, readFile, writeFile, rename, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -115,6 +117,9 @@ export class FileStore implements Store {
     await store.importIntakeRecord(submission,receipt);
     await this.put(`${receipt.id}.receipt.json`,receipt);
   });}
+  supporting(command:SupportingCommand){return this.transaction(store=>store.supporting(command));}
+  investigation(command:InvestigationCommand){return this.transaction(store=>store.investigation(command));}
+  procedure(command:ProcedureCommand){return this.transaction(store=>store.procedure(command));}
   snapshot() { return this.transaction(store => store.snapshot()); }
   begin(id: string) { return this.transaction(store => store.begin(id)); }
   finish(id: string, ds: Decision[], status: SubmissionStatus) { return this.transaction(store => store.finish(id, ds, status)); }

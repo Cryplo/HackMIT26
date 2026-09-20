@@ -286,7 +286,7 @@ test('full intelligence port reuses search and investigation reports unavailable
   assert.equal(intelligence.search, search); assert.equal(intelligence.build_rule_suite, build_rule_suite); assert.equal(intelligence.evaluate_rule, evaluate_rule);
   for (const mode of ['live', 'simulated'] as const) {
     const result = await intelligence.investigate({ submission: input().examples[0].facts.submission, checks: [] }, {
-      read_receipt: unavailable, read_policy: unavailable, find_related_claims: unavailable, read_active_aliases: unavailable,
+      read_supporting_documents: unavailable, read_receipt: unavailable, read_policy: unavailable, find_related_claims: unavailable, read_active_aliases: unavailable,
     }, { mode, signal: new AbortController().signal, log_usage: unavailable });
     assert.equal(result.status, 'unavailable'); assert.equal(result.mode, mode); assert.equal(result.model, null);
     assert.equal(result.next_action, 'human_review'); assert.equal(result.error_code, 'INVESTIGATION_UNAVAILABLE');

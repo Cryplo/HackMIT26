@@ -25,6 +25,7 @@ export interface ReceiptEvidence {
 }
 export interface PolicyRule {
   id: string; category: Category; region_or_route: string; currency: 'USD';
+  claimant_identity_evidence?: 'receipt_only' | 'receipt_or_linked_itinerary';
   max_amount_minor: number; date_range_start: string; date_range_end: string; created_at: string;
 }
 export interface Check {
@@ -41,16 +42,18 @@ export interface AliasPayload {
 export interface ActiveAlias {
   id: string; source_correction_id: string; payload: AliasPayload;
 }
-export type InvestigationTool = 'read_receipt' | 'read_policy' | 'find_related_claims' | 'read_active_aliases';
+export type InvestigationTool = 'read_supporting_documents' | 'read_receipt' | 'read_policy' | 'find_related_claims' | 'read_active_aliases';
 export interface InvestigationStep {
   tool: InvestigationTool; evidence_refs: string[]; summary: string;
 }
 export interface InvestigationResult {
+  findings?: InvestigationFinding[]; unresolved_question?: string | null; proposed_learning?: ProcedureCandidate | null;
   status: 'completed' | 'unavailable'; mode: ProviderMode; model: string | null;
   summary: string; next_action: 'human_review' | 'request_document' | 'propose_alias';
   evidence_refs: string[]; steps: InvestigationStep[]; error_code: string | null;
 }
 export interface ReviewRow extends ClaimFacts {
+  latest_investigation?: InvestigationRun | null;
   updated_at: string; latest_run_id: string | null; review_revision: number;
   assessment_status: Assessment | null; decision_status: HumanDecision;
   assessment_knowledge_revision: number | null;
@@ -62,6 +65,7 @@ export interface ReviewRow extends ClaimFacts {
   investigation: InvestigationResult | null;
 }
 export interface WorkspaceCapabilities {
+  supporting_documents?: boolean; investigations?: boolean; resolution_procedures?: boolean;
   rule_learning: boolean; extraction_retry: boolean; export: boolean;
   custom_checks: boolean; duplicate_links: boolean; knowledge_revisions: boolean;
 }
@@ -136,6 +140,7 @@ export interface SearchResponse {
 }
 export interface InvestigationInput { submission: ClaimFacts; checks: Check[] }
 export interface InvestigationTools {
+  read_supporting_documents(): Promise<SupportingDocument[]>;
   read_receipt(): Promise<ReceiptEvidence | null>;
   read_policy(): Promise<PolicyRule[]>;
   find_related_claims(): Promise<RelatedClaim[]>;
@@ -167,6 +172,8 @@ export interface RuleEvaluationInput {
   examples: EvaluationCase[]; mode: ProviderMode; signal: AbortSignal;
 }
 export interface IntelligencePort {
+  build_procedure_suite?(procedure: ResolutionProcedure): ProcedureEvaluationCase[];
+  evaluate_procedure?(input: ProcedureEvaluationInput, assess: AssessProcedureExample): Promise<ProcedureTestReport>;
   investigate(input: InvestigationInput, tools: InvestigationTools, options: ProviderOptions): Promise<InvestigationResult>;
   search(input: { query: string; rows: SearchRow[] }, options: ProviderOptions): Promise<SearchEvaluation>;
   build_rule_suite(rule: MerchantRule): EvaluationCase[];
@@ -174,3 +181,86 @@ export interface IntelligencePort {
 }
 export type IntelligenceErrorCode = 'PROVIDER_UNAVAILABLE' | 'PROVIDER_TIMEOUT' | 'INVALID_PROVIDER_OUTPUT' | 'UNSUPPORTED_QUERY';
 /** C exports intelligence: IntelligencePort from src/lib/intelligence/index.ts. */
+
+export type DocumentKind = 'booking_confirmation' | 'itemized_document' | 'itinerary' | 'payment_confirmation' | 'other';
+export interface EvidenceRef {
+  kind: 'receipt' | 'supporting_document' | 'claim' | 'policy' | 'alias' | 'procedure';
+  id: string;
+}
+export interface SupportingDocument {
+  id: string; claim_id: string; kind: DocumentKind;
+  file_type: string; sha256: string; created_at: string;
+  extraction_status: 'pending' | 'succeeded' | 'failed';
+  extraction_error: string | null; extraction_provenance: string | null;
+  extracted_text: string | null;
+  facts: {
+    vendor: string | null; booking_reference: string | null;
+    receipt_number: string | null; names: string[];
+    purchase_date: string | null; currency: string | null; amount_minor: number | null;
+  } | null;
+}
+export interface InvestigationFinding {
+  id: string; check: string; statement: string; evidence_refs: EvidenceRef[];
+}
+export interface InvestigationAssessment {
+  assessment_status: Assessment | null; checks: Check[];
+  review_revision: number; evidence_revision: number; knowledge_revision: number;
+}
+export interface ProcedureCandidate {
+  kind: 'booking_reference_identity';
+  trigger_scope: { category: 'hotel'; currency: 'USD'; observed_vendor: string; canonical_vendor: string };
+  required_evidence: ['receipt', 'booking_confirmation'];
+  matching_fields: ['booking_reference']; source_evidence_refs: EvidenceRef[];
+}
+export interface InvestigationRunStep {
+  id: string; run_id: string; sequence: number;
+  tool: 'read_receipt' | 'read_supporting_documents' | 'find_related_claims' | 'read_policy' | 'read_active_aliases';
+  status: 'running' | 'completed' | 'failed';
+  started_at: string; completed_at: string | null;
+  summary: string; evidence_refs: EvidenceRef[]; error: string | null;
+}
+export interface InvestigationRun {
+  run_id: string; claim_id: string;
+  trigger: 'manual' | 'recoverable_uncertainty';
+  status: 'running' | 'completed' | 'failed' | 'superseded';
+  outcome: 'resolved' | 'discrepancy_found' | 'needs_human' | null;
+  headline: string; summary: string; unresolved_question: string | null;
+  findings: InvestigationFinding[];
+  before_assessment: InvestigationAssessment;
+  after_assessment: InvestigationAssessment | null;
+  proposed_learning: ProcedureCandidate | null;
+  steps: InvestigationRunStep[];
+  started_at: string; completed_at: string | null;
+  mode: ProviderMode; model: string | null; error: string | null;
+}
+export interface ProcedureTestReport {
+  procedure_id: string; procedure_version: number; knowledge_revision: number;
+  suite_version: 'booking-reference-v1'; mode: ProviderMode; tested_at: string;
+  passed: boolean; applied_case_ids: string[]; regressed_case_ids: string[];
+  before: EvaluationMetrics; after: EvaluationMetrics; reasons: string[];
+}
+export interface ResolutionProcedure extends ProcedureCandidate {
+  id: string; version: number; state: 'draft' | 'active' | 'disabled';
+  source_claim_id: string; source_run_id: string; source_correction_id: string;
+  created_at: string; latest_test: ProcedureTestReport | null;
+  latest_test_error: string | null;
+}
+
+export type ProcedureFacts = EvaluationCase['facts'] & { supporting_documents: SupportingDocument[] };
+export interface ProcedureEvaluationCase { id: string; facts: ProcedureFacts; expected_assessment: Assessment }
+export type AssessProcedureExample = (
+  facts: ProcedureFacts, aliases: ActiveAlias[], procedures: ResolutionProcedure[], signal: AbortSignal
+) => Promise<Assessment>;
+/** Actual shared-assessor output, exposed read-only to C's procedure gate. */
+export interface ProcedureAssessmentObservation {
+  submission_id: string; alias_ids: string[]; procedure_ids?: string[];
+  assessment: Assessment | null; checks: Check[]; error_code: string | null;
+  phase?: 'before' | 'after'; case_id?: string;
+}
+export interface ProcedureEvaluationInput {
+  procedure: ResolutionProcedure; active_aliases: ActiveAlias[];
+  active_procedures: ResolutionProcedure[]; knowledge_revision: number;
+  examples: ProcedureEvaluationCase[]; mode: ProviderMode; signal: AbortSignal;
+  /** Fresh defensive copies; never model input or client-authored proof. */
+  get_observations?: () => ProcedureAssessmentObservation[];
+}

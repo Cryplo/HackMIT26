@@ -1,3 +1,4 @@
+import { boundedEvidence, applicableProcedures, itineraryIdentity } from './evidence';
 import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse, SubmissionStatus } from '../contracts';
 import { decision, deterministic, overall } from './checks';
 import type { Jev, SemanticField } from './jev';
@@ -9,8 +10,9 @@ import { confirmedDuplicates, latestCorrection } from './safety';
 import type { Snapshot, Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
 import { publicEvidence } from './projection';
+type AbortableJev = {evaluate(state:Parameters<Jev['evaluate']>[0],runId:string,log:Parameters<Jev['evaluate']>[2],signal?:AbortSignal):ReturnType<Jev['evaluate']>};
 export class CoreService {
-  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort) {}
+  constructor(public store: Store, private retrieval: Retrieval, private jev: AbortableJev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string; investigation?:string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort, public investigationMode:'disabled'|'simulated'|'live'='disabled') {}
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
     // Three workers; stop launching work before the route's five-minute deadline.
     const results: ReconcileResult[] = new Array(ids.length); let next = 0;
@@ -57,17 +59,21 @@ export class CoreService {
       if (r?.extraction_status === 'succeeded' && parsedReceipt(r.parsed_fields_json)) {
         try {
           const evidence = await this.retrieval.retrieve(s, r.parsed_fields_json, state);
-          const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence };
+          const supporting=boundedEvidence(state,id),procedures=applicableProcedures(state,id),identity=itineraryIdentity(state,id);
+          const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence: {...evidence,...supporting,procedure_matches:procedures.map(p=>({procedure_id:p.procedure.id,reference:p.reference,canonical_vendor:p.procedure.trigger_scope.canonical_vendor,evidence_refs:p.refs})),identity_evidence_refs:identity??[]} };
           signal?.throwIfAborted();
-          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call));
+          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call),signal);
           signal?.throwIfAborted();
           const confirmed=confirmedDuplicates(state,s.id);
           for (const field of ['merchant', 'name', 'duplicate'] as SemanticField[]) {
             const a = evaluation.answers[field];
-            const missingEvidence = (field === 'name' && !r.parsed_fields_json.names.some(n => n.trim())) || (field === 'merchant' && !r.parsed_fields_json.vendor?.trim());
-            const conflictingAliases = field === 'merchant' && new Set(evidence.aliases.map(c => normalize(aliasPayload(c.correction_payload_json).canonical_vendor))).size > 1;
-            const verdict = field==='duplicate'&&confirmed.length?'fail':missingEvidence || conflictingAliases || a.confidence < .7 || a.probabilities[a.choice] < .85 ? 'unknown' : a.choice;
-            const d = decision(s, run, field, verdict, a.choice, `${evaluation.simulated ? 'SIMULATED fixture' : 'Jev'} ${field} assessment: ${verdict}. ${field === 'merchant' ? `${evidence.aliases.length} scoped alias records supplied.` : field === 'duplicate' ? `${evidence.candidates.length} prior receipt candidates supplied.` : `${r.parsed_fields_json.names.length} receipt names supplied.`}`, { ...evidence, confirmed_duplicates:field==='duplicate'?confirmed:[],comparison_method:field==='duplicate'?'exact bytes or corroborated receipt identity; remaining candidates are possible':null, simulated: evaluation.simulated, provider_answer: a, probability_label: 'Probability the check passes (true)', probability_option: 'pass', provider_response: evaluation.raw });
+            const missingEvidence = (field === 'name' && !r.parsed_fields_json.names.some(n => n.trim())&&!identity) || (field === 'merchant' && !r.parsed_fields_json.vendor?.trim());
+            const conflictingAliases = field === 'merchant' && new Set([...evidence.aliases.map(c => normalize(aliasPayload(c.correction_payload_json).canonical_vendor)),...procedures.map(p=>normalize(p.procedure.trigger_scope.canonical_vendor))]).size > 1;
+            const exactName=field==='name'&&(r.parsed_fields_json.names.some(n=>normalize(n)===normalize(s.attendee_name))||!!identity);
+            const procedureMatch=field==='merchant'&&procedures.length>0&&!conflictingAliases;
+            const verdict = field==='duplicate'&&confirmed.length?'fail':missingEvidence||conflictingAliases?'unknown':procedureMatch||exactName?'pass':a.confidence < .7 || a.probabilities[a.choice] < .85 ? 'unknown' : a.choice;
+            const unknown_reason=verdict!=='unknown'?null:missingEvidence?'missing_evidence':conflictingAliases?'conflicting_aliases':a.confidence<.7?'confidence_threshold':a.probabilities[a.choice]<.85?'chosen_probability_threshold':'provider_unknown';
+            const d = decision(s, run, field, verdict, a.choice, `${evaluation.simulated ? 'SIMULATED fixture' : 'Jev'} ${field} assessment: ${verdict}. ${field === 'merchant' ? `${evidence.aliases.length} scoped alias records supplied.` : field === 'duplicate' ? `${evidence.candidates.length} prior receipt candidates supplied.` : `${r.parsed_fields_json.names.length} receipt names supplied.`}`, { ...evidence, unknown_reason, chosen_answer:a.choice,chosen_probability:a.probabilities[a.choice], procedure_ids:procedureMatch?procedures.map(p=>p.procedure.id):[], evidence_refs:procedureMatch?procedures.flatMap(p=>p.refs):exactName?(identity??[{kind:'receipt',id:r.id}]):[], exact_method:procedureMatch?'booking_reference_identity':exactName?'exact_claimant_identity':null, confirmed_duplicates:field==='duplicate'?confirmed:[],comparison_method:field==='duplicate'?'exact bytes or corroborated receipt identity; remaining candidates are possible':null, simulated: evaluation.simulated, provider_answer: a, probability_label: 'Probability the check passes (true)', probability_option: 'pass', provider_response: evaluation.raw });
             Object.assign(d, { check_method: 'jev', question_type: 'choice', probability: evaluation.simulated ? null : a.probabilities.pass, confidence_score: evaluation.simulated ? null : a.confidence, model_used: evaluation.model, state_snapshot_json: semanticState }); ds.push(d);
           }
         } catch (error) {
@@ -79,7 +85,7 @@ export class CoreService {
     if(confirmed.length&&!ds.some(d=>d.field_checked==='duplicate'))ds.push(decision(s,run,'duplicate','fail',false,'A prior claim contains this exact purchase.',{confirmed_duplicates:confirmed}));
     return ds;
   }
-  get providerIdentity(){return this.demoMode?'simulated:fixture-v1':`live:${process.env.JEV_MODEL||(process.env.TYPESAFE_API_KEY||process.env.JEV_API_KEY?'jev-latest':'typesafe-ai/jev')}`;}
+  get providerIdentity(){return this.demoMode?'simulated:fixture-v1':`live:${process.env.TYPESAFE_API_KEY||process.env.JEV_API_KEY?'typesafe':'gateway'}:${process.env.JEV_MODEL||(process.env.TYPESAFE_API_KEY||process.env.JEV_API_KEY?'jev-latest':'typesafe-ai/jev')}`;}
   /** Narration never changes an outcome: provider failure degrades to the deterministic summary. */
   private async narrate(request: JustificationRequest, runId: string | null): Promise<Justification> {
     try { return await this.justifier.explain(request, runId, call => this.store.usage(call)); }

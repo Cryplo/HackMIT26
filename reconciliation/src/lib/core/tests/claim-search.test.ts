@@ -42,5 +42,11 @@ test('database retrieval uses stored receipts and excludes the current/later cla
  const state=demoSnapshot();const s=state.submissions.at(-1)!;const receipt=state.receipts.find(r=>r.submission_id===s.id)!.parsed_fields_json!;
  const result=await new DatabaseRetrieval().retrieve(s,receipt,state);assert.equal(result.retrieval_mode,'database');assert.ok(result.candidates.every(c=>c.submission_id!==s.id));
  const prior=state.receipts[0].parsed_fields_json!;prior.amount_minor=receipt.amount_minor;
+ assert.equal((await new DatabaseRetrieval().retrieve(s,receipt,state)).candidates.some(c=>c.submission_id===state.submissions[0].id),false,'amount alone does not corroborate a purchase');
+ prior.vendor=receipt.vendor;prior.receipt_date=receipt.receipt_date;
+ assert.equal((await new DatabaseRetrieval().retrieve(s,receipt,state)).candidates.some(c=>c.submission_id===state.submissions[0].id),false,'distinct explicit numbers are preserved');
+ state.receipts[0].raw_extracted_text=state.receipts.at(-1)!.raw_extracted_text='Booking reference: SHARED-TRIP';
+ assert.ok((await new DatabaseRetrieval().retrieve(s,receipt,state)).candidates.some(c=>c.submission_id===state.submissions[0].id),'booking plus amount/date/currency permits semantic duplicate investigation');
+ prior.receipt_number=receipt.receipt_number;
  assert.ok((await new DatabaseRetrieval().retrieve(s,receipt,state)).candidates.some(c=>c.submission_id===state.submissions[0].id));
 });

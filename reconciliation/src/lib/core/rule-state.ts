@@ -1,3 +1,4 @@
+import { invalidateProcedures } from './procedure-state';
 import type { ActiveAlias, MerchantRule, RuleTestReport, ProviderMode } from '../review-contracts';
 import type { EvaluationObservation } from './evaluation';
 import type { Snapshot } from './store';
@@ -14,6 +15,7 @@ export type RuleCommand =
 export function activeAliases(state:Snapshot):ActiveAlias[] {return (state.rules??[]).filter(r=>r.state==='active').map(r=>({id:r.id,source_correction_id:r.source_correction_id,payload:r.payload}));}
 export function aliasCorrections(aliases:ActiveAlias[]) {return aliases.map(a=>({id:a.id,submission_id:a.source_correction_id,human_verdict:'approved' as const,human_note:'Tested active merchant identity.',correction_type:'vendor_alias' as const,correction_payload_json:a.payload as unknown as Record<string,unknown>,corrected_at:'1970-01-01T00:00:00.000Z'}));}
 export function invalidateSource(state:Snapshot,id:string) {
+ invalidateProcedures(state,id);
  let active=false;
  for(const rule of state.rules??[])if(rule.source_submission_id===id&&rule.state!=='disabled'){
   active ||= rule.state==='active';rule.state='disabled';rule.version++;rule.latest_test=null;rule.test_binding=null;rule.latest_test_error='Source approval changed.';state.rule_history!.push(structuredClone(rule));

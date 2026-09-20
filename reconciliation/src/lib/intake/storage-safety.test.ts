@@ -32,7 +32,7 @@ test("uncertain submission or receipt inserts retain originals and never issue c
     const mock = t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
       const request = new Request(input, init), pathname = new URL(request.url).pathname;
       requests.push(`${request.method} ${pathname}`);
-      if (pathname === "/rest/v1/rpc/core_platform_version") return Response.json(2);
+      if (pathname === "/rest/v1/rpc/core_platform_version") return Response.json(3);
       if (request.method === "DELETE") { originalRetained = false; return Response.json({}); }
       if (pathname === "/storage/v1/bucket/receipts") return Response.json({ id: "receipts", public: false });
       if (pathname === `/storage/v1/object/receipts/${receipt.storage_path}`) {
@@ -61,7 +61,7 @@ test("live initial completion uses the atomic RPC and exposes persistence failur
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
     requests.push(`${request.method} ${new URL(request.url).pathname}`);
-    if (new URL(request.url).pathname === "/rest/v1/rpc/core_platform_version") return Response.json(2);
+    if (new URL(request.url).pathname === "/rest/v1/rpc/core_platform_version") return Response.json(3);
     assert.deepEqual(await request.json(), { p_receipt: completed });
     return fail ? Response.json({ message: "Completion unavailable." }, { status: 503 }) : new Response(null, { status: 204 });
   });
