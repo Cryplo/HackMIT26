@@ -170,7 +170,7 @@ export default function InvestigationsWorkspace({ preview = false, initialRun = 
 
   return <AppShell view="investigations" onViewChange={openView} preview={preview}>
     <header className={styles.header}><div><h1>Check history</h1><p className={styles.muted}>See what Sift found while reviewing unclear evidence.</p></div><Button variant="outline" disabled={loading || procedureBusy} aria-busy={loading} onClick={() => void refresh().catch(() => {})}>{loading ? <LoaderCircle aria-hidden="true" className={styles.spinner} /> : <RefreshCw aria-hidden="true" />}{loading ? "Refreshing…" : "Refresh history"}</Button></header>
-    {preview && <p className={styles.notice}>Preview data. All checks here are simulated.</p>}
+    {preview && <p className={styles.notice}>Preview workspace. Checks here run in simulation.</p>}
     {(error || workspaceError) && <p role="alert" className={styles.error}>{error || workspaceError}</p>}
     {!reviews && loading && <p role="status" className={styles.activity}><LoaderCircle aria-hidden="true" className={styles.spinner} />Loading check history…</p>}
     {reviews && !reviews.capabilities?.investigations && <section className={styles.empty}><h2>History unavailable</h2><p>Open Claims to review the available evidence.</p></section>}

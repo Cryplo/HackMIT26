@@ -107,7 +107,7 @@ test("submit saves exact cents and retains the original and saved claim after ex
   await page.getByLabel("Requested amount · USD", { exact: true }).fill("123.45");
   await page.getByLabel("Travel category", { exact: true }).selectOption("train");
   await page.getByLabel("Traveling from", { exact: true }).fill("New York, NY");
-  await page.getByLabel("Attach one synthetic receipt", { exact: true }).setInputFiles({ name: "synthetic-receipt.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFukAAAAASUVORK5CYII=", "base64") });
+  await page.getByLabel("Attach your receipt", { exact: true }).setInputFiles({ name: "synthetic-receipt.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFukAAAAASUVORK5CYII=", "base64") });
   await page.getByRole("button", { name: "Submit for review", exact: true }).click();
   const saved = page.getByRole("status");
   await expect(saved).toContainText("Claim saved. Review is pending.");

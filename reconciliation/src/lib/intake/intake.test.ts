@@ -204,7 +204,7 @@ test("invalid model fields fail and preserve usage; image request format is corr
 test("simulated extraction has no invented usage or receipt values", async () => {
   const result = await extractReceipt(pdf, "application/pdf", "id", "demo");
   assert.equal(result.usage, null);
-  assert.match(result.raw!, /SIMULATED/);
+  assert.match(result.raw!, /Simulated/);
   assert.deepEqual(result.fields, fields);
 });
 test("refusal, incomplete, HTTP failure, and network failure retain call records", async () => {

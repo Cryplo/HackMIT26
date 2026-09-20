@@ -10,7 +10,7 @@ import styles from "./decision-message.module.css";
 
 export function communicationStatus(message: ClaimMessage): string {
   if (message.status === "draft" && (message.correction_id || message.automatic_decision_key)) return "Decision saved — notification awaiting confirmation";
-  if (message.status === "previewed") return "Sent in demo · No real email delivered";
+  if (message.status === "previewed") return "Sent · Simulated delivery";
   if (message.status === "accepted") return "Decision saved — email accepted by provider";
   if (message.status === "queued") return "Decision saved — email queued";
   if (message.status === "sending") return "Decision saved — sending email";

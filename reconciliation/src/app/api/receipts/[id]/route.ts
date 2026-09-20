@@ -21,7 +21,7 @@ export async function GET(
     if (!result)
       throw new IntakeError(
         "receipt_not_found",
-        "Receipt not found in synthetic demo scope.",
+        "Receipt not found.",
         404,
       );
     const ext =
@@ -33,7 +33,7 @@ export async function GET(
     return new Response(Buffer.from(result.bytes), {
       headers: {
         "Content-Type": result.receipt.file_type,
-        "Content-Disposition": `inline; filename="synthetic-receipt.${ext}"`,
+        "Content-Disposition": `inline; filename="receipt.${ext}"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "sandbox; default-src 'none'",

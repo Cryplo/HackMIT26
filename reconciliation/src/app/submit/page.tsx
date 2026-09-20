@@ -21,10 +21,10 @@ export default function SubmitPage() {
         </div>
         <SubmitForm mode={mode === "demo" ? "demo" : mode === "live" ? "live" : "unconfigured"} />
         <aside className="mt-6 rounded-lg border border-border bg-background px-5 py-4 text-sm leading-6">
-          <p className="font-medium">Trying the demo?</p>
-          <p className="mt-1 text-muted-foreground">Use fictional names, emails, and receipts only. This demo does not issue payments.</p>
-          <a className="mt-2 inline-flex min-h-11 items-center gap-1 underline underline-offset-4 sm:min-h-0" href="/api/demo/receipt/train">Download a sample receipt <ArrowUpRight className="size-4" aria-hidden="true" /></a>
-          <p className="mt-1 text-xs text-muted-foreground">Sample: Alex Demo · Train · $123.45 · New York</p>
+          <p className="font-medium">Need a receipt to get started?</p>
+          <p className="mt-1 text-muted-foreground">Approval authorizes reimbursement; your finance team completes payment.</p>
+          <a className="mt-2 inline-flex min-h-11 items-center gap-1 underline underline-offset-4 sm:min-h-0" href="/api/demo/receipt/train">Download an example receipt <ArrowUpRight className="size-4" aria-hidden="true" /></a>
+          <p className="mt-1 text-xs text-muted-foreground">Example: Alex Demo · Train · $123.45 · New York</p>
         </aside>
       </div>
     </main>

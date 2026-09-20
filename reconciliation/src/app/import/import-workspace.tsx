@@ -29,7 +29,7 @@ function Evidence({ document }: { document: InboxDocument }) {
   const Icon = document.file_type.startsWith("image/") ? FileImage : document.evidence?.document_kind === "email" ? Mail : FileText;
   return <div className={styles.evidence}>
     <div className={styles.evidenceTitle}><Icon aria-hidden="true" size={16} /><a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer">{document.filename}<ArrowUpRight aria-hidden="true" size={13} /></a></div>
-    {document.file_type.startsWith("image/") && <a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer" aria-label={`View image ${document.filename}`}><img src={`/api/inbox/${document.id}`} alt={`Original synthetic receipt: ${document.filename}`} className={styles.receiptThumbnail} loading="lazy" /></a>}
+    {document.file_type.startsWith("image/") && <a href={`/api/inbox/${document.id}`} target="_blank" rel="noreferrer" aria-label={`View image ${document.filename}`}><img src={`/api/inbox/${document.id}`} alt={`Original receipt: ${document.filename}`} className={styles.receiptThumbnail} loading="lazy" /></a>}
     {facts && <p>{[facts.vendor, ...facts.names, facts.purchase_date, facts.amount_minor == null ? null : `${facts.currency || "?"} ${(facts.amount_minor / 100).toFixed(2)}`].filter(Boolean).join(" · ") || "No purchase facts found."}</p>}
     {facts?.booking_reference && <p className={styles.reference}><Link2 size={12} aria-hidden="true" />Booking {facts.booking_reference}</p>}
     {document.evidence?.raw_extracted_text && <details className={styles.excerpt}><summary>Source text</summary><p>{document.evidence.raw_extracted_text}</p></details>}
@@ -182,7 +182,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
     setBusy("Loading source inputs…");
     const files = await Promise.all(samples.map(async sample => {
       const response = await fetch(sample.url);
-      if (!response.ok) throw new Error("Could not load sample inputs.");
+      if (!response.ok) throw new Error("Could not load inputs.");
       return new File([await response.blob()], sample.name, { type: sample.file_type });
     }));
     await upload(files, samples.map(sample => sample.source));
@@ -211,7 +211,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
   }
 
   return <div className={styles.workspace}>
-        <p className={styles.mode}>{mode === "demo" ? "Simulated reading · sample facts are authored" : mode === "live" ? (simulatedReview ? "Live AI reading · simulated review sandbox" : "Live AI reading · check facts against originals") : "Extraction needs server configuration"}</p>
+        <p className={styles.mode}>{mode === "demo" ? "Simulated reading" : mode === "live" ? (simulatedReview ? "Live AI reading · simulated review" : "Live AI reading · check facts against originals") : "Extraction needs server configuration"}</p>
     <div className={styles.journey} aria-label="Paperwork workflow">
       <span data-active={!documents.length}><Files aria-hidden="true" />Bring your files</span><ArrowRight className={styles.journeyArrow} aria-hidden="true" />
       <span data-active={!!documents.length && !results.length}><Link2 aria-hidden="true" />Understand the connections</span><ArrowRight className={styles.journeyArrow} aria-hidden="true" />
@@ -228,7 +228,7 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
         <Upload size={22} aria-hidden="true" />
         <Label htmlFor="paperwork">Drop files here, or choose files</Label>
         <input id="paperwork" type="file" multiple disabled={!!busy || mode === "unconfigured" || uploads.length >= 12} aria-label="Upload source files" aria-describedby="paperwork-help" onChange={event => { const files = Array.from(event.target.files || []); event.target.value = ""; void run(() => upload(files)); }} />
-        <p id="paperwork-help">PDF, PNG, JPG, CSV, TXT, EML · up to 12 files · 8 MB each (text: 100 KB) · fictional data</p>
+        <p id="paperwork-help">PDF, PNG, JPG, CSV, TXT, EML · up to 12 files · 8 MB each (text: 100 KB)</p>
       </div>
     </section></details>
     </SourceWorkbench>

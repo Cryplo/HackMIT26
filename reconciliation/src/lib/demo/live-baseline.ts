@@ -56,7 +56,7 @@ export async function liveBaseline(previous: Pick<Snapshot, 'submissions' | 'kno
     if (status !== 'flagged') continue;
     // Authored rejection examples are records, not calls to the human-review/learning/email workflow.
     const reason = checks.find(d => d.verdict === 'fail')!;
-    const note = `Prepared demo decision: reject because ${reason.field_checked === 'amount' ? 'the requested amount differs from the receipt total' : 'the claim exceeds the category policy cap'}. No real reviewer action occurred.`;
+    const note = `Prepared demo decision: reject because ${reason.field_checked === 'amount' ? 'the requested amount differs from the receipt total' : 'the claim exceeds the category policy cap'}.`;
     const correctionId = baselineId(73, index + 1);
     state.corrections.push({ id: correctionId, submission_id: s.id, decision_id: reason.id,
       human_verdict: 'rejected', human_note: note, correction_type: 'decision_override',

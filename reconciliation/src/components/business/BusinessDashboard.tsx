@@ -212,9 +212,9 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
       <div className={styles.topline}>
         <span className={styles.breadcrumb}>Expenses <ChevronRight aria-hidden="true" /> <span>{view === "reviews" ? "Reimbursements" : view === "checks" ? "Checks" : "Learned rules"}</span></span>
         <details className={styles.modeDetails}>
-          <summary>{preview ? "Preview — synthetic data" : data?.demo_mode ? "Demo environment" : "API workspace"}</summary>
+          <summary>{preview ? "Preview workspace" : data?.demo_mode ? "Demo environment" : "API workspace"}</summary>
           <div className={styles.modePopover}>
-            {preview ? <p>Six fictional claims. Changes stay in this tab and reset on reload. Search and rule tests are simulated.</p> : data ? <dl>{Object.entries(data.execution).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl> : <p>Connecting to your claims.</p>}
+            {preview ? <p>Six preview claims. Changes stay in this tab and reset on reload. Search and rule tests run in simulation.</p> : data ? <dl>{Object.entries(data.execution).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl> : <p>Connecting to your claims.</p>}
 
           </div>
         </details>

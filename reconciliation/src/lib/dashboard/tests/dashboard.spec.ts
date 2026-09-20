@@ -7,7 +7,7 @@ test("API failure stays an error until the user explicitly chooses preview", asy
   await expect(page.getByRole("main").getByRole("alert")).toContainText("API offline");
   await expect(page.getByRole("button", { name: /Maya Chen/ })).toHaveCount(0);
   await page.goto("/business-demo?preview=1");
-  await expect(page.getByText("Preview — synthetic data", { exact: true })).toBeVisible();
+  await expect(page.getByText("Preview workspace", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Maya Chen/ }).first()).toBeVisible();
 });
 
@@ -31,7 +31,7 @@ test("stale approval refreshes evidence and preserves the reviewer's note", asyn
   await page.goto("/business-demo");
   await page.getByRole("button", { name: /Sam Example/ }).first().click();
   await page.getByRole("button", { name: "Approve", exact: true }).click();
-  const note = "Verified the original synthetic hotel receipt.";
+  const note = "Verified the original hotel receipt.";
   await page.getByLabel("Decision reason").fill(note);
   await page.getByRole("button", { name: "Confirm approval" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Another reviewer changed" })).toBeVisible();

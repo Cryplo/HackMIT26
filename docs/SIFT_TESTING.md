@@ -6,7 +6,7 @@ Elasticsearch is no longer required: candidate retrieval uses stored receipt fie
 The older handoff below is historical; investigations and tested rule learning remain pending. Human decisions and the real queue are now connected.
 
 
-This is the team runbook. The [Devin benchmark plan](superpowers/plans/2026-09-19-sift-benchmark.md) is prepared; it has not been dispatched or implemented by this handoff.
+This is the team runbook.
 
 ## What works now
 

@@ -51,7 +51,7 @@ test('Start audit reads messy sources, resumes, and checks only grounded claims'
   const replay = await request.post('/api/inbox/audit', { headers: { origin: new URL(page.url()).origin }, data: {} });
   expect(await replay.json()).toEqual(batch);
   await page.getByRole('link', { name: 'Inspect inputs and connections' }).click();
-  await expect(page.getByRole('button', { name: 'All sample inputs read' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'All inputs read' })).toBeVisible();
   const ambiguous = page.getByRole('article').filter({ has: page.getByRole('link', { name: 'Re-train-tickets.pdf', exact: true }) }).first();
   await expect(ambiguous.getByLabel('Attach to receipt')).toHaveValue('');
   await expect(page.getByRole('region', { name: 'Parsed source fields' })).toContainText('USD 190.00');

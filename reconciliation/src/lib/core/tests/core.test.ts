@@ -36,7 +36,7 @@ test('demo: clean, duplicate, ambiguity, scoped active alias fixture, category c
   assert.equal(workspace.submissions[3].decision_status, 'pending');
   const learned = reviews.submissions[3].decisions.find(d => d.field_checked === 'merchant')!;
   assert.equal((learned.evidence_json.aliases as unknown[]).length, 1);
-  assert.equal(learned.probability, null); assert.equal(learned.confidence_score, null); assert.match(learned.rationale_text,/SIMULATED/);
+  assert.equal(learned.probability, null); assert.equal(learned.confidence_score, null); assert.match(learned.rationale_text,/Simulated/);
   const dup = reviews.submissions[1].decisions.find(d => d.field_checked === 'duplicate')!;
   assert.equal((dup.evidence_json.candidates as { submission_id: string }[])[0].submission_id, DEMO_IDS[0]);
   assert.equal(store.calls.length, 0);

@@ -43,7 +43,7 @@ test('live mixed originals become grounded cases', async ({ page, request }) => 
   await page.goto('/import');
   await expect(page.getByText('Live AI reading · simulated review sandbox')).toBeVisible();
   const start = Date.now();
-  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await page.getByRole('button', { name: 'Read all inputs' }).click();
   await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 120000 });
   await expect(page.getByRole('status').first()).toContainText('1 repeated copy counted once');
   const documents = await Promise.all(readings);

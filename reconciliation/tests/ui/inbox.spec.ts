@@ -18,11 +18,11 @@ test('dashboard sources lead to visual cases, grounded clarification, and ordina
   await expect(page.getByRole('button', { name: 'Connect', exact: true })).toHaveCount(3);
   await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
   await expect(page.getByRole('dialog')).toContainText('Account connection is not enabled');
-  await page.getByRole('button', { name: 'Explore sample data' }).click();
+  await page.getByRole('button', { name: 'Open source' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
   await expect(page.getByText('event-form-response.csv', { exact: true }).last()).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('source-explorer-before.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await page.getByRole('button', { name: 'Read all inputs' }).click();
   await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 30000 });
   await expect(page.getByRole('status').first()).toContainText('1 repeated copy counted once');
   expect(uploadCalls).toBe(10);
@@ -118,7 +118,7 @@ test('mobile sources and results fit; unknown formats and unlinked files stay vi
   await page.getByLabel('Upload source files').setInputFiles({ name: 'archive.zip', mimeType: 'application/zip', buffer: Buffer.from('not a zip') });
   await expect(page.getByText('Supported formats: PDF, PNG, JPG, CSV, TXT, and EML. This file could not be read.')).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Read all sample inputs' }).click();
+  await page.getByRole('button', { name: 'Read all inputs' }).click();
   await expect(page.getByRole('status').first()).toContainText('10 unique documents', { timeout: 30000 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByText('1 file without a supported connection').click();

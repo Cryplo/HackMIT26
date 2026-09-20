@@ -4,10 +4,10 @@ import { demoSnapshot } from '../core/fixtures';
 
 /** Small, valid, uncompressed PDFs. These contain only invented demo evidence. */
 export function receiptPdf(fields: ParsedReceipt): Buffer {
-  const lines = ['SYNTHETIC RECEIPT - NOT VALID FOR PAYMENT', fields.vendor || 'Unknown merchant',
+  const lines = [fields.vendor || 'Unknown merchant', 'PURCHASE RECEIPT',
     `Date: ${fields.receipt_date || 'Unknown'}`, `Guest / traveler: ${fields.names.join(', ') || 'Not provided'}`,
     `Total: ${fields.currency || '?'} ${fields.amount_minor === null ? 'Unknown' : (fields.amount_minor / 100).toFixed(2)}`,
-    `Receipt: ${fields.receipt_number || 'Unknown'}`, 'Hackathon demonstration only. All details are fictional.'];
+    `Receipt: ${fields.receipt_number || 'Unknown'}`, 'Thank you for traveling with us.'];
   return textPdf(lines);
 }
 
@@ -27,7 +27,7 @@ export function textPdf(lines: string[]): Buffer {
 export function sampleReceipts(): Record<string, ParsedReceipt> {
   const seed = demoSnapshot();
   return {
-    train: { schema_version: 1, vendor: 'Synthetic Rail', receipt_date: '2026-09-18', amount_minor: 12345, currency: 'USD', names: ['Alex Demo'], receipt_number: 'SYN-TRAIN-UPLOAD-001' },
+    train: { schema_version: 1, vendor: 'Maple Rail', receipt_date: '2026-09-18', amount_minor: 12345, currency: 'USD', names: ['Alex Demo'], receipt_number: 'MR-TRAIN-UPLOAD-001' },
     ...Object.fromEntries(seed.receipts.map((r, i) => [`claim-${i + 1}`, r.parsed_fields_json!])),
   };
 }

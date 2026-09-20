@@ -1,10 +1,10 @@
 # Synthetic reimbursement platform
 
-Entry point: `runtime.ts`; orchestration: `service.ts`; public v2 types: `../review-contracts.ts`. Start with [current project context](../../../../docs/PROJECT_CONTEXT.md). The original investigation contracts in `../../../../docs/next-work/00-contracts.md` are historical design background. This remains an unauthenticated synthetic-data-only demo. Keep originals private and credentials on the server.
+Entry point: `runtime.ts`; orchestration: `service.ts`; public v2 types: `../review-contracts.ts`. Start with [current project context](../../../../docs/PROJECT_CONTEXT.md). This remains an unauthenticated synthetic-data-only demo. Keep originals private and credentials on the server.
 
 ## Delivered behavior
 
-The workspace advertises `rule_learning`, `extraction_retry`, `export`, `custom_checks`, `duplicate_links`, and `knowledge_revisions`. Supporting documents are implemented. The complete intelligence port and procedure capabilities are integrated. Investigation remains explicitly configured (`disabled`, `simulated`, or `live`); the mode and runtime capability determine availability. The [investigation handoff](INVESTIGATION_HANDOFF.md) describes the earlier backend delivery. Reviews return complete coverage for at most 1,000 claims and fail explicitly above that bound.
+The workspace advertises `rule_learning`, `extraction_retry`, `export`, `custom_checks`, `duplicate_links`, and `knowledge_revisions`. Supporting documents are implemented. The complete intelligence port and procedure capabilities are integrated. Investigation remains explicitly configured (`disabled`, `simulated`, or `live`); the mode and runtime capability determine availability. Reviews return complete coverage for at most 1,000 claims and fail explicitly above that bound.
 
 Custom checks (`/api/checks`, migration `202609210011`) let reviewers author extra Jev questions: a label, instructions, optional pass/fail/unknown criteria, and an optional category scope. Each active applicable check joins the Jev request as an additional `custom_*` question and is required for `matched`; unknown or missing results route to review and any fail flags the claim. They never relax the mandatory financial/duplicate approval gate. Create/update/enable/disable bump `knowledge_revision` (except editing a disabled check), the configuration fingerprint joins run evidence so in-flight runs go stale, and optimistic `version` numbers reject stale edits. In simulated mode custom checks honestly return `unknown`; no fixture fabricates semantic answers.
 
@@ -90,7 +90,7 @@ The workspace review response retains `contract_version: 2`. Mutation errors use
 
 ## Deployment, backfill, and recovery
 
-**Recorded deployment before decision-email work (not re-inspected for this PR):** SQL inspection confirmed the original schema only; platform migrations `202609200002` and `202609200003` were then applied together in one transaction on September 20, 2026. Readiness was 3, existing row counts are preserved, and the receipt bucket remains private. The restarted local app reads all 122 claims successfully. Original-byte hash backfill completed with 122 hashed and 0 unavailable; affected historical assessments require reassessment. No model calls were made. See [the handoff](INVESTIGATION_HANDOFF.md) for inspection, applied checksums, and backfill results. Do not replay these migrations against this target.
+**Recorded deployment before decision-email work (not re-inspected for this PR):** SQL inspection confirmed the original schema only; platform migrations `202609200002` and `202609200003` were then applied together in one transaction on September 20, 2026. Readiness was 3, existing row counts are preserved, and the receipt bucket remains private. The restarted local app reads all 122 claims successfully. Original-byte hash backfill completed with 122 hashed and 0 unavailable; affected historical assessments require reassessment. No model calls were made. Do not replay these migrations against this target.
 
 Migration order for a new target (inspect first; 001–003 were previously applied on the configured target; 004 is not applied by this PR):
 
@@ -126,7 +126,7 @@ npm test
 node --conditions=react-server --import tsx --test src/lib/core/tests/approval-regression.test.ts src/lib/core/tests/platform.test.ts src/lib/core/tests/platform-routes.test.ts src/lib/core/tests/database.test.mjs
 ```
 
-Current investigation-platform verification on Node 24.11.1: 130/130 application tests (including 7 SQL tests), 25/25 intelligence tests, 23/23 investigation-pack checks, 25/25 browser tests, TypeScript checking, and production build passed against integrated upstream `e9d5b97`. See [the handoff](INVESTIGATION_HANDOFF.md) for exact commands, endpoint examples, and outstanding deployment dependencies. PGlite exercises local SQL transactions with test Supabase roles/storage; it does not prove remote deployment.
+Current investigation-platform verification on Node 24.11.1: 130/130 application tests (including 7 SQL tests), 25/25 intelligence tests, 23/23 investigation-pack checks, 25/25 browser tests, TypeScript checking, and production build passed against integrated upstream `e9d5b97`. PGlite exercises local SQL transactions with test Supabase roles/storage; it does not prove remote deployment.
 
 Historical verification for the preceding alias/platform delivery: `npm run typecheck` passed; `npm test` passed 100/100, including four PGlite transaction tests; `npm run test:intelligence` passed 13/13. The focused platform/SQL run passed 14/14. No live providers or shared database were used. The npm test runner required permission for tsx's local IPC socket; the direct `node --import tsx` commands also work without that socket.
 

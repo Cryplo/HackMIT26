@@ -1,6 +1,6 @@
 # Resend setup for the Sift demo
 
-Sift persists applicant notices with human decisions and eligible automatic policy approvals. Preview mode saves the decision and notice without sending. Live mode can attempt delivery immediately and uses a separate Resend worker for durable retries. Internal review reasons remain private. See [current project context](../../docs/PROJECT_CONTEXT.md) and [the app README](../README.md) for current behavior; the [original architecture](../../docs/next-work/06-decision-email-plan.md) is historical. Request-information links and delivery webhooks remain future work.
+Sift persists applicant notices with human decisions and eligible automatic policy approvals. Preview mode saves the decision and notice without sending. Live mode can attempt delivery immediately and uses a separate Resend worker for durable retries. Internal review reasons remain private. See [current project context](../../docs/PROJECT_CONTEXT.md) and [the app README](../README.md) for current behavior; the original architecture plan is historical. Request-information links and delivery webhooks remain future work.
 
 ## Simulated send
 

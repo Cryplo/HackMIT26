@@ -17,7 +17,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await mutationBody(request);
-    if (!enabled()) throw new IntakeError('sources_disabled', 'Sample-source audit is not enabled for this workspace.', 403);
+    if (!enabled()) throw new IntakeError('sources_disabled', 'Source audit is not enabled for this workspace.', 403);
     const mode = process.env.RECONCILIATION_EXTRACTION_MODE || intakeMode();
     intakeMode();
     if (mode !== 'demo' && mode !== 'live') throw new IntakeError('invalid_mode', 'Configure extraction as demo or live.', 503);

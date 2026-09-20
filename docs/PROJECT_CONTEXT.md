@@ -15,7 +15,7 @@ Read next:
 3. [Review learning](../reconciliation/docs/REVIEW_LEARNING.md) for feedback behavior and its limits.
 4. [Repository guidance](../AGENTS.md) and [app guidance](../reconciliation/AGENTS.md) before editing.
 
-Older `MODULE_*_HANDOFF.md`, `docs/next-work/`, and `docs/superpowers/plans/` documents record earlier designs and ownership. Their claims that investigation is unavailable, the backend is pending, or every approval needs manual rule activation are historical. Current source and this guide take precedence for implementation status; do not discard still-relevant safety requirements.
+Older planning and handoff documents have been removed; `docs/archive/` keeps earlier designs for reference. Current source and this guide take precedence for implementation status.
 
 ## The intended user experience
 

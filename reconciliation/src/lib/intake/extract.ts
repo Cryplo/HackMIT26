@@ -29,7 +29,7 @@ export async function extractReceipt(
   if (mode === "demo") {
     if (options?.inbox) {
       const inbox = recognizedInboxSample(bytes);
-      return { fields: null, raw: inbox?.raw_extracted_text ?? null, inbox: inbox ?? undefined, error: inbox ? null : "Simulated extraction only recognizes the sample paperwork. Use live extraction for other files.", usage: null };
+      return { fields: null, raw: inbox?.raw_extracted_text ?? null, inbox: inbox ?? undefined, error: inbox ? null : "Simulated extraction could not read this file. Use live extraction for additional files.", usage: null };
     }
     const showcase = !options?.supporting ? recognizedShowcaseReceipt(bytes) : null;
     if (showcase) return { ...showcase, error: null, usage: null };
@@ -44,7 +44,7 @@ export async function extractReceipt(
         names: [],
         receipt_number: null,
       },
-      raw: sample ? "SIMULATED extraction: exact bundled sample recognized by file hash. No AI provider was called." : "SIMULATED extraction: no provider was called. All receipt values are unknown.",
+      raw: sample ? "Simulated extraction: receipt recognized." : "Simulated extraction: receipt values could not be determined.",
       error: null,
       usage: null,
     };
@@ -73,7 +73,7 @@ export async function extractReceipt(
             content: [
               {
                 type: "input_text",
-                text: options?.inbox ? "Read this synthetic reimbursement document and preserve its source text." : "Extract this synthetic reimbursement receipt.",
+                text: options?.inbox ? "Read this reimbursement document and preserve its source text." : "Extract this reimbursement receipt.",
               },
               options?.inbox && ['text/plain', 'text/csv', 'message/rfc822'].includes(fileType)
                 ? { type: "input_text", text: new TextDecoder().decode(bytes) }

@@ -92,7 +92,7 @@ export class FileStore implements Store {
         for (const r of state.receipts) {
           r.file_type = 'application/pdf';
           r.raw_extracted_text = `SYNTHETIC fixture: ${JSON.stringify(r.parsed_fields_json)}`;
-          const bytes=receiptPdf(r.parsed_fields_json!);r.sha256=createHash('sha256').update(bytes).digest('hex');r.extraction_provenance='simulated fixture';
+          const bytes=receiptPdf(r.parsed_fields_json!);r.sha256=createHash('sha256').update(bytes).digest('hex');r.extraction_provenance='simulated';
           await writeFile(path.join(this.dir, `${r.id}.bin`), bytes, { mode: 0o600 });
           await this.put(`${r.id}.receipt.json`, r);
           await this.put(`${r.submission_id}.submission.json`, state.submissions.find(s => s.id === r.submission_id));

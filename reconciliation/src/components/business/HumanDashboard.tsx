@@ -126,8 +126,8 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
       </div>
       <div className={styles.refresh}><SendNotificationsButton client={client} refreshKey={updatedAt} disabled={!!batch} /><Button data-review-focus-fallback variant="ghost" disabled={loading} aria-busy={loading} onClick={() => void refresh().catch(() => {})}><RefreshCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh"}</Button>{updatedAt > 0 && <span>Updated {new Date(updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>}</div>
     </header>
-    {preview && <p className={styles.notice}>Synthetic preview. Claims, agent activity, and decisions here are simulated.</p>}
-    {!preview && data?.demo_mode && <p className={styles.demoNote}>Demo workspace · Fictional claims and simulated checks</p>}
+    {preview && <p className={styles.notice}>Preview workspace. Changes stay in this tab and reset on reload.</p>}
+    {!preview && data?.demo_mode && <p className={styles.demoNote}>Demo workspace · Simulated checks</p>}
     {error && <p role="alert" className={styles.error}>{error} Use Refresh to try again.</p>}
     {notice && <p role="status" className={styles.notice}>{notice}</p>}
     {batchError && <p role="alert" className={styles.error}>{batchError}</p>}

@@ -2,7 +2,7 @@
 
 Read [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) and [reconciliation/README.md](reconciliation/README.md) at the start of a new task. The active app is `reconciliation/`; the Python browser/voice prototype elsewhere is historical. Read the app's own `AGENTS.md` before changing Next.js code.
 
-- Current implementation status is in the project context and source. Older module handoffs and planning packets are historical, not proof that delivered capabilities are still missing.
+- Current implementation status is in the project context and source.
 - Inspect `git status` first. This is a shared checkout: preserve unrelated edits, stage only owned files, and avoid resets, stashes, force pushes, or replacing someone else's work. Coordinate changes to shared contracts, migrations, and global styles.
 - Use existing helpers for assessment, decisions, counts, and client refresh. Machine flags, inconclusive results, processing failures, and saved rejections are different states. Human decisions must survive rechecks.
 - Synthetic data only; no authentication or payment execution. Keep receipt originals private and credentials server-side. Never commit `.env.local`, database backups, `.seed-archives/`, or local stores. Do not reset/reseed shared data just to test a change.

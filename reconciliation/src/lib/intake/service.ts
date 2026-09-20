@@ -37,7 +37,7 @@ export async function submitReceipt(
     const result = await extract(receipt.id);
     // Save returned provider usage exactly once, including refusal/invalid-output calls.
     if (result.usage) await store.usage(result.usage);
-    receipt.extraction_provenance = result.usage ? `${result.usage.provider}:${result.usage.model}` : result.raw?.startsWith('SIMULATED') ? 'simulated fixture' : 'unavailable';
+    receipt.extraction_provenance = result.usage ? `${result.usage.provider}:${result.usage.model}` : result.raw?.startsWith('Simulated extraction') ? 'simulated' : 'unavailable';
     receipt.raw_extracted_text = result.raw;
     receipt.parsed_fields_json = result.fields;
     receipt.extraction_status = result.error ? "failed" : "succeeded";

@@ -113,7 +113,7 @@ export function createPreviewClient(): DashboardClient {
     });
     let checks: Check[];
     if (row.receipt?.extraction_status !== "succeeded" || !parsed) {
-      checks = [make("extraction", "unknown", "Synthetic receipt extraction is unavailable; retry extraction first.")];
+      checks = [make("extraction", "unknown", "Receipt extraction is unavailable; retry extraction first.")];
     } else {
       const same = rows.filter(other => other.id !== row.id && row.receipt?.sha256 && other.receipt?.sha256 === row.receipt.sha256);
       row.duplicate_submission_ids = same.filter(other => `${other.submitted_at}:${other.id}` < `${row.submitted_at}:${row.id}`).map(other => other.id);
@@ -129,14 +129,14 @@ export function createPreviewClient(): DashboardClient {
       const cap = { flight: 50000, hotel: 25000, train: 20000, bus: 10000, other: 5000 }[row.category];
       const datePass = parsed.receipt_date != null && parsed.receipt_date >= "2026-09-01" && parsed.receipt_date <= "2026-09-30";
       checks = [
-        make("amount", parsed.amount_minor == null ? "unknown" : parsed.amount_minor === row.amount_requested_minor ? "pass" : "fail", "Synthetic comparison of requested and receipt totals.", parsed.amount_minor === row.amount_requested_minor),
+        make("amount", parsed.amount_minor == null ? "unknown" : parsed.amount_minor === row.amount_requested_minor ? "pass" : "fail", "Comparison of requested and receipt totals.", parsed.amount_minor === row.amount_requested_minor),
         make("currency", parsed.currency === "USD" ? "pass" : parsed.currency ? "fail" : "unknown", "Receipt currency must be USD.", parsed.currency),
         make("receipt_date", parsed.receipt_date ? datePass ? "pass" : "fail" : "unknown", "Receipt date must fall within the September event policy.", parsed.receipt_date),
-        make("policy", datePass ? "pass" : "unknown", "Synthetic policy applies to this travel category."),
-        make("policy_cap", row.amount_requested_minor <= cap ? "pass" : "fail", `Synthetic policy cap: $${cap / 100}.`),
-        make("duplicate", duplicate ? "fail" : "pass", duplicate ? "The same synthetic receipt appears in an earlier or approved claim." : "No earlier or approved exact-file duplicate."),
-        make("merchant", ambiguous && !supported && !(learned.size === 1 && learned.has("harbor hotel")) ? "unknown" : parsed.vendor ? "pass" : "unknown", supported ? "Simulated fixture: the receipt and Harbor Hotel booking confirmation share a booking reference." : ambiguous && learned.has("harbor hotel") ? "Simulated active hotel/USD alias identifies Harbor Hotel." : ambiguous ? "The receipt says Harbor Reservations; confirm which hotel received the payment." : "Synthetic merchant matches the category."),
-        make("name", parsed.names.length ? parsed.names.includes(row.attendee_name) ? "pass" : "fail" : "unknown", "Synthetic traveler-name comparison."),
+        make("policy", datePass ? "pass" : "unknown", "Travel policy applies to this category."),
+        make("policy_cap", row.amount_requested_minor <= cap ? "pass" : "fail", `Policy cap: $${cap / 100}.`),
+        make("duplicate", duplicate ? "fail" : "pass", duplicate ? "The same receipt appears in an earlier or approved claim." : "No earlier or approved exact-file duplicate."),
+        make("merchant", ambiguous && !supported && !(learned.size === 1 && learned.has("harbor hotel")) ? "unknown" : parsed.vendor ? "pass" : "unknown", supported ? "Simulated: the receipt and Harbor Hotel booking confirmation share a booking reference." : ambiguous && learned.has("harbor hotel") ? "Simulated active hotel/USD alias identifies Harbor Hotel." : ambiguous ? "The receipt says Harbor Reservations; confirm which hotel received the payment." : "Merchant matches the category."),
+        make("name", parsed.names.length ? parsed.names.includes(row.attendee_name) ? "pass" : "fail" : "unknown", "Traveler-name comparison."),
       ];
       if (supported) checks.find(check => check.field_checked === "merchant")!.evidence_json = {
         simulated: true, booking_reference: booking.facts!.booking_reference,
@@ -145,7 +145,7 @@ export function createPreviewClient(): DashboardClient {
       };
       // The simulated fixture cannot judge reviewer-authored questions; active custom checks stay honestly unknown.
       for (const check of customChecks.filter(item => item.state === "active" && (item.category === null || item.category === row.category))) {
-        checks.push({ ...make(check.field, "unknown", `Simulated fixture cannot evaluate custom check "${check.label}"; the claim needs human review.`), check_method: "jev", evidence_json: { simulated: true, custom_check_id: check.id, check_label: check.label, check_version: check.version } });
+        checks.push({ ...make(check.field, "unknown", `Simulated review cannot evaluate custom check "${check.label}"; the claim needs human review.`), check_method: "jev", evidence_json: { simulated: true, custom_check_id: check.id, check_label: check.label, check_version: check.version } });
       }
     }
     row.decisions = [...checks, ...humanChecks];
@@ -201,8 +201,8 @@ export function createPreviewClient(): DashboardClient {
       row = currentRow(claimId, expectedRevision);
       if (documents.some(document => document.claim_id === claimId && document.sha256 === sha256)) fail("DOCUMENT_EXISTS", "These bytes are already attached to this claim.");
       const document: SupportingDocument = { id: crypto.randomUUID(), claim_id: claimId, kind, file_type: fileType, sha256, created_at: new Date().toISOString(),
-        extraction_status: "failed", extraction_error: "Simulated preview retains your file but does not extract arbitrary uploads. Use the provided booking fixture for the simulated investigation.",
-        extraction_provenance: "Simulated preview; no provider extraction attempted", extracted_text: null, facts: null };
+        extraction_status: "failed", extraction_error: "Simulated preview retained this file; extraction is available with a live provider.",
+        extraction_provenance: "Simulated extraction", extracted_text: null, facts: null };
       documents.push(document); originalUrls.set(document.id, URL.createObjectURL(new Blob([bytes], { type: fileType })));
       evidenceRevisions.set(row.id, (evidenceRevisions.get(row.id) ?? 0) + 1);
       row.assessment_status = null; row.assessment_knowledge_revision = null; row.latest_run_id = null;
@@ -236,16 +236,16 @@ export function createPreviewClient(): DashboardClient {
       const outcome = failed ? null : row.assessment_status === "matched" ? "resolved" : row.assessment_status === "flagged" ? "discrepancy_found" : "needs_human";
       const refs = row.receipt ? [{ kind: "receipt" as const, id: row.receipt.id }, ...(booking ? [{ kind: "supporting_document" as const, id: booking.id }] : [])] : [];
       const run: InvestigationRun = { run_id: runId, claim_id: row.id, trigger: "manual", status: failed ? "failed" : "completed", outcome,
-        headline: `Simulated fixture: ${failed ? "receipt extraction unavailable" : outcome === "resolved" ? "ready for human review" : outcome === "discrepancy_found" ? "a protected check remains blocked" : "more evidence is needed"}`,
-        summary: booking ? "Simulated fixture: matching booking references establish Harbor Hotel merchant identity; all financial and duplicate checks were recomputed. No provider calls were made." : "Simulated fixture: checked available evidence without provider calls. Human approval remains separate.",
+        headline: `Simulated: ${failed ? "receipt extraction unavailable" : outcome === "resolved" ? "ready for human review" : outcome === "discrepancy_found" ? "a protected check remains blocked" : "more evidence is needed"}`,
+        summary: booking ? "Simulated: matching booking references establish Harbor Hotel merchant identity; all financial and duplicate checks were recomputed." : "Simulated: checked available evidence. Human approval remains separate.",
         unresolved_question: outcome === "needs_human" ? "Provide a successfully extracted booking confirmation with the same booking reference, merchant, guest, date, and purchase total." : null,
         findings: failed ? [] : [{ id: crypto.randomUUID(), check: booking ? "merchant" : row.decisions.find(check => check.verdict === "fail")?.field_checked || "merchant",
           statement: booking ? "Simulated receipt and booking confirmation share a nonempty booking reference and consistent purchase facts." : "Simulated assessment retains the available evidence and any blocked or unresolved checks.", evidence_refs: refs }],
         before_assessment: before, after_assessment: failed ? null : snapshot(row), proposed_learning: outcome === "resolved" && booking ? fixtureProcedureCandidate(row, booking) : null,
         steps: [{ id: crypto.randomUUID(), run_id: runId, sequence: 1, tool: "read_receipt", status: failed ? "failed" : "completed", started_at: startedAt, completed_at: new Date().toISOString(),
-          summary: "Simulated fixture: inspected the synthetic original receipt.", evidence_refs: refs.filter(ref => ref.kind === "receipt"), error: failed ? "Simulated extraction is unavailable." : null },
+          summary: "Simulated: inspected the original receipt.", evidence_refs: refs.filter(ref => ref.kind === "receipt"), error: failed ? "Simulated extraction is unavailable." : null },
           ...(!failed && documents.some(document => document.claim_id === row.id) ? [{ id: crypto.randomUUID(), run_id: runId, sequence: 2, tool: "read_supporting_documents" as const,
-            status: "completed" as const, started_at: startedAt, completed_at: new Date().toISOString(), summary: "Simulated fixture: inspected saved supporting evidence.",
+            status: "completed" as const, started_at: startedAt, completed_at: new Date().toISOString(), summary: "Simulated: inspected saved supporting evidence.",
             evidence_refs: documents.filter(document => document.claim_id === row.id).map(document => ({ kind: "supporting_document" as const, id: document.id })), error: null }] : [])],
         started_at: startedAt, completed_at: new Date().toISOString(), mode: "simulated", model: null, error: failed ? "Simulated extraction failure. Retry extraction, then recheck." : null };
       runs.push(run); row.latest_investigation = run;
@@ -274,7 +274,7 @@ export function createPreviewClient(): DashboardClient {
       procedure.latest_test = { procedure_id: id, procedure_version: procedure.version, knowledge_revision: knowledgeRevision, suite_version: "booking-reference-v1", mode: "simulated",
         tested_at: new Date().toISOString(), passed: true, applied_case_ids: ["preview-procedure-valid-a", "preview-procedure-valid-b"], regressed_case_ids: [],
         before: { total: 12, correct: 12, false_matches: 0, needs_review: 4 }, after: { total: 12, correct: 12, false_matches: 0, needs_review: 4 },
-        reasons: ["Simulated fixture report for the fixed 12-case safety gate; no live suite, provider evaluation, or measured accuracy improvement."] };
+        reasons: ["Simulated report for the 12-case safety gate."] };
       return copy(procedure.latest_test);
     },
     async activateProcedure(id, expectedVersion) {
@@ -426,7 +426,7 @@ export function createPreviewClient(): DashboardClient {
       const passed = normalizeVendor(rule.payload.canonical_vendor) === "harbor hotel" && rule.payload.scope.category === "hotel";
       rule.latest_test = { rule_id: rule.id, rule_version: rule.version, knowledge_revision: knowledgeRevision, suite_version: "alias-v1", mode: "simulated",
         tested_at: new Date().toISOString(), passed, improved_case_ids: passed ? ["preview-valid-1", "preview-valid-2"] : [], regressed_case_ids: [],
-        reasons: [passed ? "Simulated fixture: two valid hotel examples improve; protected examples remain unchanged. Not a live model benchmark." : "Simulated fixture: this canonical merchant does not resolve the valid hotel examples. Use Harbor Hotel to explore the passing flow."],
+        reasons: [passed ? "Simulated: two valid hotel examples improve; protected examples remain unchanged." : "Simulated: this canonical merchant does not resolve the valid hotel examples. Use Harbor Hotel to explore the passing flow."],
         before: { total: 10, correct: 8, false_matches: 0, needs_review: 4 },
         after: { total: 10, correct: passed ? 10 : 8, false_matches: 0, needs_review: passed ? 2 : 4 } };
       return copy(rule.latest_test);
@@ -460,7 +460,7 @@ export function createPreviewClient(): DashboardClient {
       if (row.receipt.extraction_status !== "failed") fail("EXTRACTION_BLOCKED", "This preview only retries the failed-extraction example.");
       row.receipt.extraction_status = "succeeded";
       row.receipt.extraction_error = null;
-      row.receipt.parsed_fields_json = { schema_version: 1, vendor: "Synthetic Air", receipt_date: "2026-09-18", amount_minor: 23000, currency: "USD", names: ["Riley Park"], receipt_number: "SYN-006" };
+      row.receipt.parsed_fields_json = { schema_version: 1, vendor: "Harbor Air", receipt_date: "2026-09-18", amount_minor: 23000, currency: "USD", names: ["Riley Park"], receipt_number: "SYN-006" };
       row.assessment_status = null; row.assessment_knowledge_revision = null; row.latest_run_id = null; row.decisions = []; row.investigation = null;
       row.processing_status = "idle"; row.processing_error = null;
       touch(row);

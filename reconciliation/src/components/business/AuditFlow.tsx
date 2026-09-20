@@ -93,7 +93,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
     : audit.status === "failed" ? "Audit paused. Review the error before continuing."
     : audit.status === "complete" ? `Session complete · ${audit.done} of ${audit.total} claims checked this session`
     : audit.startedAt ? `Session paused · ${audit.done} of ${audit.total} checked this session`
-    : incoming ? `${sources.total} sample files → extract facts → link evidence → audit complete claims`
+    : incoming ? `${sources.total} source files → extract facts → link evidence → audit complete claims`
     : eligible ? `${eligible} ${eligible === 1 ? "claim is" : "claims are"} ready to check` : waiting.length ? "Waiting for receipt parsing before checks can start" : "Showing saved claim results";
 
   const renderRun = ({ row, run }: typeof runs[number]) => {
@@ -123,7 +123,7 @@ export function AuditFlow({ preview, onReview }: { preview: boolean; onReview(id
       <div className={styles.progressTrack}>{audit.total > 0 && <progress value={audit.done} max={audit.total} aria-label="Claims checked in this session" />}</div>
       {audit.error && <p className={styles.error} role="alert">{audit.error}</p>}
       {audit.notice && <p role="status" className="text-sm text-[var(--status-review)]">{audit.notice}</p>}
-      {sources && <p className={styles.sourceAuditNote} role="status"><strong>{sources.extractionMode === 'live' ? 'Live AI reading' : 'Simulated sample reading'}</strong> · PDF scans · receipt images · email exports · form CSVs. {sources.phase === 'ready' ? `${sources.documents.length} unique inputs · ${sources.duplicates} repeated copy skipped · ${sources.imports.length} claims created · ${sources.held.length} inputs need a connection or details.` : 'Start audit reads the fictional source files and queues complete, unambiguous requests.'} <Link className="underline" href="/import?audit=1">Inspect inputs and connections</Link>{sources.error && <span role="alert"> {sources.error}</span>}</p>}
+      {sources && <p className={styles.sourceAuditNote} role="status"><strong>{sources.extractionMode === 'live' ? 'Live AI reading' : 'Simulated reading'}</strong> · PDF scans · receipt images · email exports · form CSVs. {sources.phase === 'ready' ? `${sources.documents.length} unique inputs · ${sources.duplicates} repeated copy skipped · ${sources.imports.length} claims created · ${sources.held.length} inputs need a connection or details.` : 'Start audit reads the source files and queues complete, unambiguous requests.'} <Link className="underline" href="/import?audit=1">Inspect inputs and connections</Link>{sources.error && <span role="alert"> {sources.error}</span>}</p>}
       <div className={styles.flow} ref={graph}>
         <FlowConnectors graph={graph} events={activity.events} sourceArrivalAt={Math.max(0, ...sourceActivity.filter(item => item.status === 'confirmed').map(item => item.at))} />
         <SourceFlow items={sourceActivity} reading={active && incoming ? sources.current : null} />

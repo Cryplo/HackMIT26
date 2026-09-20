@@ -59,7 +59,7 @@ export async function stageUpload(request: Request, mode: 'demo' | 'live', dir =
   const document: StoredInbox = {
     id, filename: path.basename(file.name).slice(0, 200), file_type: fileType, sha256: hash(bytes),
     evidence: extraction.inbox ?? null, error: extraction.error ?? (!extraction.inbox ? 'No usable document evidence was extracted.' : null),
-    provenance: mode === 'demo' ? 'Simulated · authored sample extraction' : `${extraction.usage?.provider ?? 'live'}:${extraction.usage?.model ?? 'unavailable'}`,
+    provenance: mode === 'demo' ? 'Simulated extraction' : `${extraction.usage?.provider ?? 'live'}:${extraction.usage?.model ?? 'unavailable'}`,
     latency_ms: extraction.usage?.latency_ms ?? null, extraction, created_at: new Date().toISOString(),
   };
   await saveJson(filename(dir, id, 'json'), document);
@@ -126,7 +126,7 @@ export async function confirmImport(body: unknown, dependencies: { core: CoreSer
         kind: kind === 'booking_confirmation' || kind === 'itinerary' ? kind : 'other',
         revision: reviewRevision(snapshot, claimId),
       }, dependencies.originals, async () => ({
-        fields: null, raw: (document.provenance.startsWith('Simulated') ? 'SIMULATED authored sample extraction\n' : '') + document.evidence!.raw_extracted_text, supporting_facts: facts, error: null,
+        fields: null, raw: (document.provenance.startsWith('Simulated') ? 'Simulated extraction\n' : '') + document.evidence!.raw_extracted_text, supporting_facts: facts, error: null,
         usage: document.extraction.usage,
       }), AbortSignal.timeout(30000));
       if (attached.document.extraction_status !== 'succeeded') throw new IntakeError('supporting_failed', 'A supporting document could not be saved.', 503);

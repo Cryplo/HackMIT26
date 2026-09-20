@@ -4,7 +4,7 @@ export function intakeMode() {
   if (process.env.RECONCILIATION_SYNTHETIC_ONLY !== "true")
     throw new IntakeError(
       "demo_scope_disabled",
-      "Enable the synthetic-data-only demo before uploading receipts.",
+      "Receipt upload is not enabled for this workspace.",
       503,
     );
   const mode = process.env.RECONCILIATION_INTAKE_MODE;

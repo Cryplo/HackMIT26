@@ -243,7 +243,7 @@ test("explicit preview opens stable hotel and booking Blob originals before a de
   await primary.click();
   const receipt = await receiptPopup;
   await expect(receipt.getByText("Booking reference: SYN-BOOK-003", { exact: true })).toBeVisible();
-  await expect(receipt.getByText("SIMULATED FIXTURE — NOT VALID FOR REIMBURSEMENT", { exact: true })).toBeVisible();
+  await expect(receipt.getByText("Hotel receipt", { exact: true })).toBeVisible();
   await receipt.close(); await page.bringToFront();
   await expect(primary).toHaveAttribute("href", primaryUrl!);
   const supporting = sheet(page).getByRole("link", { name: `Open original booking confirmation ${fixtureId(9003)}`, exact: true });

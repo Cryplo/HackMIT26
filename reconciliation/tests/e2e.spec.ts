@@ -14,7 +14,7 @@ test('real intake saves evidence and the existing backend detects a duplicate up
     await page.getByLabel('Requested amount').fill('123.45');
     await page.getByLabel('Travel category').selectOption('train');
     await page.getByLabel('Traveling from').fill('New York');
-    await page.getByLabel('Attach one synthetic receipt').setInputFiles({
+    await page.getByLabel('Attach your receipt').setInputFiles({
       name: 'train.pdf', mimeType: 'application/pdf', buffer: pdf,
     });
     const saved = page.waitForResponse(response =>
@@ -56,7 +56,7 @@ test('stored claims can be reviewed, approved with a note, and rechecked without
  await request.post('/api/workspace/reconcile',{headers,data:{submission_ids:[id]}});
  await page.goto('/business-demo');await page.getByRole('button',{name:/Alex Demo/}).first().click();
  await page.getByRole('button',{name:'Approve',exact:true}).click();
- await page.getByLabel('Decision reason').fill('Verified the original synthetic receipt.');
+ await page.getByLabel('Decision reason').fill('Verified the original receipt.');
  await page.getByRole('button',{name:'Confirm approval',exact:true}).click();
  await expect(page.getByRole('button',{name:'Approved',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Recheck',exact:true}).click();

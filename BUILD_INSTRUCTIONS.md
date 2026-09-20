@@ -32,4 +32,4 @@ Theme tokens live in `reconciliation/src/app/theme.css`; layout styles live besi
 
 ## Historical plans
 
-[The September 20 assignment pack](docs/next-work/README.md) records the original investigation/procedure design and ownership. [Older plans](docs/superpowers/plans/) and module handoffs document earlier stages. They are useful background, not current deployment status or instructions to rebuild completed features. Benchmark work remains separate; inspect its own checked-in findings and any uncommitted work before touching `reconciliation/evals/`.
+Earlier designs are archived under `docs/archive/`; they are useful background, not current deployment status. Benchmark work remains separate; inspect its own checked-in findings and any uncommitted work before touching `reconciliation/evals/`.

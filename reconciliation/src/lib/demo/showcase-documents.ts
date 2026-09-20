@@ -112,8 +112,7 @@ export function showcaseDocument(d: ShowcaseDocument): { bytes: Buffer; text: st
     text('Balance due: USD 0.00', 354, y + 172, 10);
   }
   rule(730);
-  text('Fictional demo document — not valid for payment', 44, 753, 9, true, muted);
-  text('All merchants, people and purchase references are fictional.', 44, 772, 8, false, muted);
+  text('Thank you for your business.', 44, 753, 9, true, muted);
   const stream = commands.join('\n');
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',

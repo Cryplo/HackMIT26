@@ -67,8 +67,8 @@ export default function SubmitForm({
     <section className="rounded-lg border border-border bg-background p-5 sm:p-6" aria-labelledby="claim-form-heading">
       <h2 id="claim-form-heading" className="text-base font-semibold">Your travel claim</h2>
       <p className="mt-1 mb-6 text-xs leading-5 text-muted-foreground">
-        {mode === "demo" ? "Synthetic demo · simulated extraction."
-          : mode === "live" ? "Synthetic receipts · live OpenAI extraction."
+        {mode === "demo" ? "Simulated extraction."
+          : mode === "live" ? "Live OpenAI extraction."
           : "Intake needs server configuration before submitting."}
       </p>
       <form onSubmit={submit}>
@@ -96,7 +96,7 @@ export default function SubmitForm({
             <Input id="origin" className="h-11 sm:h-9" name="origin_location" required maxLength={200} placeholder="New York, NY" />
           </div>
           <div className="space-y-3 rounded-md border border-dashed border-input bg-muted/40 p-4 sm:col-span-2">
-            <Label htmlFor="receipt">Attach one synthetic receipt</Label>
+            <Label htmlFor="receipt">Attach your receipt</Label>
             <input id="receipt" name="file" type="file" required accept="application/pdf,image/png,image/jpeg" aria-describedby="receipt-help" className="min-h-11 w-full min-w-0 rounded-sm text-sm file:mr-3 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-2 file:text-sm focus-visible:outline-2 focus-visible:outline-ring" />
             <p id="receipt-help" className="text-xs text-muted-foreground">PDF, PNG, or JPG · Up to 8 MB. Keep the full receipt visible.</p>
           </div>
@@ -116,7 +116,7 @@ export default function SubmitForm({
           <p>{result.extraction_status === "failed"
             ? "We couldn’t extract the receipt. Open this saved claim to retry extraction when available; the original is retained."
             : mode === "demo"
-              ? "Extraction was simulated. Bundled sample receipts have fixture fields; other files remain unknown."
+              ? "Receipt details extracted in simulation. An organizer can now run reconciliation."
               : "Receipt details extracted. An organizer can now run reconciliation."}</p>
           <p className="break-all text-xs text-muted-foreground">Claim {result.submission_id}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">

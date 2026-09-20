@@ -40,7 +40,7 @@ export function workspaceRows(state: Snapshot): ReviewRow[] {
    latest_run_id:machineRun?.id||null,assessment_status,decision_status,decision_source,assessment_knowledge_revision:machineRun?machineRun.knowledge_revision ?? -1:null,
    processing_status:running?'running':last?.status==='failed'?'failed':'idle',processing_error:last?.status==='failed'?last.error:null,
    status:decision_status!=='pending'?decision_status:assessment_status==='matched'?'approved':assessment_status||'pending',
-   receipt:receipt?{id:receipt.id,file_type:receipt.file_type,sha256:receipt.sha256??null,extraction_provenance:receipt.extraction_provenance??'historical fixture / unknown',extraction_status:receipt.extraction_status,extraction_error:receipt.extraction_error,parsed_fields_json:receipt.parsed_fields_json}:null,
+   receipt:receipt?{id:receipt.id,file_type:receipt.file_type,sha256:receipt.sha256??null,extraction_provenance:receipt.extraction_provenance??'unknown',extraction_status:receipt.extraction_status,extraction_error:receipt.extraction_error,parsed_fields_json:receipt.parsed_fields_json}:null,
    decisions,duplicate_submission_ids:confirmedDuplicates(state,s.id).map(d=>d.submission_id),investigation:null,latest_investigation:((state.investigations??[]).filter(r=>r.claim_id===s.id).toSorted((a,b)=>a.started_at.localeCompare(b.started_at)||a.run_id.localeCompare(b.run_id)).map(publicInvestigation).at(-1)??null)} satisfies ReviewRow;
  });
 }

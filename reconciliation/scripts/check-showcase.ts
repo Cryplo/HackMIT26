@@ -76,7 +76,7 @@ async function main() {
       const text = printedText(saved.bytes);
       assert.equal(text, receipt.raw_extracted_text, 'Cached transcription is exactly the printed PDF text.');
       for (const fact of [fields.vendor!, fields.receipt_date!, fields.receipt_number!, showcaseMoney(fields.amount_minor!), ...fields.names]) assert(text.includes(fact));
-      assert(text.includes('Fictional demo document — not valid for payment'));
+      assert(text.includes('Thank you for your business.'));
       assert(!text.includes('SIMULATED cached transcription'));
       checkItemTotals(text, fields.amount_minor!);
       if (claim.category !== 'hotel') assert(text.includes(claim.origin_location!) && text.includes('Boston'));

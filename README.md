@@ -28,5 +28,4 @@ The demonstration includes ordinary claims, an amount mismatch, a policy-cap vio
 | Demo script, receipts, reset, live deployment notes | [Showcase](reconciliation/docs/SHOWCASE.md) |
 | What happens to a reviewer’s reason | [Review learning](reconciliation/docs/REVIEW_LEARNING.md) |
 | Public data/API types | [Review contracts](reconciliation/src/lib/review-contracts.ts) |
-| Prior implementation assignments | [Historical instruction pack](docs/next-work/README.md) |
 | Earlier browser/voice project | [Archived prototype guide](docs/archive/browser-prototype.md) |

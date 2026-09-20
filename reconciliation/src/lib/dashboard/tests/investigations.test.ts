@@ -79,7 +79,7 @@ test("saved fixture outcomes remain stable, abortable and explicitly simulated",
   assert.deepEqual(new Set(saved.runs.map(run => run.outcome)), new Set(["resolved", "discrepancy_found", "needs_human", null]));
   for (const run of saved.runs) {
     assert.equal(run.mode, "simulated");
-    assert.match(run.headline, /Simulated fixture/);
+    assert.match(run.headline, /Simulated/);
     if (run.status !== "completed") { assert.equal(run.outcome, null); assert.equal(run.after_assessment, null); }
     assert.deepEqual((await client.getInvestigation(run.run_id)).run, run);
   }
@@ -99,7 +99,7 @@ test("simulated procedure needs investigation, human approval, fresh test, activ
   assert.equal(originalResponse.headers.get("content-type"), "image/svg+xml");
   const originalSvg = await originalResponse.text();
   assert.match(originalSvg, /Booking reference: SYN-BOOK-003/);
-  assert.match(originalSvg, /SIMULATED FIXTURE — NOT VALID FOR REIMBURSEMENT/);
+  assert.match(originalSvg, /Hotel receipt/);
   const result = await client.investigate(sourceId, original.review_revision);
   assert.equal(result.run.outcome, "resolved");
   assert.equal(result.row.assessment_status, "matched");

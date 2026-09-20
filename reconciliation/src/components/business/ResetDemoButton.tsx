@@ -46,7 +46,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   }
 
   return <>
-    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : data.demo_mode ? "Archive this demo and restore fresh unchecked demo claims" : "Restore 70 prepared claims and 10 unchecked claims"}
+    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original preview claims" : data.demo_mode ? "Archive this demo and restore fresh unchecked demo claims" : "Restore 70 prepared claims and 10 unchecked claims"}
       onClick={() => { setError(""); if (preview || data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
       {busy ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <RotateCcw aria-hidden="true" />}{busy ? "Restoring saved demo…" : "Reset demo"}
     </Button>

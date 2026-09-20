@@ -26,7 +26,7 @@ export async function search(input: { query: string; rows: SearchRow[] }, option
   options.signal.throwIfAborted();
   const started = Date.now();
   if (!input.query.trim() || input.query.length > 500 || input.rows.length > 100 || new Set(input.rows.map(r => r.submission_id)).size !== input.rows.length) throw new CoreError('INVALID_INPUT', 'Search requires a query of 1–500 characters and at most 100 distinct claims.');
-  if (options.mode !== 'live') throw new CoreError('SEARCH_DISABLED', 'Natural-language search requires live Jev. Start demo:jev or configure a Jev key.', 503);
+  if (options.mode !== 'live') throw new CoreError('SEARCH_DISABLED', 'Natural-language search is available once a Jev key is configured.', 503);
   const config = searchConfiguration();
   if (!config.key) throw new CoreError('CONFIG_ERROR', 'Configure AI_GATEWAY_API_KEY or TYPESAFE_API_KEY for search.', 503);
   const signal = AbortSignal.any([options.signal, AbortSignal.timeout(45000)]);
