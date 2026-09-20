@@ -24,6 +24,8 @@ The pack contains:
 - Maya’s photographed PNG bus receipt and real `.eml` request email export produce a complete $42 case. A renamed copy of the same PNG is counted once, with no second extraction call.
 - An unrelated event agenda remains unlinked; it is never discarded or forced into a claim.
 
+The sample explorer displays Forms exports as a horizontally scrollable spreadsheet with row numbers and column letters, Gmail exports as sender-separated email conversations with attachment names, and Dropbox PDFs/images as original-file previews. These are read-only views of the same inputs used by extraction; no new provider calls or connectors are involved. Native PDF viewing depends on browser support; Open file remains available.
+
 The results put original source files beside compact receipt cases. Expand a case for the linked evidence, match reasons, and request-versus-receipt comparison. Request forms and manual assignment controls are collapsed until needed. “Ready to confirm” describes intake completeness, not payment approval.
 
 Drafts without an explicit request do not copy the receipt total into the requested amount. The reviewer must enter it. Conflicting request fields remain blank. Confirmation acknowledgements reset when fields or grouping change. A document can be promoted/demoted if classification needs correction.
@@ -115,3 +117,5 @@ Twelve focused backend/session/supporting-evidence checks and two final simulate
 The new `tests/ui/source-audit.spec.ts` passed against a fresh **live-extraction / simulated-review** server in **37.2 seconds** including browser setup, pause, reload, resume, and inspection. Ten Azure `gpt-5.6-luna` extractions took 2.002–3.922 seconds each. The run produced two claims: Ava flagged/pending and Maya matched/automatically approved under simulated review. Four source inputs remained held; the duplicate PNG incurred no second extraction. The browser verified the persisted EML and CSV fields, no duplicate imports on replay, and mobile overflow. These results establish this synthetic sample run, not general OCR accuracy or live financial-assessment quality.
 
 Run that browser check only against a fresh isolated launcher. With `--live-extraction`, it spends ten extraction calls; without the flag it uses authored fixtures. Real source account connections remain mockups.
+
+Source-format preview checks: quoted/multiline CSV and exported email-thread parsing passed; a read-only browser test verified spreadsheet values, two-message chains, PDF and image originals, and 390px mobile scrolling. Screenshots were visually inspected, including the PDF after its native viewer finished painting. No paid extraction was needed for this presentation change.
