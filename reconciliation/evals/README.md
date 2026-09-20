@@ -11,6 +11,7 @@ npm run eval:heldout                                         # offline: generate
 npm run eval:heldout -- --generate --seed 20260919 --out evals/results/dataset-20260919
 npm run eval:heldout -- --seed-rehearsal --live --base-url http://127.0.0.1:3000 --out evals/results/rehearsal-1
 npm run eval:heldout -- --live --base-url <origin> --dataset <dir> --review <dir>/review.json --out evals/results/run-1
+npm run eval:heldout -- --live --exploratory --base-url <origin> --dataset <dir> --out evals/results/exploratory-1
 node --conditions=react-server --import tsx --test evals/benchmark.test.ts
 ```
 
@@ -35,6 +36,12 @@ Six of the eight violations and four of the six duplicates carry the learned des
 ## Human review gate
 
 A live evaluation requires a `review.json` next to the dataset listing real reviewers and the `inputs.json`/`expected.json` SHA-256 hashes they signed off on. Stale hashes, an empty reviewer list, or a seed that no longer reproduces the reviewed inputs abort the run. The expected labels are human truth and are never rewritten to match what the system produced.
+
+## Exploratory mode
+
+`--exploratory` measures a deployment that cannot satisfy the benchmark: it runs without `review.json` and continues past failed preflight gates. Its artifacts record `inputs_sha256: unreviewed`, `review: null`, and a leading limitation stating the numbers are not benchmark accuracy. Use it to characterise a deployment, never to report benchmark results.
+
+One such run against the local demo app (simulated extraction, simulated decisions, demo store) put all 50 cases in `needs_review` with every deterministic and Jev check `unknown`: demo extraction recognises only bundled sample hashes, so freshly generated receipts extract as all-null and the engine fails closed. That is the expected demo-mode behaviour, and it is why the numbers say nothing about assessment quality.
 
 ## Current status: offline only
 

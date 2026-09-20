@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { bundledSampleHashes, COHORT_COUNTS, csvRow, generate, receiptBytes, sha256, uploadFields, validateReview, writeDataset } from './dataset';
 import { buildReport, casesCsv, markdownReport, percentile, phaseMetrics, safetyViolations, type CaseOutcome, type PhaseResult, type RunContext } from './report';
-import { datasetForReview, outcomes, parseArgs, preflight, runPhase, upload } from './run-heldout';
+import { datasetForReview, main, outcomes, parseArgs, preflight, runPhase, upload } from './run-heldout';
 
 const SEED = 20260919;
 const context = (): RunContext => ({
@@ -187,6 +187,15 @@ test('exports escape separators and arguments default to offline generation', ()
   assert.equal(parseArgs(['--seed', '7']).out, 'evals/results/dataset-7');
   assert.deepEqual(parseArgs(['--live', '--base-url', 'http://x']).generate, false);
   assert.throws(() => parseArgs(['--seed', 'abc']), /non-negative integer/);
+  assert.equal(offline.exploratory, false);
+  assert.equal(parseArgs(['--live', '--exploratory', '--base-url', 'http://x']).exploratory, true);
+});
+
+test('an evaluation without human review is refused unless it is declared exploratory', async () => {
+  await assert.rejects(
+    main(['--live', '--base-url', 'http://127.0.0.1:1', '--dataset', 'evals/results/nonexistent']),
+    /needs --review/
+  );
 });
 
 test('outcomes read back an unknown verdict as investigation and tolerate a missing row', async () => {

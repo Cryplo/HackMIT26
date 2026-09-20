@@ -8,7 +8,7 @@ import { buildReport, casesCsv, markdownReport, type CaseOutcome, type PhaseResu
 /** Hold-out benchmark entry point. Generation is the default and never touches the network.
  * Seeding and evaluation are explicit, spend provider budget, and refuse to run against an unsupported backend.
  */
-export interface Options { generate: boolean; seedRehearsal: boolean; live: boolean; seed: number; out: string; dataset: string | null; review: string | null; baseUrl: string | null; ruleId: string | null }
+export interface Options { generate: boolean; seedRehearsal: boolean; live: boolean; exploratory: boolean; seed: number; out: string; dataset: string | null; review: string | null; baseUrl: string | null; ruleId: string | null }
 
 export function parseArgs(argv: string[]): Options {
   const value = (name: string) => { const i = argv.indexOf(`--${name}`); return i === -1 ? null : argv[i + 1] ?? null; };
@@ -18,7 +18,7 @@ export function parseArgs(argv: string[]): Options {
   const live = flag('live');
   const seedRehearsal = flag('seed-rehearsal');
   return {
-    generate: flag('generate') || (!live && !seedRehearsal), seedRehearsal, live, seed,
+    generate: flag('generate') || (!live && !seedRehearsal), seedRehearsal, live, exploratory: flag('exploratory'), seed,
     out: value('out') ?? `evals/results/dataset-${seed}`,
     dataset: value('dataset'), review: value('review'), baseUrl: value('base-url'), ruleId: value('rule-id')
   };
@@ -136,25 +136,30 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
-  if (!options.dataset || !options.review) throw new Error('A live evaluation needs --dataset and --review.');
-  const review = await validateReview(options.dataset, options.review);
+  // --exploratory measures whatever deployment is in front of it and says so in every artifact. It is not a benchmark:
+  // it cannot satisfy the review gate, the v2 contract or live providers, and its numbers must never be quoted as accuracy.
+  if (!options.dataset) throw new Error('An evaluation needs --dataset.');
+  if (!options.review && !options.exploratory) throw new Error('A benchmark run needs --review; use --exploratory to measure an unvalidated deployment.');
+  const review = options.review ? await validateReview(options.dataset, options.review) : null;
   const gates = await preflight(options.baseUrl, fetch);
   await mkdir(options.out, { recursive: true });
   const context: RunContext = {
     run_id: path.basename(options.out), source_commit: commit(), started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
-    dataset_dir: options.dataset, inputs_sha256: review.inputs_sha256, expected_sha256: review.expected_sha256,
-    review: { reviewers: review.reviewers, reviewed_at: review.reviewed_at },
+    dataset_dir: options.dataset, inputs_sha256: review?.inputs_sha256 ?? 'unreviewed', expected_sha256: review?.expected_sha256 ?? 'unreviewed',
+    review: review ? { reviewers: review.reviewers, reviewed_at: review.reviewed_at } : null,
     providers: { extraction: String(gates.observed.execution?.decisions ?? 'unknown'), decisions: String(gates.observed.execution?.decisions ?? 'unknown'), retrieval: String(gates.observed.execution?.retrieval ?? 'unknown'), storage: String(gates.observed.execution?.storage ?? 'unknown') },
     rule: options.ruleId ? { id: options.ruleId, version: null, activated: false, gate_report: null } : null,
-    isolation: 'not established', limitations: gates.missing
+    isolation: 'not established',
+    limitations: options.exploratory ? ['EXPLORATORY RUN: unreviewed dataset against a deployment that fails benchmark preflight. These numbers describe this deployment only and are not benchmark accuracy.', ...gates.missing] : gates.missing
   };
-  if (!gates.ok) {
+  if (!gates.ok && !options.exploratory) {
     await writeFile(path.join(options.out, 'preflight.json'), JSON.stringify({ ...gates, context }, null, 2));
     console.error('Preflight failed; no benchmark was run. Missing prerequisites:');
     for (const m of gates.missing) console.error(`- ${m}`);
     return 2;
   }
   const dataset = await datasetForReview(options.dataset, options.seed);
+  if (options.exploratory) console.warn(`EXPLORATORY: results are not benchmark accuracy${gates.ok ? '' : '; preflight gates failed'}.`);
   const before = await runPhase(options.baseUrl, dataset.scored, 'before', null, fetch);
   await writeFile(path.join(options.out, 'before.json'), JSON.stringify(before.phase, null, 2));
   // Activation goes through the reviewed rule API only; this runner never edits storage or learns on its own.
