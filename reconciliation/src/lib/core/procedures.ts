@@ -10,8 +10,8 @@ import { requiredChecks } from './checks';
 const proposal=z.object({run_id:z.uuid(),expected_review_revision:z.number().safe().int().nonnegative()}).strict();
 const mutation=z.object({expected_procedure_version:z.number().safe().int().positive()}).strict();
 export function publicProcedure(p:ResolutionProcedure):ResolutionProcedure{
- const {id,version,state,source_claim_id,source_run_id,source_correction_id,created_at,latest_test,latest_test_error,kind,trigger_scope,required_evidence,matching_fields,source_evidence_refs}=p;
- return {id,version,state,source_claim_id,source_run_id,source_correction_id,created_at,latest_test,latest_test_error,kind,trigger_scope,required_evidence,matching_fields,source_evidence_refs};
+ const {source_kind,id,version,state,source_claim_id,source_run_id,source_correction_id,created_at,latest_test,latest_test_error,kind,trigger_scope,required_evidence,matching_fields,source_evidence_refs}=p;
+ return {...(source_kind?{source_kind}:{}),id,version,state,source_claim_id,source_run_id,source_correction_id,created_at,latest_test,latest_test_error,kind,trigger_scope,required_evidence,matching_fields,source_evidence_refs};
 }
 function port(core:CoreService){if(!core.intelligence?.build_procedure_suite||!core.intelligence?.evaluate_procedure)throw new CoreError('PROCEDURE_UNAVAILABLE','Procedure evaluation is not installed.',503);return {build:core.intelligence.build_procedure_suite.bind(core.intelligence),evaluate:core.intelligence.evaluate_procedure.bind(core.intelligence)};}
 export async function procedures(core:CoreService){const state=await core.store.snapshot();return {procedures:(state.procedures??[]).map(publicProcedure),knowledge_revision:state.knowledge_revision??0};}

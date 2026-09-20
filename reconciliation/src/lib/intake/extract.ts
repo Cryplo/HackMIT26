@@ -3,6 +3,7 @@ import type { SupportingDocument } from '../review-contracts';
 import "server-only";
 import { responsesConfig, responsesHeaders, type ResponsesConfig } from "../providers/responses";
 import { recognizedSample } from "../demo/samples";
+import { recognizedShowcaseReceipt } from "../demo/showcase";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { Extraction, type ParsedFields, type Usage } from "./schema";
@@ -23,6 +24,8 @@ export async function extractReceipt(
 ): Promise<ExtractionResult> {
   options?.signal?.throwIfAborted();
   if (mode === "demo") {
+    const showcase = !options?.supporting ? recognizedShowcaseReceipt(bytes) : null;
+    if (showcase) return { ...showcase, error: null, usage: null };
     const sample = recognizedSample(bytes);
     return {
       fields: sample ?? {

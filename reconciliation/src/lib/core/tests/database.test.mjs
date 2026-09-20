@@ -110,9 +110,8 @@ test('SQL readiness marker is service-only and atomic read projections retain st
 
 test('SQL v3 persists private supporting evidence, awaited tool progress, reviewed procedure lifecycle and source invalidation',async()=>{
  const {db,store,core}=await database();try{
- const {fixture}=require('./investigation-fixtures.ts');const {backendEvaluator}=require('./procedure-fixtures.ts');
  const {investigateClaim}=require('../investigations.ts');const {uploadSupporting}=require('../../intake/supporting-documents.ts');const {proposeProcedure,changeProcedure}=require('../procedures.ts');
- const f=fixture();core.investigationMode='simulated';
+ core.investigationMode='simulated';
  await db.query("update receipts set raw_extracted_text=$1 where submission_id=$2",['Merchant: SYN HBR 042\nBooking reference: TRIP-01\nGuest: Sam Example',ids[2]]);
  let rev=(await store.snapshot()).submissions.find(s=>s.id===ids[2]).review_revision;
  let extracted=0;const original={put:async()=>{},read:async()=>null};
@@ -121,7 +120,7 @@ test('SQL v3 persists private supporting evidence, awaited tool progress, review
  assert.equal(doc.document.extraction_status,'succeeded');assert.equal(doc.row.assessment_status,null);
  await assert.rejects(uploadSupporting(core,ids[2],{...upload,revision:doc.row.review_revision},original,async()=>{extracted++;throw new Error('must not extract');},signal()),/DOCUMENT_EXISTS/);assert.equal(extracted,1);
  await core.reconcile([ids[2]]);
- core.intelligence={...f.port,...backendEvaluator,async investigate(input,tools,options){
+ core.intelligence={...intelligence,async investigate(input,tools,options){
  const receipt=await tools.read_receipt();const docs=await tools.read_supporting_documents();
  assert.equal(await scalar(db,'select count(*)::int from investigation_steps'),2);
  const state=await store.snapshot();const {deriveCandidate}=require('../evidence.ts');

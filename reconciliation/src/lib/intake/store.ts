@@ -1,8 +1,7 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import { intakeMode } from "./config";
 import { IntakeError, type Claim, type Receipt, type Usage } from "./schema";
 import { SupabaseStore } from "../core/store";
@@ -15,26 +14,17 @@ export interface IntakeStore {
 }
 export class LocalStore implements IntakeStore {
   constructor(private dir: string) {}
-  private async put(name: string, value: unknown) {
-    await mkdir(this.dir, { recursive: true });
-    const temp = path.join(this.dir, `${randomUUID()}.tmp`);
-    await writeFile(temp, JSON.stringify(value), { mode: 0o600 });
-    await rename(temp, path.join(this.dir, name));
-  }
   async create(claim: Claim, receipt: Receipt, bytes: Uint8Array) {
-    await mkdir(this.dir, { recursive: true });
-    await writeFile(path.join(this.dir, `${receipt.id}.bin`), bytes, {
-      mode: 0o600,
-    });
-    await this.put(`${claim.id}.submission.json`, claim);
-    await this.put(`${receipt.id}.receipt.json`, receipt);
+    const { FileStore } = await import("../core/file-store");
+    await new FileStore(this.dir).createIntakeRecord(claim, receipt, bytes);
   }
   async finish(receipt: Receipt) {
     const { FileStore } = await import("../core/file-store");
     await new FileStore(this.dir).finishInitialExtraction(receipt);
   }
   async usage(call: Usage) {
-    await this.put(`${call.id}.usage.json`, call);
+    const { FileStore } = await import("../core/file-store");
+    await new FileStore(this.dir).intakeUsage(call);
   }
   async read(id: string) {
     try {

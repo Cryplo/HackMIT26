@@ -52,10 +52,16 @@ export interface InvestigationResult {
   summary: string; next_action: 'human_review' | 'request_document' | 'propose_alias';
   evidence_refs: string[]; steps: InvestigationStep[]; error_code: string | null;
 }
+export interface LearningFeedback {
+  status: 'queued' | 'checking' | 'testing' | 'active' | 'not_applicable' | 'needs_confirmation' | 'failed';
+  summary: string; procedure_id?: string; updated_at: string;
+}
 export interface ReviewRow extends ClaimFacts {
+  learning?: LearningFeedback;
   latest_investigation?: InvestigationRun | null;
   updated_at: string; latest_run_id: string | null; review_revision: number;
   assessment_status: Assessment | null; decision_status: HumanDecision;
+  decision_source?: 'human' | 'automatic' | null;
   assessment_knowledge_revision: number | null;
   processing_status: 'idle' | 'running' | 'failed'; processing_error: string | null;
   /** Compatibility projection; v2 UI must use the separate statuses above. */
@@ -65,6 +71,9 @@ export interface ReviewRow extends ClaimFacts {
   investigation: InvestigationResult | null;
 }
 export interface WorkspaceCapabilities {
+  demo_reset?: boolean;
+  automatic_processing?: boolean;
+  automatic_decision_emails?: boolean;
   decision_email_drafts?: boolean; decision_emails?: boolean; email_mode?: 'disabled' | 'preview' | 'live'; email_error?: string | null;
   supporting_documents?: boolean; investigations?: boolean; resolution_procedures?: boolean;
   rule_learning: boolean; extraction_retry: boolean; export: boolean;
@@ -89,15 +98,24 @@ export interface ApiError { error: { code: string; message: string } }
 export interface ReconcileRequest { submission_ids: string[] }
 export interface ReconcileResult {
   submission_id: string; run_id: string | null; assessment_status: Assessment | null;
-  decision_status: HumanDecision; review_revision: number; error?: string;
+  decision_status: HumanDecision; review_revision: number; error?: string; email_error?: string | null;
 }
-export interface ReconcileResponse { results: ReconcileResult[] }
+export interface ReconcileResponse {
+  results: ReconcileResult[];
+  /** Complete current workspace rows from the same snapshot as the token. */
+  rows?: ReviewRow[];
+  snapshot_token?: string;
+  knowledge_revision?: number;
+}
 export interface DecisionRequest {
   submission_id: string; expected_review_revision: number;
   human_verdict: 'approved' | 'rejected'; human_note: string;
   correction_type: 'decision_override'; correction_payload_json: Record<string, never>;
+  request_id?: string;
+  /** Explicitly public explanation; human_note remains private. */
+  applicant_reason?: string;
 }
-export interface DecisionResponse { correction_id: string; row: ReviewRow }
+export interface DecisionResponse { correction_id: string; row: ReviewRow; message?: import('./core/communications-state').PublicClaimMessage; email_error?: string | null }
 export interface RuleProposalRequest {
   submission_id: string; expected_review_revision: number; canonical_vendor: string;
 }
@@ -241,6 +259,7 @@ export interface ProcedureTestReport {
   before: EvaluationMetrics; after: EvaluationMetrics; reasons: string[];
 }
 export interface ResolutionProcedure extends ProcedureCandidate {
+  source_kind?: 'review_feedback' | 'investigation';
   id: string; version: number; state: 'draft' | 'active' | 'disabled';
   source_claim_id: string; source_run_id: string; source_correction_id: string;
   created_at: string; latest_test: ProcedureTestReport | null;

@@ -12,7 +12,13 @@ import { DatabaseRetrieval } from './retrieval';
 import { CoreError } from './validation';
 const globalCore = globalThis as typeof globalThis & { reimbursementCore?: CoreService };
 export function getCore(): CoreService {
-  if (globalCore.reimbursementCore) return globalCore.reimbursementCore;
+  const automationMode=process.env.RECONCILIATION_AUTOMATION_MODE??'policy-caps';
+  if(!['policy-caps','disabled'].includes(automationMode))throw new CoreError('CONFIG_ERROR','RECONCILIATION_AUTOMATION_MODE must be policy-caps or disabled.',503);
+  const automationEnabled=automationMode==='policy-caps';
+  const cached = globalCore.reimbursementCore;
+  // Hot reload must not retain an old service class, intelligence stub, or mode.
+  if (cached && (process.env.NODE_ENV !== 'development' ||
+    (cached instanceof CoreService && cached.automationEnabled===automationEnabled && cached.intelligence === intelligence && cached.investigationMode === (process.env.RECONCILIATION_INVESTIGATION_MODE ?? 'disabled')))) return cached;
   const e = process.env;
   const requestedInvestigation=investigationConfig(e);
   // Rollout stays unavailable until C publishes the complete investigation/procedure port.
@@ -38,7 +44,7 @@ export function getCore(): CoreService {
   const liveJustification = e.RECONCILIATION_JUSTIFICATION_MODE === 'live';
   let narrative;
   if(liveJustification) { try { narrative=responsesConfig('justification'); } catch { throw new CoreError('CONFIG_ERROR','Configure Azure endpoint/key/deployment or OPENAI_API_KEY for live justifications.',503); } }
-  globalCore.reimbursementCore = new CoreService(store, new DatabaseRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: url ? 'Supabase candidate scan' : 'local candidate scan', storage: url ? 'Supabase' : 'local disk', investigation:investigationMode==='disabled'?'disabled / intelligence rollout unavailable':investigationMode, justification: narrative ? `live ${narrative.provider}` : 'deterministic summary' }, narrative ? new OpenAiJustifier(narrative.key, narrative.model, fetch, narrative) : new SimulatedJustifier(), intelligence, investigationMode);
+  globalCore.reimbursementCore = new CoreService(store, new DatabaseRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: url ? 'Supabase candidate scan' : 'local candidate scan', storage: url ? 'Supabase' : 'local disk', investigation:investigationMode==='disabled'?(requestedInvestigation==='disabled'?'disabled in configuration':'intelligence implementation unavailable'):investigationMode, justification: narrative ? `live ${narrative.provider}` : 'deterministic summary' }, narrative ? new OpenAiJustifier(narrative.key, narrative.model, fetch, narrative) : new SimulatedJustifier(), intelligence, investigationMode, automationEnabled);
   return globalCore.reimbursementCore;
 }
 

@@ -7,7 +7,7 @@ import type { EmailPayload, EmailProvider, EmailSendResult } from './provider';
 import { ResendProvider } from './resend';
 /** Send the exact content frozen in the decision/outbox transaction, including across worker upgrades. */
 export function messagePayload(message: ClaimMessage): EmailPayload {
-  if (!message.from || !message.outcome_header || !message.correction_id || !message.rendered_text || !message.rendered_html) throw new CoreError('EMAIL_UNAVAILABLE','This notice has no confirmed decision and immutable content snapshot.',409);
+  if (!message.from || !message.outcome_header || (!message.correction_id && !(message.decision_source==='automatic'&&message.automatic_decision_key)) || !message.rendered_text || !message.rendered_html) throw new CoreError('EMAIL_UNAVAILABLE','This notice has no confirmed decision and immutable content snapshot.',409);
   return {from:message.from,to:message.recipient,replyTo:message.reply_to,subject:message.subject,text:message.rendered_text,html:message.rendered_html};
 }
 export interface DispatchOptions { env?: Record<string,string|undefined>; config?: EmailConfig; provider?: EmailProvider; signal?: AbortSignal }

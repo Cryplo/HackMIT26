@@ -15,6 +15,7 @@ export const emailDraftSchema = z.object({
 
 export const emailEditSchema = z.object({ expected_draft_revision: revision, subject, body }).strict();
 export const emailConfirmationSchema = z.object({
+  decision_id: identifier.optional(),
   expected_review_revision: revision,
   human_verdict: z.enum(['approved', 'rejected']),
   human_note: z.string().trim().min(1).max(2000),
@@ -34,3 +35,5 @@ export function emailIdentifier(value: string): string {
   if (!identifier.safeParse(value).success) throw new CoreError('INVALID_INPUT', 'A valid claim or message identifier is required.');
   return value;
 }
+
+export const automaticDecisionSchema = z.object({ request_id: identifier.optional(), applicant_reason: z.string().trim().max(1500).optional() }).strict();

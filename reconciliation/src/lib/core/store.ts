@@ -1,3 +1,4 @@
+import { mutateFeedback, type FeedbackCommand, type FeedbackResult } from './feedback-learning-state';
 import { mutateMessages, guardCommunication, cancelObsoleteMessages, type ClaimMessage, type MessageDeliveryEvent, type MessageCommand, type MessageResult } from './communications-state';
 import type { InvestigationRun } from '../review-contracts';
 import { beforeAssessment, pendingClaim, type StoredDocument, type SupportingCommand, type InvestigationCommand } from './investigation-state';
@@ -9,7 +10,7 @@ import { workspaceRows } from './projection';
 import { assertApprovable, confirmedDuplicates, latestCorrection, reviewRevision, samePurchase } from './safety';
 import { activeAliases, invalidateSource, mutateRule, type StoredRule, type RuleAttempt, type RuleCommand } from './rule-state';
 export interface Snapshot { claim_messages?:ClaimMessage[]; message_delivery_events?:MessageDeliveryEvent[]; supporting_documents?:StoredDocument[]; investigations?:InvestigationRun[]; procedures?:StoredProcedure[]; procedure_history?:StoredProcedure[]; procedure_tests?:ProcedureAttempt[]; knowledge_revision?: number; rules?: StoredRule[]; rule_history?: StoredRule[]; rule_tests?: RuleAttempt[]; extraction_history?: Receipt[]; submissions: Submission[]; receipts: Receipt[]; policies: PolicyRule[]; decisions: Decision[]; corrections: Correction[]; runs: ReconciliationRun[] }
-export interface Store { messages(command:MessageCommand):Promise<MessageResult>; supporting(command:SupportingCommand):Promise<{document:StoredDocument;lease:string}>; investigation(command:InvestigationCommand):Promise<InvestigationRun>; procedure(command:ProcedureCommand):Promise<{procedure:StoredProcedure;knowledge_revision:number}>; snapshot(): Promise<Snapshot>; begin(id: string): Promise<string>; finish(run: string, ds: Decision[], status: SubmissionStatus): Promise<void>; fail(run: string, message: string): Promise<void>; correct(input: CorrectionInput): Promise<{ correction_id: string; status: SubmissionStatus }>; usage(call: ModelCall): Promise<void>; rule(command: RuleCommand): Promise<{rule:StoredRule;knowledge_revision:number}>; beginExtraction(id:string, revision:number):Promise<string>; finishExtraction(lease:string, receipt:Receipt):Promise<void>; receiptHash(id:string, hash:string):Promise<void> }
+export interface Store { feedbackLearning(command:FeedbackCommand):Promise<FeedbackResult>; messages(command:MessageCommand):Promise<MessageResult>; supporting(command:SupportingCommand):Promise<{document:StoredDocument;lease:string}>; investigation(command:InvestigationCommand):Promise<InvestigationRun>; procedure(command:ProcedureCommand):Promise<{procedure:StoredProcedure;knowledge_revision:number}>; snapshot(): Promise<Snapshot>; begin(id: string): Promise<string>; finish(run: string, ds: Decision[], status: SubmissionStatus): Promise<void>; fail(run: string, message: string): Promise<void>; correct(input: CorrectionInput): Promise<{ correction_id: string; status: SubmissionStatus }>; usage(call: ModelCall): Promise<void>; rule(command: RuleCommand): Promise<{rule:StoredRule;knowledge_revision:number}>; beginExtraction(id:string, revision:number):Promise<string>; finishExtraction(lease:string, receipt:Receipt):Promise<void>; receiptHash(id:string, hash:string):Promise<void> }
 export function validateCorrectionContext(input: CorrectionInput, state: Snapshot) {
   const s = state.submissions.find(s => s.id === input.submission_id);
   if (!s) throw new CoreError('NOT_FOUND', 'Submission not found.', 404);
@@ -82,6 +83,7 @@ export class MemoryStore implements Store {
     if(!s.latest_run_id){s.latest_run_id=crypto.randomUUID();this.state.runs.push({id:s.latest_run_id,submission_id:s.id,status:'completed',started_at:now,completed_at:now,error:null,evidence_revision:s.evidence_revision});}
     const d=decision(s,s.latest_run_id,'overall_status',input.human_verdict==='approved'?'pass':'fail',input.human_verdict,input.human_note,{correction_id:correction.id,correction_type:input.correction_type,one_time_override:true});d.check_method='human';this.state.decisions.push(d);
     s.status=input.human_verdict;s.decision_status=input.human_verdict;s.updated_at=now;s.review_revision=(s.review_revision??0)+1;
+    mutateFeedback(this.state,{action:'enqueue',correction_id:correction.id});
     return {correction_id:correction.id,status:s.status};
   }
   private evidence(){return {supporting_documents:this.state.supporting_documents,active_procedures:this.state.procedures?.filter(p=>p.state==='active'),active_aliases:activeAliases(this.state),check_configuration:'mandatory-v1',receipts:this.state.receipts,policies:this.state.policies,claims:this.state.submissions.map(({id,attendee_name,amount_requested_minor,currency,category,submitted_at})=>({id,attendee_name,amount_requested_minor,currency,category,submitted_at}))};}
@@ -155,14 +157,20 @@ export class MemoryStore implements Store {
     Object.assign(inv,{status:'completed',outcome:status==='approved'?'resolved':status==='flagged'?'discrepancy_found':'needs_human',headline:cmd.result.headline,summary:cmd.result.summary,unresolved_question:cmd.result.unresolved_question,findings:structuredClone(cmd.result.findings),proposed_learning:structuredClone(cmd.result.proposed_learning),model:cmd.result.model,completed_at:run.completed_at,error:null,after_assessment:beforeAssessment(this.state,inv.claim_id)});
     return structuredClone(inv);
   }
+  async feedbackLearning(command:FeedbackCommand){return mutateFeedback(this.state,command);}
   async procedure(cmd:ProcedureCommand){return mutateProcedure(this.state,cmd);}
 
   async usage(call: ModelCall) { this.calls.push(structuredClone(call)); }
 }
 export class SupabaseStore implements Store {
+  private schemaCheck: Promise<unknown> | null = null;
   constructor(private url: string, private key: string) {}
   async assertSchema() {
-    if (await this.request('rpc/core_platform_version', {}) !== 4) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
+    // Concurrent workers share only the in-flight check; completed checks are never cached.
+    const pending = this.schemaCheck ??= this.request('rpc/core_platform_version', {});
+    try {
+      if (await pending !== 4) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
+    } finally { if (this.schemaCheck === pending) this.schemaCheck = null; }
   }
   private async request(path: string, body?: unknown) {
     // Check every operation: an earlier successful request cannot authorize an older schema.
@@ -173,7 +181,7 @@ export class SupabaseStore implements Store {
       if (path === 'rpc/core_platform_version' && ['PGRST202', '42883'].includes(e.code)) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
       const known: Record<string, [string, number]> = { 'RUN_ACTIVE': ['A run is already active.', 409], 'STALE_RUN': ['Run was superseded by reviewer action.', 409], 'NOT_FOUND': ['Submission not found.', 404], 'STALE_DECISION': ['Decision is stale or belongs to another submission.', 409], 'INVALID_SCOPE': ['Alias scope does not match receipt.', 400] };
       const key = typeof e.message === 'string' ? e.message : '';
-      for(const code of ['STALE_MESSAGE','MESSAGE_CONFLICT','MESSAGE_ALREADY_CONFIRMED','COMMUNICATION_IN_FLIGHT','DELIVERY_RECONCILIATION_REQUIRED','STALE_REVIEW','STALE_RULE','STALE_RULE_TEST','APPROVAL_BLOCKED','RULE_CONFLICT','RULE_SOURCE_REQUIRED','RETRY_BLOCKED','RECEIPT_CONFLICT','REVIEW_LIMIT','INVALID_INPUT','LEGACY_ALIAS_DISABLED','STALE_RUN','DOCUMENT_EXISTS','DOCUMENT_LIMIT','DOCUMENT_CONFLICT','EVIDENCE_LOCKED','ASSESSMENT_REQUIRED','INVESTIGATION_NOT_NEEDED','PROCEDURE_SOURCE_REQUIRED','INVESTIGATION_LIMIT'])known[code]=[code==='LEGACY_ALIAS_DISABLED'?'Use the reviewed /api/rules workflow.':code.replaceAll('_',' '),code==='LEGACY_ALIAS_DISABLED'?410:code==='INVALID_INPUT'?400:409];
+      for(const code of ['STALE_FEEDBACK','STALE_MESSAGE','MESSAGE_CONFLICT','MESSAGE_ALREADY_CONFIRMED','COMMUNICATION_IN_FLIGHT','DELIVERY_RECONCILIATION_REQUIRED','STALE_REVIEW','STALE_RULE','STALE_RULE_TEST','APPROVAL_BLOCKED','RULE_CONFLICT','RULE_SOURCE_REQUIRED','RETRY_BLOCKED','RECEIPT_CONFLICT','REVIEW_LIMIT','INVALID_INPUT','LEGACY_ALIAS_DISABLED','STALE_RUN','DOCUMENT_EXISTS','DOCUMENT_LIMIT','DOCUMENT_CONFLICT','EVIDENCE_LOCKED','ASSESSMENT_REQUIRED','INVESTIGATION_NOT_NEEDED','PROCEDURE_SOURCE_REQUIRED','INVESTIGATION_LIMIT'])known[code]=[code==='LEGACY_ALIAS_DISABLED'?'Use the reviewed /api/rules workflow.':code.replaceAll('_',' '),code==='LEGACY_ALIAS_DISABLED'?410:code==='INVALID_INPUT'?400:409];
       if (known[key]) throw new CoreError(key, known[key][0], known[key][1]);
       throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
     }
@@ -182,6 +190,7 @@ export class SupabaseStore implements Store {
   messages(command:MessageCommand):Promise<MessageResult>{return this.request('rpc/core_messages',{p_input:command});}
   supporting(command:SupportingCommand){return this.request('rpc/core_supporting',{p_input:command});}
   investigation(command:InvestigationCommand){return this.request('rpc/core_investigation',{p_input:command});}
+  feedbackLearning(command:FeedbackCommand):Promise<FeedbackResult>{return this.request('rpc/core_feedback_learning',{p_input:command});}
   procedure(command:ProcedureCommand){return this.request('rpc/core_procedure',{p_input:command});}
   snapshot(): Promise<Snapshot> { return this.request('rpc/core_snapshot', {}); }
   begin(id: string): Promise<string> { return this.request('rpc/core_begin_run', { p_submission: id }); }

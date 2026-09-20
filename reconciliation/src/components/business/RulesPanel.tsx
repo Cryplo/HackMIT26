@@ -9,6 +9,7 @@ import { formatDate, statusLabel } from "@/lib/dashboard/helpers";
 import { activationBlock, normalizeVendor as normalize } from "@/lib/dashboard/review";
 import type { RulesPanelProps } from "@/lib/dashboard/ui-contracts";
 import type { MerchantRule, RulesResponse } from "@/lib/review-contracts";
+import { LearningStatus } from "./ProcedurePanel";
 import styles from "./panels.module.css";
 
 const message = (error: unknown) => error instanceof Error ? error.message : "The request failed. Please try again.";
@@ -22,33 +23,41 @@ export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simu
   const [busy, setBusy] = useState<{ id: string; action: Action | "recheck" } | null>(null);
   const [activationDenied, setActivationDenied] = useState<string[]>([]);
   const request = useRef(0);
+  const controller = useRef<AbortController | null>(null);
   const mutationLock = useRef(false);
   const enabled = capabilities?.rule_learning === true;
-  const sourceRevisions = rows.map(row => `${row.id}:${row.review_revision}`).join("|");
   const revision = Math.max(knowledgeRevision, data?.knowledge_revision ?? 0);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    if (!enabled) return;
+  const load = useCallback(async (background = false) => {
+    if (!enabled || (background && controller.current && !controller.current.signal.aborted)) return;
+    controller.current?.abort();
+    const current = new AbortController();
+    controller.current = current;
+    const signal = current.signal;
     const id = ++request.current;
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
       const result = await client.getRules(signal);
-      if (id === request.current && !signal?.aborted) setData(result);
+      if (id === request.current && !signal.aborted) setData(result);
+    } catch (failure) {
+      if (!signal.aborted && id === request.current) throw failure;
     } finally {
-      if (id === request.current && !signal?.aborted) setLoading(false);
+      if (controller.current === current) controller.current = null;
+      if (id === request.current && !signal.aborted) setLoading(false);
     }
   }, [client, enabled]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal).catch((failure) => { if (!controller.signal.aborted) setError(message(failure)); });
-    return () => controller.abort();
-  }, [load, knowledgeRevision, sourceRevisions]);
+    if (!mutationLock.current) void load(true).catch(failure => setError(message(failure)));
+  }, [load, knowledgeRevision, rows]);
+
+  useEffect(() => () => { ++request.current; controller.current?.abort(); }, [client]);
 
   async function mutate(rule: MerchantRule, action: Action) {
     if (!enabled || mutationLock.current) return;
     mutationLock.current = true;
     ++request.current;
+    controller.current?.abort(); controller.current = null;
     setLoading(false); setBusy({ id: rule.id, action }); setError(null); setNotice(null);
     try {
       const input = { expected_rule_version: rule.version };
@@ -85,15 +94,18 @@ export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simu
     finally { mutationLock.current = false; setBusy(null); }
   }
 
-  if (!enabled) return <section aria-label="Learned merchant rules"><p className="py-6 text-sm text-muted-foreground">Merchant rule learning is unavailable on this backend. Claim review remains available.</p></section>;
+  const learningRows = rows.filter(row => row.learning);
+  const learning = <section aria-label="Learning from reviews" className="mb-6"><h2 className="text-base font-semibold">Learning from reviews</h2><p className="mt-1 text-sm text-muted-foreground">Review reasons are checked against saved evidence. Only supported checks that pass testing are saved for similar claims. Open the source claim to inspect or turn off a saved check.</p>{learningRows.length ? <ul className="mt-3 divide-y">{learningRows.map(row => <li key={row.id} className="flex flex-wrap items-start justify-between gap-3 py-2"><Button variant="link" onClick={() => onOpenClaim(row.id)}>{row.attendee_name}</Button><LearningStatus row={row} /></li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">No learning from reviews yet. Review a claim and explain the evidence behind your decision.</p>}</section>;
 
-  return <section className={`${styles.rules} space-y-5`} aria-label="Learned merchant rules">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Merchant rules</h2><p className="mt-1 text-sm text-muted-foreground">Approved exceptions become drafts. Test a draft before making it active.</p></div><Button variant="outline" size="lg" disabled={loading || !!busy} aria-busy={loading} onClick={() => { setError(null); void load().catch((failure) => setError(message(failure))); }}><RotateCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh rules"}</Button></div>
+  if (!enabled) return <>{learning}<section aria-label="Learned merchant rules"><p className="py-6 text-sm text-muted-foreground">Merchant rule learning is unavailable on this backend. Claim review remains available.</p></section></>;
+
+  return <>{learning}<details><summary className="cursor-pointer py-3 text-sm text-muted-foreground">Merchant name rules</summary><section className={`${styles.rules} space-y-5`} aria-label="Learned merchant rules">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Merchant rules</h2><p className="mt-1 text-sm text-muted-foreground">Confirm a merchant name to create a draft. Test it before activation.</p></div><Button variant="outline" size="lg" disabled={loading || !!busy} aria-busy={loading} onClick={() => { setError(null); void load().catch((failure) => setError(message(failure))); }}><RotateCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh rules"}</Button></div>
     {client.mode === "preview" && <div className="flex items-start gap-2 text-sm text-muted-foreground"><FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><p>Preview — synthetic data. Tests below are simulated examples, not measured live AI accuracy.</p></div>}
     {error && <p role="alert" className="motion-enter rounded border border-destructive/20 bg-[var(--status-bad-bg)] p-3 text-sm text-destructive">{error}</p>}
     {notice && <p role="status" className="motion-enter text-sm text-[var(--status-good)]">{notice}</p>}
     {!data && loading && <p role="status" className="py-8 text-sm text-muted-foreground">Loading merchant rules…</p>}
-    {data?.rules.length === 0 && <div className="border-y py-10"><h3 className="font-medium">No learned rules yet</h3><p className="mt-2 max-w-xl text-sm text-muted-foreground">Open an approved claim with an unresolved merchant check and choose “Remember this merchant name” to create a scoped draft.</p></div>}
+    {data?.rules.length === 0 && <div className="border-y py-10"><h3 className="font-medium">No merchant name rules yet</h3><p className="mt-2 max-w-xl text-sm text-muted-foreground">Open an approved claim with an unresolved merchant check and choose “Remember this merchant name” to create a scoped draft.</p></div>}
 
     {data?.rules.map((rule) => {
       const report = rule.latest_test;
@@ -129,5 +141,5 @@ export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simu
         {rule.state === "active" && related.length > 50 && <p className="mt-3 text-xs text-muted-foreground">{related.length} related claims need rechecking. Each batch processes up to 50 explicit claim IDs.</p>}
       </article>;
     })}
-  </section>;
+  </section></details></>;
 }

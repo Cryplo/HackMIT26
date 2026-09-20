@@ -188,9 +188,9 @@ export function DecisionMessageDialog({ row, decision, expectedRevision, client,
     } finally { lock.current = false; setBusy(null); }
   }
 
-  const confirmLabel = preview ? "Save decision & simulate email" : decision === "approved" ? "Approve & send email" : "Reject & send email";
+  const confirmLabel = `${decision === "approved" ? "Approve" : "Reject"} & ${preview ? "simulate" : "send"} email`;
   return <Dialog open onOpenChange={open => { if (!open && !busy && !flying) { if (savedResult) void continueReview(); else onClose(); } }}>
-    <DialogContent className={styles.dialog} showCloseButton={!busy && !savedResult} onCloseAutoFocus={onCloseAutoFocus}>
+    <DialogContent className={styles.dialog} data-decision={shownDecision} data-was-uncertain={row.assessment_status === "needs_review" || undefined} showCloseButton={!busy && !savedResult} onCloseAutoFocus={onCloseAutoFocus}>
       <DialogHeader className={styles.header}>
         <div className={styles.headingIcon} aria-hidden="true"><Mail size={21} /></div>
         <div><DialogTitle className={styles.title}>{savedResult ? (simulated ? "Applicant email" : "Decision recorded") : shownDecision === "approved" ? "Approve & notify" : "Reject & notify"}</DialogTitle>
@@ -199,14 +199,14 @@ export function DecisionMessageDialog({ row, decision, expectedRevision, client,
       {savedResult ? <>
         <div className={styles.result} role="status" aria-live="polite" aria-atomic="true">
           <div className={styles.flightStage} aria-hidden="true">
-            {flying ? <><span className={styles.flightTrail} /><span className={styles.plane}><Send size={48} strokeWidth={1.4} /></span></> : <span className={styles.successIcon}><Check size={35} strokeWidth={1.6} /></span>}
+            {flying ? <><span className={styles.flightTrail} /><span className={styles.plane}><Send size={48} strokeWidth={1.4} /></span></> : <span className={styles.successIcon}>{shownDecision === "approved" ? <Check size={35} strokeWidth={1.6} /> : <FileX2 size={35} strokeWidth={1.6} />}</span>}
           </div>
           <h3>{flying ? "Simulating email…" : simulated ? "Email simulated" : "Decision saved"}</h3>
           <p>{simulated ? "No email was sent." : communicationStatus(savedResult.message)}</p>
           <p className={styles.resultDetail}>{shownDecision === "approved" ? "Approval" : "Rejection"} recorded for {row.attendee_name}.<br />{simulated ? "Your message is saved in applicant communication." : "Provider acceptance does not confirm inbox delivery."}</p>
           {error && <p role="alert" className={styles.error}>{error}</p>}
         </div>
-        <DialogFooter className={styles.footer}><Button className={styles.sendButton} disabled={!!busy || flying} onClick={() => void continueReview()}>{busy && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}Continue review</Button></DialogFooter>
+        <DialogFooter className={styles.footer}><Button variant="outline" disabled={!!busy || flying} onClick={() => void continueReview()}>{busy && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}Continue review</Button></DialogFooter>
       </> : <>
         <div className={styles.content}>
           <div className={styles.modeLine}><Badge variant="outline" className={preview ? styles.previewBadge : ""}>{preview ? "Email simulation" : draft?.mode === "live" ? "Live email" : "Applicant message"}</Badge><span>{preview ? "Save the decision. Preview the send. No email leaves Sift." : draft?.mode === "live" ? "Confirming queues a real email to the applicant." : "Review your message before confirming."}</span></div>
@@ -239,7 +239,7 @@ export function DecisionMessageDialog({ row, decision, expectedRevision, client,
           {error && <p role="alert" className={styles.error}>{error}</p>}{notice && <p role="status" className={styles.notice}>{notice}</p>}
           {pending && busy !== "confirming" && <div className={styles.warning}><p>The {pending.human_verdict === "approved" ? "approval" : "rejection"} may already be saved. Editing is paused until its result is known.</p><div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" disabled={!!busy} onClick={() => void recover()}>Check saved status</Button><Button variant="outline" disabled={!!busy} onClick={() => void confirm()}>Retry same confirmation</Button></div></div>}
         </div>
-        <DialogFooter className={styles.footer}><Button variant="ghost" disabled={!!busy} onClick={onClose}>{pending ? "Close — keep recovery details" : "Cancel"}</Button>{!pending && <Button className={preview || decision === "approved" ? styles.sendButton : undefined} variant={!preview && decision === "rejected" ? "destructive" : "default"} aria-busy={busy === "confirming"} disabled={!!busy || !draft || !draft.mode || stale || !note.trim() || !subject.trim() || !body.trim() || (decision === "approved" && !!approvalBlocked)} onClick={() => void confirm()}>{busy === "confirming" ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <Send size={16} aria-hidden="true" />}{busy === "confirming" ? "Saving decision…" : confirmLabel}</Button>}</DialogFooter>
+        <DialogFooter className={styles.footer}><Button variant="ghost" disabled={!!busy} onClick={onClose}>{pending ? "Close — keep recovery details" : "Cancel"}</Button>{!pending && <Button variant={decision === "rejected" ? "destructive" : "success"} aria-busy={busy === "confirming"} disabled={!!busy || !draft || !draft.mode || stale || !note.trim() || !subject.trim() || !body.trim() || (decision === "approved" && !!approvalBlocked)} onClick={() => void confirm()}>{busy === "confirming" ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <Send size={16} aria-hidden="true" />}{busy === "confirming" ? "Saving decision…" : confirmLabel}</Button>}</DialogFooter>
       </>}
     </DialogContent>
   </Dialog>;

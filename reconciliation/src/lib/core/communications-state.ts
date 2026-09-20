@@ -2,9 +2,13 @@ import type { CorrectionInput, SubmissionStatus } from '../contracts';
 import type { Snapshot } from './store';
 import { CoreError } from './validation';
 import { latestCorrection, reviewRevision } from './safety';
+import { hasAutomaticApproval } from './automation';
 
 /** Stored and reviewer-visible message. Transport credentials never belong here. */
 export interface ClaimMessage {
+  decision_source?: 'human' | 'automatic';
+  automatic_decision_key?: string;
+  decision_payload_hash?: string;
   id: string;
   claim_id: string;
   kind: 'approval' | 'rejection';
@@ -51,6 +55,7 @@ export type StoredMessage = ClaimMessage;
 export interface MessageDeliveryEvent { id: string; message_id: string; type: string; created_at: string; provider_event_id: string | null; error: string | null }
 export type MessageCommand =
   | { action: 'draft'; message: ClaimMessage }
+  | { action: 'publish_automatic'; message: ClaimMessage; mode: 'preview' | 'live'; from: string; reply_to: string | null }
   | { action: 'edit'; message_id: string; expected_draft_revision: number; subject: string; body: string }
   | { action: 'confirm'; message_id: string; expected_draft_revision: number; correction: CorrectionInput; request_id: string; payload_hash: string; mode: 'preview' | 'live'; from: string; reply_to: string | null }
   | { action: 'list'; claim_id: string }
@@ -68,7 +73,15 @@ function assertCurrent(state: Snapshot, message: ClaimMessage) {
   if (message.source_review_revision !== reviewRevision(state, s.id) || message.source_evidence_revision !== (s.evidence_revision ?? 0) || message.source_knowledge_revision !== (state.knowledge_revision ?? 0) || message.assessment_run_id !== s.latest_run_id || message.recipient !== s.email) conflict('STALE_MESSAGE', 'Claim evidence or knowledge changed. Generate a fresh message.');
   return s;
 }
-function currentDecision(state: Snapshot, m: ClaimMessage) { return latestCorrection(state, m.claim_id)?.id === m.correction_id; }
+export function automaticNoticeKey(state: Snapshot, claimId: string): string | null {
+  const submission=state.submissions.find(s=>s.id===claimId);
+  const run=state.runs.find(r=>r.id===submission?.latest_run_id);
+  const checks=state.decisions.filter(d=>d.run_id===run?.id);
+  if(!hasAutomaticApproval(state,claimId,run,checks)) return null;
+  const marker=checks.find(d=>d.field_checked==='overall_status'&&d.check_method!=='human')!.evidence_json.auto_approval as Record<string,unknown>;
+  return `${marker.policy}/${marker.evidence_identity}/${marker.knowledge_revision}`;
+}
+function currentDecision(state: Snapshot, m: ClaimMessage) { return m.decision_source==='automatic' ? !!m.automatic_decision_key&&automaticNoticeKey(state,m.claim_id)===m.automatic_decision_key : !!m.correction_id&&latestCorrection(state, m.claim_id)?.id === m.correction_id; }
 function withinWindow(m: ClaimMessage) { return !m.first_attempt_at || Date.now() - Date.parse(m.first_attempt_at) < 23 * 60 * 60 * 1000; }
 function event(state: Snapshot, m: ClaimMessage, type: string) { state.message_delivery_events!.push({id:crypto.randomUUID(),message_id:m.id,type,created_at:nowIso(),provider_event_id:null,error:m.error}); }
 export function guardCommunication(state: Snapshot, claimId: string) {
@@ -86,6 +99,16 @@ export function mutateMessages(state: Snapshot, cmd: MessageCommand, correct: (i
   if (cmd.action === 'list') {
     if(!state.submissions.some(s=>s.id===cmd.claim_id))throw new CoreError('NOT_FOUND','Claim not found.',404);
     return {message:null,messages:structuredClone(messages.filter(m => m.claim_id === cmd.claim_id))};
+  }
+  if (cmd.action === 'publish_automatic') {
+    const m=structuredClone(cmd.message),s=assertCurrent(state,m);
+    if(m.decision_source!=='automatic'||m.intended_verdict!=='approved'||m.kind!=='approval'||m.status!=='draft'||m.correction_id||m.request_id||!currentDecision(state,m)||m.mode!==cmd.mode) conflict('STALE_MESSAGE','The policy approval is no longer current.');
+    const prior=messages.find(x=>x.claim_id===m.claim_id&&x.automatic_decision_key===m.automatic_decision_key);
+    if(prior) return {message:structuredClone(prior)};
+    guardCommunication(state,m.claim_id);validateText(m.subject,m.body);
+    Object.assign(m,{from:cmd.from,reply_to:cmd.reply_to,outcome_header:`${s.attendee_name} — claim ${s.id} (${s.category}): Approved for reimbursement. ${s.currency} ${(s.amount_requested_minor/100).toFixed(2)} approved.`,status:cmd.mode==='live'?'queued':'previewed',confirmed_at:nowIso(),next_attempt_at:cmd.mode==='live'?nowIso():null});
+    m.rendered_text=`${m.outcome_header}\n\n${m.body}`;m.rendered_html=`<div style="white-space:pre-wrap">${escapeHtml(m.rendered_text)}</div>`;
+    messages.push(m);changed(m);event(state,m,m.status);return {message:structuredClone(m)};
   }
   if (cmd.action === 'draft') {
     const m = structuredClone(cmd.message); assertCurrent(state,m);
@@ -153,10 +176,10 @@ export function validateText(subject: string, body: string) {
   if(typeof subject!=='string'||subject.trim().length<1||subject.length>200||/[\r\n]/.test(subject)||typeof body!=='string'||body.trim().length<1||body.length>8000)throw new CoreError('INVALID_INPUT','Use a one-line subject up to 200 characters and message up to 8,000 characters.');
 }
 
-export type PublicClaimMessage = Omit<ClaimMessage, 'confirmation_payload_hash' | 'idempotency_key' | 'lease_token' | 'lease_expires_at'>;
+export type PublicClaimMessage = Omit<ClaimMessage, 'decision_payload_hash' | 'confirmation_payload_hash' | 'idempotency_key' | 'lease_token' | 'lease_expires_at'>;
 export function publicMessage(message: ClaimMessage): PublicClaimMessage {
-  const { confirmation_payload_hash, idempotency_key, lease_token, lease_expires_at, ...visible } = message;
-  void confirmation_payload_hash; void idempotency_key; void lease_token; void lease_expires_at;
+  const { decision_payload_hash, confirmation_payload_hash, idempotency_key, lease_token, lease_expires_at, ...visible } = message;
+  void decision_payload_hash; void confirmation_payload_hash; void idempotency_key; void lease_token; void lease_expires_at;
   return visible;
 }
 

@@ -39,6 +39,20 @@ test('live operations require a fresh exact schema version; old or unavailable s
   assert.ok(paths.slice(before).every(p=>p.endsWith('/core_platform_version')));
 });
 
+test('concurrent schema checks share one request but the next operation verifies again', async t => {
+  const store = new SupabaseStore('https://schema.example.invalid', 'synthetic-test-key');
+  let checks = 0, version = 4;
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    if (String(input).endsWith('/core_platform_version')) { checks++; return Response.json(version); }
+    return Response.json(demoSnapshot());
+  });
+  await Promise.all([store.snapshot(), store.snapshot(), store.snapshot()]);
+  assert.equal(checks, 1);
+  version = 2;
+  await assert.rejects(store.snapshot(), { code: 'SCHEMA_MISMATCH' });
+  assert.equal(checks, 2);
+});
+
 test('public reviews omit raw provider payloads, preserve useful evidence and expose expired operations for retry', async () => {
   const store = new MemoryStore(demoSnapshot());
   const core = new CoreService(store,new DatabaseRetrieval(),new SimulatedJev(),true);

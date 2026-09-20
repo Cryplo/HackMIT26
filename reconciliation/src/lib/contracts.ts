@@ -15,5 +15,5 @@ export interface Correction extends CorrectionInput { review_revision?: number; 
 export interface ModelCall { id: string; run_id: string | null; receipt_id: string | null; provider: string; model: string; input_tokens: number | null; output_tokens: number | null; latency_ms: number; estimated_cost_usd: number | null; created_at: string }
 export type ReviewRow = Submission & { receipt: Pick<Receipt, 'id' | 'file_type' | 'extraction_status' | 'parsed_fields_json'> | null; decisions: DecisionSummary[] };
 export interface ReviewsResponse { submissions: ReviewRow[]; summary: { approved_amount_minor: number; flag_rate: number; top_flag_reasons: { reason: string; count: number }[] }; demo_mode: boolean; execution?: { decisions: string; retrieval: string; storage: string; justification?: string } }
-export interface ReconcileResult { submission_id: string; run_id: string | null; status: SubmissionStatus; error?: string }
+export interface ReconcileResult { submission_id: string; run_id: string | null; status: SubmissionStatus; error?: string; email_error?: string | null }
 export interface ApiError { error: { code: string; message: string } }

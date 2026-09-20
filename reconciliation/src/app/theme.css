@@ -1,6 +1,4 @@
-/* Neutral light defaults: https://ui.shadcn.com/docs/theming#default-theme-css
-   Rebrand by changing --primary, --primary-foreground, and --ring together.
-*/
+/* Sage surfaces frame the workspace; forest green marks its primary actions. */
 :root {
   color-scheme: light;
   --font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -13,31 +11,33 @@
   --motion-panel: 220ms;
   --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #ffffff;
+  --foreground: #1f3529;
   --card: var(--background);
   --card-foreground: var(--foreground);
   --popover: var(--background);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --primary: #256347;
+  --primary-hover: #1d5139;
+  --primary-active: #173f2d;
+  --primary-foreground: #ffffff;
+  --secondary: var(--background);
+  --secondary-foreground: var(--foreground);
+  --muted: #f5f9f5;
+  --muted-foreground: #586c5e;
+  --accent: #eef6ef;
+  --accent-foreground: var(--foreground);
+  --destructive: var(--status-bad);
+  --border: #d5e3d8;
+  --input: #7c9282;
+  --ring: var(--primary);
 
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: var(--accent);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-accent: #dcecdf;
+  --sidebar-accent-foreground: var(--primary);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 

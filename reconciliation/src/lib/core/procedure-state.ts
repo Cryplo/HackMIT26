@@ -1,3 +1,4 @@
+import { feedbackJob, guardFeedbackLease } from './feedback-learning-state';
 import { createHash } from 'node:crypto';
 import type { ResolutionProcedure, ProcedureTestReport, ProviderMode } from '../review-contracts';
 import type { Snapshot } from './store';
@@ -6,7 +7,7 @@ import { latestCorrection, reviewRevision } from './safety';
 import { CoreError, normalize } from './validation';
 import { deriveCandidate } from './evidence';
 export interface ProcedureBinding {observed_models?:string[];source_correction_id:string;source_review_revision:number;source_evidence_revision:number;source_fingerprint:string;knowledge_revision:number;suite_hash:string;provider_identity:string;mode:ProviderMode}
-export interface StoredProcedure extends ResolutionProcedure {source_evidence_revision:number;source_fingerprint:string;test_binding?:ProcedureBinding|null;latest_attempt_id?:string|null}
+export interface StoredProcedure extends ResolutionProcedure {feedback_lease?:string;source_evidence_revision:number;source_fingerprint:string;test_binding?:ProcedureBinding|null;latest_attempt_id?:string|null}
 export interface ProcedureAttempt {id:string;procedure_id:string;procedure_version:number;binding:ProcedureBinding;status:'running'|'completed'|'failed';report:ProcedureTestReport|null;error:string|null;observations:(EvaluationObservation & {phase?:'before'|'after';case_id?:string})[]}
 export type ProcedureCommand=
  |{action:'propose';run_id:string;expected_review_revision:number}
@@ -22,6 +23,7 @@ export function invalidateProcedures(state:Snapshot,id:string){
 function checkSource(state:Snapshot,p:StoredProcedure){
  const c=latestCorrection(state,p.source_claim_id),s=state.submissions.find(s=>s.id===p.source_claim_id);
  if(!c||c.id!==p.source_correction_id||c.human_verdict!=='approved'||s?.evidence_revision!==p.source_evidence_revision||sourceFingerprint(state,p.source_claim_id)!==p.source_fingerprint)throw new CoreError('STALE_RULE','Procedure source changed. Propose a new procedure.',409);
+ if(p.source_kind==='review_feedback'){const job=feedbackJob(c);if(!job||!p.feedback_lease)throw new CoreError('STALE_FEEDBACK','Feedback proof missing.',409);guardFeedbackLease(state,c,job,p.feedback_lease);}
  return c;
 }
 export function mutateProcedure(state:Snapshot,cmd:ProcedureCommand){
@@ -59,6 +61,7 @@ export function mutateProcedure(state:Snapshot,cmd:ProcedureCommand){
      if(!t?.passed||!b||t.procedure_id!==p.id||t.procedure_version!==p.version||t.suite_version!=='booking-reference-v1'||t.knowledge_revision!==state.knowledge_revision||b.knowledge_revision!==state.knowledge_revision||b.source_review_revision!==reviewRevision(state,p.source_claim_id)||b.mode!==cmd.mode||t.mode!==cmd.mode||b.provider_identity!==cmd.provider_identity||b.suite_hash!==cmd.suite_hash)throw new CoreError('STALE_RULE_TEST','A fresh passing procedure test is required.',409);
      if(state.procedures.some(q=>q.state==='active'&&normalize(q.trigger_scope.observed_vendor)===normalize(p.trigger_scope.observed_vendor)&&normalize(q.trigger_scope.canonical_vendor)!==normalize(p.trigger_scope.canonical_vendor)))throw new CoreError('RULE_CONFLICT','Conflicting active procedure identity.',409);
      p.state='active';p.version++;state.knowledge_revision++;
+     if(p.source_kind==='review_feedback'){const job=feedbackJob(latestCorrection(state,p.source_claim_id))!;Object.assign(job,{status:'active',summary:`${b.mode==='simulated'?'Simulated':'Live'} twelve-case safety test passed. The booking-reference check is active; later claims still need their own evidence.`,updated_at:new Date().toISOString()});}
     }
    }
   }

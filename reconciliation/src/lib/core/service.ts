@@ -1,4 +1,5 @@
-import { boundedEvidence, applicableProcedures, itineraryIdentity } from './evidence';
+import { sendAutomaticApprovalNotice } from './email-actions';
+import { boundedEvidence, bookingLink, applicableProcedures, itineraryIdentity } from './evidence';
 import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse, SubmissionStatus } from '../contracts';
 import { decision, deterministic, overall } from './checks';
 import type { Jev, SemanticField } from './jev';
@@ -9,37 +10,55 @@ import type { IntelligencePort } from '../review-contracts';
 import { confirmedDuplicates, latestCorrection } from './safety';
 import type { Snapshot, Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
-import { publicEvidence } from './projection';
+import { publicEvidence, workspaceRows } from './projection';
+import { automaticApproval, shouldInvestigateAutomatically } from './automation';
+import { investigateClaim } from './investigations';
 type AbortableJev = {evaluate(state:Parameters<Jev['evaluate']>[0],runId:string,log:Parameters<Jev['evaluate']>[2],signal?:AbortSignal):ReturnType<Jev['evaluate']>};
 export class CoreService {
-  constructor(public store: Store, private retrieval: Retrieval, private jev: AbortableJev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string; investigation?:string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort, public investigationMode:'disabled'|'simulated'|'live'='disabled') {}
-  async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
+  constructor(public store: Store, private retrieval: Retrieval, private jev: AbortableJev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string; investigation?:string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort, public investigationMode:'disabled'|'simulated'|'live'='disabled', public automationEnabled=false) {}
+  async reconcile(ids: string[], signal?:AbortSignal): Promise<{ results: ReconcileResult[] }> {
     // Three workers; stop launching work before the route's five-minute deadline.
     const results: ReconcileResult[] = new Array(ids.length); let next = 0;
     const started = Date.now();
     const worker = async () => {
       while (next < ids.length) {
         const index = next++;
-        results[index] = Date.now() - started > 180000
+        results[index] = signal?.aborted || Date.now() - started > 180000
           ? { submission_id: ids[index], run_id: null, status: 'pending', error: 'Batch time budget reached; retry this submission.' }
-          : await this.run(ids[index]);
+          : await this.run(ids[index],signal);
+        if(this.automationEnabled&&this.investigationMode!=='disabled'&&this.intelligence&&!results[index].error&&!signal?.aborted&&Date.now()-started<180000){
+          try{
+            const state=await this.store.snapshot(),row=workspaceRows(state).find(r=>r.id===ids[index]);
+            if(row&&shouldInvestigateAutomatically(state,row)){
+              const totalMs=Math.min(90000,270000-(Date.now()-started));
+              if(totalMs>0){
+                const outcome=await investigateClaim(this,row.id,{expected_review_revision:row.review_revision},signal??new AbortController().signal,'recoverable_uncertainty',{totalMs,planningMs:Math.min(65000,Math.max(1,totalMs-25000))});
+                results[index]={submission_id:row.id,run_id:outcome.run.status==='completed'?outcome.run.run_id:results[index].run_id,status:outcome.row.status,...(outcome.email_error?{email_error:outcome.email_error}:results[index].email_error?{email_error:results[index].email_error}:{})};
+              }
+            }
+          }catch(error){results[index].error=error instanceof CoreError?error.message:'Automatic investigation could not start; review the claim.';}
+        }
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, ids.length) }, worker));
     return { results };
   }
-  private async run(id: string): Promise<ReconcileResult> {
+  private async run(id: string,signal?:AbortSignal): Promise<ReconcileResult> {
     let run: string | null = null;
     try {
+      signal?.throwIfAborted();
       run = await this.store.begin(id);
       const state = await this.store.snapshot(); const s = state.submissions.find(s => s.id === id)!;
       const r = state.receipts.find(r => r.submission_id === id) || null;
-      const ds = await this.assess(state,id,run,call=>this.store.usage(call));
+      const ds = await this.assess(state,id,run,call=>this.store.usage(call),signal);
       const status = overall(ds);
       const justification = await this.narrate({ submission: s, receipt: r?.parsed_fields_json ?? null, decisions: ds, status }, run);
-      ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id), justification }));
+      const auto_approval=automaticApproval(state,id,run,ds,this.automationEnabled);
+      ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id), justification, ...(auto_approval?{auto_approval}:{}) }));
+      signal?.throwIfAborted();
       await this.store.finish(run, ds, status);
-      return { submission_id: id, run_id: run, status };
+      const notice=await sendAutomaticApprovalNotice(this,id);
+      return { submission_id: id, run_id: run, status, ...notice };
     } catch (error) {
       const message = error instanceof CoreError ? error.message : 'Reconciliation failed; review required.';
       if (run) await this.store.fail(run, message).catch(() => undefined);
@@ -60,7 +79,7 @@ export class CoreService {
         try {
           const evidence = await this.retrieval.retrieve(s, r.parsed_fields_json, state);
           const supporting=boundedEvidence(state,id),procedures=applicableProcedures(state,id),identity=itineraryIdentity(state,id);
-          const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence: {...evidence,...supporting,procedure_matches:procedures.map(p=>({procedure_id:p.procedure.id,reference:p.reference,canonical_vendor:p.procedure.trigger_scope.canonical_vendor,evidence_refs:p.refs})),identity_evidence_refs:identity??[]} };
+          const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence: {...evidence,...supporting,booking_link:bookingLink(state,id),procedure_matches:procedures.map(p=>({procedure_id:p.procedure.id,reference:p.reference,canonical_vendor:p.procedure.trigger_scope.canonical_vendor,evidence_refs:p.refs})),identity_evidence_refs:identity??[]} };
           signal?.throwIfAborted();
           const evaluation = await this.jev.evaluate(semanticState, run, call => log(call),signal);
           signal?.throwIfAborted();
@@ -124,6 +143,6 @@ export class CoreService {
     const reviewed = rows.filter(s => s.status !== 'pending'); const flags = reviewed.filter(s => ['flagged', 'needs_review'].includes(s.status));
     const reasons = new Map<string, number>();
     for (const s of flags) { const fields = new Set(s.decisions.filter(d => d.field_checked !== 'overall_status' && d.verdict !== 'pass').map(d => d.field_checked)); if (!fields.size) fields.add('review_required'); for (const reason of fields) reasons.set(reason, (reasons.get(reason) || 0) + 1); }
-    return { submissions: rows, summary: { approved_amount_minor: rows.filter(s => latestCorrection(state,s.id)?.human_verdict==='approved').reduce((n, s) => n + s.amount_requested_minor, 0), flag_rate: reviewed.length ? flags.length / reviewed.length : 0, top_flag_reasons: [...reasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)) }, demo_mode: this.demoMode, execution: this.execution };
+    return { submissions: rows, summary: { approved_amount_minor: workspaceRows(state).filter(s => s.decision_status==='approved').reduce((n, s) => n + s.amount_requested_minor, 0), flag_rate: reviewed.length ? flags.length / reviewed.length : 0, top_flag_reasons: [...reasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)) }, demo_mode: this.demoMode, execution: this.execution };
   }
 }

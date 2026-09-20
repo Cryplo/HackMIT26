@@ -30,11 +30,11 @@ function claim(n: number, name: string, amount: number, category: Category, vend
       fixtureCheck(n * 1000 + 4, "policy", "pass", "One travel policy applies to this receipt.", 1),
       fixtureCheck(n * 1000 + 5, "policy_cap", "pass", `Claim is within the ${category === "hotel" ? "$250" : "$200"} cap.`, true),
       fixtureCheck(n * 1000 + 6, "duplicate", n === 5 ? "fail" : "pass", n === 5 ? "Same receipt appears in Maya Chen’s claim." : "No duplicate purchase in this synthetic example."),
-      fixtureCheck(n * 1000 + 7, "merchant", unknownMerchant ? "unknown" : "pass", unknownMerchant ? "SYN HBR042 needs confirmation as a hotel billing descriptor." : "Merchant is consistent with the travel category."),
+      fixtureCheck(n * 1000 + 7, "merchant", unknownMerchant ? "unknown" : "pass", unknownMerchant ? "The receipt says Harbor Reservations; confirm which hotel received the payment." : "Merchant is consistent with the travel category."),
       fixtureCheck(n * 1000 + 8, "name", n === 5 ? "fail" : "pass", n === 5 ? "The receipt names Maya Chen, not Alex Demo." : "Traveler name matches the claim."),
     ], duplicate_submission_ids: n === 5 ? [fixtureId(1)] : [],
     investigation: unknownMerchant ? { status: "completed", mode: "simulated", model: null,
-      summary: "Synthetic investigation: the receipt supports the amount and traveler, but the hotel billing descriptor needs a reviewer’s confirmation.",
+      summary: "Synthetic investigation: the receipt supports the amount and traveler. It says Harbor Reservations; confirm which hotel received the payment.",
       next_action: "human_review", evidence_refs: [`receipt:${fixtureId(200 + n)}`],
       steps: [{ tool: "read_receipt", evidence_refs: [`receipt:${fixtureId(200 + n)}`], summary: "Fixture receipt has a matching total and guest; merchant identity remains unresolved." }], error_code: null } : null,
   };
@@ -59,19 +59,24 @@ export function previewResponse(rows: ReviewRow[], knowledgeRevision: number): R
 export const fixtureReviews = previewResponse([
   claim(1, "Maya Chen", 8420, "train", "Synthetic Rail"),
   claim(2, "Jordan Lee", 11200, "train", "Synthetic Rail"),
-  claim(3, "Sam Example", 16500, "hotel", "SYN HBR042"),
-  claim(4, "Taylor Example", 14800, "hotel", "SYN HBR042"),
+  claim(3, "Sam Example", 16500, "hotel", "Harbor Reservations"),
+  claim(4, "Taylor Example", 14800, "hotel", "Harbor Reservations"),
   claim(5, "Alex Demo", 8420, "train", "Synthetic Rail"),
   claim(6, "Riley Park", 23000, "flight", "Synthetic Air"),
 ], 0);
 export const fixtureRules: MerchantRule[] = [
   { id: fixtureId(801), version: 1, state: "draft", source_submission_id: fixtureId(4), source_correction_id: fixtureId(704),
-    payload: { observed_vendor: "SYN HBR042", canonical_vendor: "Harbor Hotel", scope: { category: "hotel", currency: "USD" } }, created_at: date, latest_test: null },
+    payload: { observed_vendor: "Harbor Reservations", canonical_vendor: "Harbor Hotel", scope: { category: "hotel", currency: "USD" } }, created_at: date, latest_test: null },
   { id: fixtureId(802), version: 2, state: "disabled", source_submission_id: fixtureId(4), source_correction_id: fixtureId(704),
-    payload: { observed_vendor: "SYN HBR042", canonical_vendor: "Synthetic Rail", scope: { category: "hotel", currency: "USD" } }, created_at: date, latest_test: null },
+    payload: { observed_vendor: "Harbor Reservations", canonical_vendor: "Synthetic Rail", scope: { category: "hotel", currency: "USD" } }, created_at: date, latest_test: null },
 ];
 export function previewReceiptUrl(row: ReviewRow): string | null {
   if (!row.receipt) return null;
   const n = Number(row.id.slice(-12));
+  if (n === 3 || n === 4) {
+    const guest = n === 3 ? "Sam Example" : "Taylor Example";
+    const total = n === 3 ? "165.00" : "148.00";
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="540" role="img" aria-label="Simulated hotel receipt"><rect width="600" height="540" fill="white"/><g font-family="sans-serif" fill="#20211c"><text x="32" y="50" font-size="16">SIMULATED FIXTURE — NOT VALID FOR REIMBURSEMENT</text><text x="32" y="120" font-size="28">Harbor Reservations</text><text x="32" y="180">Receipt: SYN-00${n}</text><text x="32" y="220">Booking reference: SYN-BOOK-00${n}</text><text x="32" y="260">Guest: ${guest}</text><text x="32" y="300">Date: September 18, 2026</text><text x="32" y="360" font-size="24">Total: USD ${total}</text><text x="32" y="430">Synthetic original for the investigation preview.</text></g></svg>`)}`;
+  }
   return n >= 1 && n <= 6 ? `/ui/receipt-${n === 5 ? 1 : n}.svg` : null;
 }

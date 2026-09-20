@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { ProviderOptions, UsageRecord } from '../review-contracts';
 import { demoSnapshot } from '../core/fixtures';
 import { investigationToolNames, runInvestigationPlanner } from './investigation';
+import { investigationFailure } from './investigation-errors';
 
 const snapshot=demoSnapshot();const s=snapshot.submissions[2];const receipt={...snapshot.receipts[2],raw_extracted_text:'Descriptor SYN HBR 042; booking reference SYN-A1; Sam Example'};
 const document={id:'a0000000-0000-4000-8000-000000000001',claim_id:s.id,kind:'booking_confirmation',file_type:'application/pdf',sha256:'a'.repeat(64),created_at:s.submitted_at,extraction_status:'succeeded',extraction_error:null,extraction_provenance:'synthetic mock',extracted_text:'Synthetic Harbor Hotel; booking reference SYN-A1; Sam Example',facts:{vendor:'Synthetic Harbor Hotel',booking_reference:'SYN-A1',receipt_number:null,names:['Sam Example'],purchase_date:'2026-09-18',currency:'USD',amount_minor:18000}};
@@ -36,6 +37,20 @@ test('planner selects real callbacks and continues with exact call IDs, actual m
 test('hostile tools, scoped arguments, duplicate call IDs and mixed output are rejected before dispatch',async()=>{
  for(const output of [[call('approve')],[call('fetch_url')],[call('read_receipt','r','{"claim_id":"foreign"}')],[call('read_receipt','r','[]')],[call('read_receipt','r','{')],[call('read_receipt','')],[call('read_receipt','x'),call('read_policy','x')],[call('read_receipt'),message(final())]]){
   const h=setup([output]);await assert.rejects(h.run(),{code:'INVALID_PROVIDER_OUTPUT'});assert.equal(h.reads.length,0);assert.equal(h.usage.length,1);
+ }
+});
+
+test('supplied claim can be cited without a related-claim lookup',async()=>{
+ const refs=[{kind:'claim',id:s.id}];
+ const h=setup([[message(final({findings:[{check:'duplicate',statement:'The supplied claim requests reimbursement.',evidence_refs:refs}]}))]]);
+ const result=await h.run();
+ assert.deepEqual(result.findings[0].evidence_refs,refs);assert.deepEqual(result.evidence_refs,[s.id]);assert.deepEqual(h.reads,[]);
+});
+
+test('other claims and unread records cannot be cited as supplied evidence',async()=>{
+ for(const ref of [{kind:'claim',id:snapshot.submissions[0].id},{kind:'receipt',id:s.id},{kind:'receipt',id:receipt.id}]){
+  const h=setup([[message(final({findings:[{check:'duplicate',statement:'Unobserved evidence.',evidence_refs:[ref]}]}))]]);
+  await assert.rejects(h.run(),{code:'INVALID_PROVIDER_OUTPUT',message:'Finding cites unobserved or foreign evidence.'});assert.deepEqual(h.reads,[]);
  }
 });
 
@@ -119,8 +134,32 @@ test('booking proposal is a scoped suggestion backed by observed receipt and doc
  const proposed_learning={kind:'booking_reference_identity',trigger_scope:{category:'hotel',currency:'USD',observed_vendor:'SYN HBR 042',canonical_vendor:'Synthetic Harbor Hotel'},required_evidence:['receipt','booking_confirmation'],matching_fields:['booking_reference'],source_evidence_refs:[{kind:'receipt',id:receipt.id},{kind:'supporting_document',id:document.id}]};
  const h=setup([[call('read_receipt'),call('read_supporting_documents','d')],[message(final({proposed_learning}))]]);
  const result=await h.run();assert.deepEqual(result.proposed_learning,proposed_learning);assert.equal(result.next_action,'human_review');
- for(const patch of [{required_evidence:['receipt','receipt']},{source_evidence_refs:[{kind:'receipt',id:receipt.id},{kind:'receipt',id:receipt.id}]}]){
+ const reversed=setup([[call('read_receipt'),call('read_supporting_documents','d')],[message(final({proposed_learning:{...proposed_learning,required_evidence:['booking_confirmation','receipt']}}))]]);
+ assert.deepEqual((await reversed.run()).proposed_learning?.required_evidence,['receipt','booking_confirmation']);assert.equal(reversed.requests.length,2);
+ for(const patch of [{required_evidence:['receipt','receipt']},{required_evidence:['booking_confirmation','booking_confirmation']},{required_evidence:['receipt','itinerary']},{required_evidence:['receipt']},{source_evidence_refs:[{kind:'receipt',id:receipt.id},{kind:'receipt',id:receipt.id}]}]){
   const bad=setup([[call('read_receipt'),call('read_supporting_documents','d')],[message(final({proposed_learning:{...proposed_learning,...patch}}))]]);
   await assert.rejects(bad.run(),{code:'INVALID_PROVIDER_OUTPUT'});
  }
+});
+
+
+test('rejected planner outputs retain safe specific diagnostics without provider text or retries',async()=>{
+ for(const [patch,reason] of [
+  [{summary:''},'SCHEMA'],
+  [{findings:[],unresolved_question:null},'EMPTY_FINDINGS'],
+  [{next_action:'request_document',unresolved_question:null},'MISSING_QUESTION'],
+  [{findings:[{check:'merchant',statement:'private-provider-text',evidence_refs:[{kind:'receipt',id:document.id}]}]},'UNOBSERVED_CITATION'],
+ ] as const){
+  const h=setup([[call('read_receipt'),call('read_supporting_documents','d')],[message(final(patch))]]);
+  await assert.rejects(h.run(),error=>{
+   assert.equal(investigationFailure(error,h.options.signal,'PLANNING'),`INVALID_PROVIDER_OUTPUT:PLANNING:${reason}`);return true;
+  });
+  assert.equal(h.requests.length,2);assert.equal(h.usage.length,2);
+ }
+ const malformed=setup([]);
+ await assert.rejects(runInvestigationPlanner(input,malformed.execute,malformed.options,config,async()=>new Response('private-not-json')),error=>{
+  assert.equal(investigationFailure(error,malformed.options.signal,'PLANNING'),'INVALID_PROVIDER_OUTPUT:PLANNING:MALFORMED_JSON');return true;
+ });
+ const unavailable=setup([]);
+ await assert.rejects(runInvestigationPlanner(input,unavailable.execute,unavailable.options,config,async()=>{throw new Error('private-network-error');}),{code:'PROVIDER_UNAVAILABLE'});
 });

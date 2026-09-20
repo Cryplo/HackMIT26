@@ -138,6 +138,19 @@ test('simulation is explicitly labeled, deterministic and makes no HTTP calls', 
   assert.deepEqual(await simulated.evaluate(input), result);
 });
 
+test('simulation uses a verified booking identity only within its known synthetic merchants', async t => {
+  t.mock.method(globalThis, 'fetch', () => { throw new Error('Unexpected HTTP'); });
+  const input = state(); input.submission.category = 'hotel'; input.receipt.vendor = 'OPAQUE DESCRIPTOR';
+  const simulated = new SimulatedJev();
+  assert.equal((await simulated.evaluate(input)).answers.merchant.choice, 'unknown');
+  input.evidence.booking_link = { reference: 'trip-01', observed_vendor: input.receipt.vendor, canonical_vendor: 'Synthetic Harbor Hotel', evidence_refs: [] };
+  assert.equal((await simulated.evaluate(input)).answers.merchant.choice, 'pass');
+  input.evidence.booking_link.canonical_vendor = 'Unknown business with hotel-like wording';
+  assert.equal((await simulated.evaluate(input)).answers.merchant.choice, 'unknown');
+  input.evidence.booking_link.canonical_vendor = 'Synthetic Sky Airlines';
+  assert.equal((await simulated.evaluate(input)).answers.merchant.choice, 'fail');
+});
+
 test('caller cancellation reaches the actual Jev request and logs the interrupted attempt once', async t => {
   const controller = new AbortController(); const calls: ModelCall[] = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {

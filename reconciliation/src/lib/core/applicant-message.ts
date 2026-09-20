@@ -7,7 +7,7 @@ import { CoreError, isObject } from './validation';
 export type ApplicantMessageKind = 'approval' | 'rejection';
 export interface ApplicantMessageInput { submission: ClaimFacts; checks: Check[]; kind: ApplicantMessageKind; reason_check_ids: string[]; applicant_reason?: string }
 export interface ComposedApplicantMessage { subject: string; body: string; original_generated_subject: string; original_generated_explanation: string; cited_check_ids: string[]; generation_error: string | null; generation_provider: 'template' | 'azure-openai'; generation_model: string }
-export interface ComposerOptions { env?: Record<string,string|undefined>; log?: (call: ModelCall) => Promise<void>; transport?: typeof fetch; signal?: AbortSignal }
+export interface ComposerOptions { env?: Record<string,string|undefined>; log?: (call: ModelCall) => Promise<void>; transport?: typeof fetch; signal?: AbortSignal; templateOnly?: boolean }
 const reasons: Record<string,string> = {
   currency: 'The receipt currency does not meet the reimbursement requirements.',
   amount: 'The requested amount does not match the receipt amount.',
@@ -36,9 +36,9 @@ export async function composeApplicantMessage(input: ApplicantMessageInput, opti
   const publicReasons = checks.map(c => ({id:c.id,field:c.field_checked,verdict:c.verdict,explanation:c.verdict==='fail' ? (reasons[c.field_checked] || 'A required reimbursement check did not pass.') : (missingReasons[c.field_checked] || 'The available evidence was insufficient to verify this requirement.')}));
   const subject = input.kind === 'approval' ? 'Your reimbursement request is approved' : 'Update on your reimbursement request';
   const explanation = input.kind === 'approval' ? 'Your claim has been approved for reimbursement. This notice confirms approval; it does not confirm that payment has been made.' : [applicantReason,...publicReasons.map(r=>r.explanation)].filter(Boolean).join('\n');
-  const body = input.kind === 'approval' ? explanation : `${explanation}\n\nPlease contact your reviewer if you need clarification about this decision.`;
+  const body = input.kind === 'approval' ? [explanation,applicantReason].filter(Boolean).join('\n\n') : `${explanation}\n\nPlease contact your reviewer if you need clarification about this decision.`;
   const fallback: ComposedApplicantMessage = {subject,body,original_generated_subject:subject,original_generated_explanation:body,cited_check_ids:checks.map(c=>c.id),generation_error:null,generation_provider:'template',generation_model:'applicant-template-v1'};
-  if (input.kind === 'approval' || (options.env ?? process.env).RECONCILIATION_EMAIL_DRAFT_MODE !== 'live') return fallback;
+  if (options.templateOnly || input.kind === 'approval' || (options.env ?? process.env).RECONCILIATION_EMAIL_DRAFT_MODE !== 'live') return fallback;
   let attempted = false, recorded = false, actualModel = '', started = Date.now();
   const log = async (usage: Record<string,unknown>) => {
     recorded = true;

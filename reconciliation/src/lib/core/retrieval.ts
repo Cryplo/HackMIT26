@@ -1,4 +1,4 @@
-import {bookingReferences} from './evidence';
+import {bookingReferences, type bookingLink} from './evidence';
 import type { EvidenceRef, PolicyRule, SupportingDocument } from '../review-contracts';
 import type { Correction, ParsedReceipt, Submission } from '../contracts';
 import type { Snapshot } from './store';
@@ -11,6 +11,7 @@ export interface Evidence {
   receipt_text?: string | null;
   supporting_documents?: SupportingDocument[];
   policies?: PolicyRule[];
+  booking_link?: ReturnType<typeof bookingLink>;
   procedure_matches?: {procedure_id:string;reference:string;canonical_vendor:string;evidence_refs:EvidenceRef[]}[];
   identity_evidence_refs?: EvidenceRef[];
 }

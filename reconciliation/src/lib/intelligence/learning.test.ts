@@ -280,16 +280,6 @@ test('cancellation before, between and at completion discards late results and a
   }
 });
 
-test('full intelligence port reuses search and investigation reports unavailable without tools or models', async t => {
-  t.mock.method(globalThis, 'fetch', () => { throw new Error('Unexpected HTTP'); });
-  const unavailable = async (): Promise<never> => { throw new Error('Unexpected callback'); };
+test('full intelligence port retains existing search and alias evaluation implementations', () => {
   assert.equal(intelligence.search, search); assert.equal(intelligence.build_rule_suite, build_rule_suite); assert.equal(intelligence.evaluate_rule, evaluate_rule);
-  for (const mode of ['live', 'simulated'] as const) {
-    const result = await intelligence.investigate({ submission: input().examples[0].facts.submission, checks: [] }, {
-      read_supporting_documents: unavailable, read_receipt: unavailable, read_policy: unavailable, find_related_claims: unavailable, read_active_aliases: unavailable,
-    }, { mode, signal: new AbortController().signal, log_usage: unavailable });
-    assert.equal(result.status, 'unavailable'); assert.equal(result.mode, mode); assert.equal(result.model, null);
-    assert.equal(result.next_action, 'human_review'); assert.equal(result.error_code, 'INVESTIGATION_UNAVAILABLE');
-    assert.deepEqual(result.steps, []); assert.deepEqual(result.evidence_refs, []); assert.match(result.summary, /unavailable/);
-  }
 });

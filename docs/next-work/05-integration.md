@@ -2,7 +2,9 @@
 
 Read [README](README.md), [00-contracts](00-contracts.md), and each owner's handoff. This is the 4–8 hour investigation build plan, not evidence of a deployed feature. Earlier instructions are retained in [the archived pack](../archive/2026-09-20-review-workflow/README.md).
 
-Current source already delivers guarded approval, scoped alias learning, extraction retry, export, and knowledge revisions. Investigation currently returns `INVESTIGATION_UNAVAILABLE`; supporting-document APIs, the procedure extension, investigation switch, and migration below are proposed work. Remote schema, current row counts, credentials, and provider budgets have not been inspected by this planning pass.
+Integration update (2026-09-20): pulled `8ae21c0` and connected the local Investigations UI, supporting-document APIs, public investigator, and independent twelve-case procedure evaluator. The complete simulated approval → test → activation → later-claim flow passes against the actual core assessor. The SQL lifecycle now uses the delivered evaluator. PRs #3 and #5 were intentionally left untouched. See [intelligence handoff](../../reconciliation/src/lib/intelligence/MODULE_02_HANDOFF.md) and [UI handoff](../../reconciliation/tests/ui/INVESTIGATIONS_HANDOFF.md).
+
+Investigation defaults to disabled until explicitly configured. This integration made no paid provider calls and did not apply remote migrations. B reports the schema deployed in its [backend handoff](../../reconciliation/src/lib/core/INVESTIGATION_HANDOFF.md); verify that target's current version before a live run rather than replaying migrations. Human document/policy review, a provider budget, and a live rehearsal remain outstanding.
 
 ## Human checklist: do now
 
@@ -51,7 +53,7 @@ Create an isolated directory once and retain its path for restart checks:
 
 ```sh
 export RECONCILIATION_INTAKE_DEMO_DIR="$(mktemp -d "${TMPDIR:-/tmp}/sift-demo20.XXXXXX")"
-RECONCILIATION_JUSTIFICATION_MODE=simulated npm run demo -- --port 3000
+RECONCILIATION_JUSTIFICATION_MODE=simulated RECONCILIATION_INVESTIGATION_MODE=simulated npm run demo -- --port 3000
 ```
 
 Open `http://127.0.0.1:3000/business-demo` and `/submit`. The demo command sets simulated core/demo intake/demo extraction, strips provider/Supabase credentials, and fixes the origin to `http://127.0.0.1:3000`. The explicit justification setting avoids inheriting a live narration flag. Keep the directory outside `public/`; preserve it and its private originals after the run.

@@ -1,8 +1,9 @@
+import type { FeedbackCommand } from './feedback-learning-state';
 import type { MessageCommand } from './communications-state';
 import type { SupportingCommand, InvestigationCommand } from './investigation-state';
 import type { ProcedureCommand } from './procedure-state';
 import 'server-only';
-import { mkdir, readFile, writeFile, rename, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, readdir, rm, stat, cp, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import type { CorrectionInput, Decision, ModelCall, Receipt, Submission, SubmissionStatus } from '../contracts';
@@ -11,6 +12,8 @@ import { demoSnapshot } from './fixtures';
 import { receiptPdf } from '../demo/samples';
 import type { RuleCommand } from './rule-state';
 import { CoreError } from './validation';
+import { showcaseFixture } from '../demo/showcase';
+import { workspaceSnapshot } from './projection';
 
 type Saved = { version: 1; state: Snapshot; calls: ModelCall[] };
 const missing = (e: unknown) => (e as NodeJS.ErrnoException).code === 'ENOENT';
@@ -49,7 +52,21 @@ export class FileStore implements Store {
     }
     await rm(lock, { recursive: true, force: true }).catch(() => undefined);
   }
-  private async transaction<T>(operation: (store: MemoryStore) => Promise<T>): Promise<T> {
+  /** An interrupted replacement rolls back from its complete private archive before any read. */
+  private async recoverReset() {
+    const marker = path.join(this.dir, '.demo-reset.json');
+    let archive: string;
+    try { ({ archive } = JSON.parse(await readFile(marker, 'utf8'))); }
+    catch (error) { if (missing(error)) return; throw error; }
+    const directory = await realpath(this.dir);
+    if (typeof archive !== 'string' || path.dirname(archive) !== path.dirname(directory) || !path.basename(archive).startsWith(`${path.basename(directory)}.archive-`)) throw new CoreError('DEMO_CORRUPT', 'Demo reset archive is invalid; retain the files for recovery.', 503);
+    const names = await readdir(archive);
+    if (!names.includes('core-state.json')) throw new CoreError('DEMO_CORRUPT', 'Demo reset archive is incomplete; retain the files for recovery.', 503);
+    for (const name of await readdir(directory)) if (!['.core-lock', '.demo-reset.json'].includes(name)) await rm(path.join(directory, name), { recursive: true, force: true });
+    for (const name of names) await cp(path.join(archive, name), path.join(directory, name), { recursive: true });
+    await rm(marker);
+  }
+  private async transaction<T>(operation: (store: MemoryStore) => Promise<T>, reset = false): Promise<T> {
     await mkdir(this.dir, { recursive: true });
     const lock = path.join(this.dir, '.core-lock');
     const token = `${process.pid}:${randomUUID()}`;
@@ -62,8 +79,9 @@ export class FileStore implements Store {
         await new Promise(resolve => setTimeout(resolve, 25));
       }
     }
-    if (!acquired) throw new CoreError('DEMO_BUSY', 'Local demo storage is busy. Please retry.', 503);
+    if (!acquired) throw new CoreError('DEMO_BUSY', 'Local demo storage is busy. Please retry.', reset ? 409 : 503);
     try {
+      await this.recoverReset();
       let saved: Saved;
       try { saved = JSON.parse(await readFile(path.join(this.dir, 'core-state.json'), 'utf8')); }
       catch (e) {
@@ -85,7 +103,7 @@ export class FileStore implements Store {
       if (!saved.state || !Array.isArray(saved.state.submissions) || !Array.isArray(saved.state.runs) || !Array.isArray(saved.state.decisions) || !Array.isArray(saved.calls)) throw new CoreError('DEMO_CORRUPT', 'Local demo state is incomplete. Archive or delete core-state.json and restart.', 503);
       const store = new MemoryStore(saved.state); store.calls = saved.calls;
       // A killed process must not strand a submission forever. Five-minute leases match live SQL.
-      for (const run of store.state.runs) if (run.status === 'running' && Date.now() - Date.parse(run.started_at) > 300000) await store.fail(run.id, 'Interrupted run expired. Reconcile again.');
+      for (const run of store.state.runs) if (!reset && run.status === 'running' && Date.now() - Date.parse(run.started_at) > 300000) await store.fail(run.id, 'Interrupted run expired. Reconcile again.');
       // Intake is the authoritative source of receipt metadata; core owns review outcomes.
       // One unreadable or conflicting intake file quarantines that claim, never the whole ledger.
       for (const file of await readdir(this.dir)) {
@@ -106,10 +124,67 @@ export class FileStore implements Store {
       }
       const result = await operation(store);
       if (!await this.ownsLock(lock, token)) throw new CoreError('DEMO_BUSY', 'Local demo storage lock was recovered by another process. Please retry.', 503);
-      await this.put('core-state.json', { version: 1, state: store.state, calls: store.calls });
+      // Reset commits its replacement files and snapshot together, with its own rollback.
+      if (!reset) await this.put('core-state.json', { version: 1, state: store.state, calls: store.calls });
       return result;
     } finally { if (await this.ownsLock(lock, token)) await rm(lock, { recursive: true, force: true }); }
   }
+  async resetShowcase(snapshotToken: string) {
+    return this.transaction(async store => {
+      const state = store.state;
+      if (state.runs.some(r => r.status === 'running') || state.receipts.some(r => r.extraction_status === 'pending') || state.supporting_documents?.some(d => d.extraction_status === 'pending')) throw new CoreError('DEMO_BUSY', 'Finish active checks and uploads before resetting.', 409);
+      if (workspaceSnapshot(state).token !== snapshotToken) throw new CoreError('STALE_SNAPSHOT', 'Claims changed. Refresh before resetting.', 409);
+      const directory = await realpath(this.dir);
+      if (directory.split(path.sep).includes('public')) throw new CoreError('DEMO_RESET_DISABLED', 'Demo evidence must remain private.', 403);
+      const archive = `${directory}.archive-${randomUUID()}`;
+      const staged = `${directory}.reset-${randomUUID()}`;
+      const fixture = showcaseFixture();
+      fixture.state.knowledge_revision = (state.knowledge_revision ?? 0) + 1;
+      const revision = Math.max(0, ...state.submissions.map(s => Math.max(s.review_revision ?? 0, s.evidence_revision ?? 0))) + 1;
+      for (const claim of fixture.state.submissions) {
+        claim.review_revision = revision;
+        claim.evidence_revision = revision;
+        claim.updated_at = new Date().toISOString();
+      }
+      const replacement = new MemoryStore(fixture.state);
+      await mkdir(staged, { mode: 0o700 });
+      await mkdir(archive, { mode: 0o700 });
+      const names = (await readdir(directory)).filter(name => name !== '.core-lock');
+      let replacing = false;
+      try {
+        for (const name of names) await cp(path.join(directory, name), path.join(archive, name), { recursive: true });
+        // Capture the hydrated snapshot too; loose intake files alone may be newer than core-state.
+        await writeFile(path.join(archive, 'core-state.json'), JSON.stringify({ version: 1, state, calls: store.calls }), { mode: 0o600 });
+        for (const { receipt, bytes } of fixture.originals) {
+          const claim = fixture.state.submissions.find(s => s.id === receipt.submission_id)!;
+          await writeFile(path.join(staged, `${receipt.id}.bin`), bytes, { mode: 0o600 });
+          await writeFile(path.join(staged, `${receipt.id}.receipt.json`), JSON.stringify(receipt), { mode: 0o600 });
+          await writeFile(path.join(staged, `${claim.id}.submission.json`), JSON.stringify(claim), { mode: 0o600 });
+        }
+        await mkdir(path.join(staged, 'supporting'), { mode: 0o700 });
+        for (const { document, bytes } of fixture.supporting) await writeFile(path.join(staged, 'supporting', `${document.id}.bin`), bytes, { mode: 0o600 });
+        await this.put('.demo-reset.json', { archive });
+        replacing = true;
+        for (const name of names) if (name !== 'core-state.json') await rm(path.join(directory, name), { recursive: true, force: true });
+        for (const name of await readdir(staged)) await rename(path.join(staged, name), path.join(directory, name));
+        await this.put('core-state.json', { version: 1, state: replacement.state, calls: [] });
+        await rm(path.join(directory, '.demo-reset.json'));
+      } catch (error) {
+        if (replacing) await this.recoverReset();
+        throw error;
+      } finally { await rm(staged, { recursive: true, force: true }).catch(() => {}); }
+      return { archive };
+    }, true);
+  }
+  createIntakeRecord(submission: Submission, receipt: Receipt, bytes: Uint8Array) {
+    return this.transaction(async store => {
+      await store.importIntakeRecord(submission, receipt);
+      await writeFile(path.join(this.dir, `${receipt.id}.bin`), bytes, { mode: 0o600 });
+      await this.put(`${submission.id}.submission.json`, submission);
+      await this.put(`${receipt.id}.receipt.json`, receipt);
+    });
+  }
+  intakeUsage(call: ModelCall) { return this.transaction(async () => { await this.put(`${call.id}.usage.json`, call); }); }
   finishInitialExtraction(receipt:Receipt){return this.transaction(async store=>{
     const old=store.state.receipts.find(r=>r.id===receipt.id);
     if(!old||old.extraction_status!=='pending'||store.state.runs.some(r=>r.submission_id===old.submission_id&&r.status==='running'))throw new CoreError('STALE_REVIEW','Initial extraction was superseded; refresh the saved claim.',409);
@@ -121,6 +196,7 @@ export class FileStore implements Store {
   messages(command:MessageCommand){return this.transaction(store=>store.messages(command));}
   supporting(command:SupportingCommand){return this.transaction(store=>store.supporting(command));}
   investigation(command:InvestigationCommand){return this.transaction(store=>store.investigation(command));}
+  feedbackLearning(command:FeedbackCommand){return this.transaction(store=>store.feedbackLearning(command));}
   procedure(command:ProcedureCommand){return this.transaction(store=>store.procedure(command));}
   snapshot() { return this.transaction(store => store.snapshot()); }
   begin(id: string) { return this.transaction(store => store.begin(id)); }
