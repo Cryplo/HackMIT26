@@ -12,7 +12,7 @@ const portFlag = args.findIndex(arg => arg === '--port' || arg === '-p');
 const port = portFlag >= 0 ? args[portFlag + 1] : process.env.PORT || '3000';
 const env = { ...process.env, RECONCILIATION_SYNTHETIC_ONLY: 'true', RECONCILIATION_INTAKE_MODE: 'demo', RECONCILIATION_EXTRACTION_MODE: 'demo', RECONCILIATION_MODE: 'simulated', RECONCILIATION_APP_ORIGIN: `http://127.0.0.1:${port}` };
 // The explicit demo command never spends credits, even when live keys are configured.
-for (const key of ['SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'TYPESAFE_API_KEY', 'JEV_API_KEY', 'ELASTICSEARCH_URL', 'ELASTICSEARCH_API_KEY', 'OPENAI_API_KEY', 'AI_GATEWAY_API_KEY']) env[key] = '';
+for (const key of ['SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'TYPESAFE_API_KEY', 'JEV_API_KEY', 'ELASTICSEARCH_URL', 'ELASTICSEARCH_API_KEY', 'OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_DEPLOYMENT', 'AI_GATEWAY_API_KEY']) env[key] = '';
 if (live) {
   env.RECONCILIATION_MODE = '';
   for (const key of ['TYPESAFE_API_KEY', 'JEV_API_KEY', 'AI_GATEWAY_API_KEY', 'JEV_MODEL']) env[key] = process.env[key] || '';

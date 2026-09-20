@@ -1,4 +1,5 @@
 import "server-only";
+import { responsesConfig, responsesHeaders, type ResponsesConfig } from "../providers/responses";
 import { recognizedSample } from "../demo/samples";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -33,25 +34,17 @@ export async function extractReceipt(
       usage: null,
     };
   }
-  const key = process.env.OPENAI_API_KEY;
-  if (!key)
-    return {
-      fields: null,
-      raw: null,
-      error: "OpenAI extraction is not configured.",
-      usage: null,
-    };
-  const model = process.env.OPENAI_EXTRACTION_MODEL || "gpt-4.1-mini";
+  let config: ResponsesConfig;
+  try { config = responsesConfig('extraction'); }
+  catch (error) { return { fields: null, raw: null, error: error instanceof Error ? error.message : 'Extraction provider configuration is invalid.', usage: null }; }
+  const model = config.model;
   const started = Date.now();
   let usage: Usage | null = null;
   try {
     const data = `data:${fileType};base64,${Buffer.from(bytes).toString("base64")}`;
-    const response = await transport("https://api.openai.com/v1/responses", {
+    const response = await transport(config.url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
+      headers: responsesHeaders(config),
       signal: AbortSignal.timeout(60000),
       body: JSON.stringify({
         model,
@@ -91,7 +84,7 @@ export async function extractReceipt(
       id: randomUUID(),
       run_id: null,
       receipt_id: receiptId,
-      provider: "openai",
+      provider: config.provider,
       model,
       input_tokens: null,
       output_tokens: null,
@@ -149,7 +142,7 @@ export async function extractReceipt(
       id: randomUUID(),
       run_id: null,
       receipt_id: receiptId,
-      provider: "openai",
+      provider: config.provider,
       model,
       input_tokens: null,
       output_tokens: null,

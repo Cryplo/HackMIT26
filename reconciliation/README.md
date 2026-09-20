@@ -119,3 +119,18 @@ It retrieves prior candidate receipts by receipt number, amount, vendor or date,
 then supplies the evidence to Jev. No Elasticsearch account/index is required.
 It fails explicitly above 1000 stored claims rather than silently dropping evidence.
 Exact byte-hash duplicate enforcement remains part of the pending v2 platform work.
+
+## Azure OpenAI
+
+Azure is supported for real receipt extraction and optional decision explanations.
+Set `AZURE_OPENAI_ENDPOINT` to the HTTPS resource root or `/openai/v1` base,
+`AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT` to your deployment name.
+No direct `OPENAI_API_KEY` is needed. A partial Azure configuration fails explicitly;
+it never redirects the Azure key to OpenAI. Requests use `/openai/v1/responses`,
+`api-key` authentication, and the deployment name as `model`. Usage records identify
+`azure-openai`. PDF/image and structured-output support depend on your deployment.
+
+Set extraction mode to `live`. Written explanations remain opt-in through
+`RECONCILIATION_JUSTIFICATION_MODE=live`. Start ordinary `npm run dev` to honor the
+file's settings; demo commands deliberately disable paid extraction/explanations.
+The larger v2 autonomous investigator is still pending.
