@@ -15,7 +15,7 @@ import {
   type PrintedReceipt
 } from './documents';
 
-export const PACK_VERSION = 'demo20-v1';
+export const PACK_VERSION = 'devin-demo20-v1';
 /** Mirrors the seeded policy rows; a live run re-reads actual policy evidence before scoring. */
 export const CAPS: Record<Category, number> = { flight: 50000, hotel: 25000, train: 20000, bus: 10000, other: 5000 };
 export const POLICY_WINDOW = { start: '2026-09-01', end: '2026-09-30' };

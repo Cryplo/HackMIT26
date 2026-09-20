@@ -1,7 +1,7 @@
 /** Properties the development pack must hold before any human spends time reviewing it. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { sha256 } from './documents';
@@ -107,9 +107,12 @@ test('similar cases are genuinely distinct purchases and the pack claims one pur
 });
 
 test('written artifacts separate inputs from answers, hash everything, and refuse to overwrite', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'demo20-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'demo20-'));
+  const dir = path.join(root, 'pack');
   try {
     const manifest = await writePack(dir, SEED);
+    const manifestPath = path.join(dir, 'manifest.json');
+    const manifestText = await readFile(manifestPath, 'utf8');
     assert.equal(manifest.case_count, 20);
     assert.equal(manifest.documents.length, buildPack(SEED).reduce((n, c) => n + c.documents.length, 0));
     for (const d of manifest.documents) assert.equal(sha256(await readFile(path.join(dir, d.file))), d.sha256);
@@ -121,27 +124,92 @@ test('written artifacts separate inputs from answers, hash everything, and refus
     assert.ok(labels.cases.every((c: { rationale: string }) => c.rationale.length > 40), 'every label needs a written reason');
     await assert.rejects(writePack(dir, SEED), /Refusing to overwrite/);
 
-    // The pack is unreviewed until a human writes review.json; nothing here may forge that.
+    // Test-only review records stay in this temporary directory; generated packs remain unreviewed.
     await assert.rejects(requireReview(dir, path.join(dir, 'review.json')));
     const review = {
       pack_version: manifest.pack_version, reviewers: ['placeholder'], reviewed_at: '2026-09-27T00:00:00.000Z', minutes_spent: 1,
+      manifest_sha256: sha256(manifestText),
       inputs_sha256: manifest.inputs_sha256, labels_sha256: manifest.labels_sha256, policy_sha256: manifest.policy_sha256,
       corrections: [], open_disagreements: [] as { case_id: string; question: string }[]
     };
     const reviewPath = path.join(dir, 'review.json');
-    await (await import('node:fs/promises')).writeFile(reviewPath, JSON.stringify(review));
+    await writeFile(reviewPath, JSON.stringify(review));
     assert.equal((await requireReview(dir, reviewPath)).reviewers[0], 'placeholder');
-    await (await import('node:fs/promises')).writeFile(reviewPath, JSON.stringify({ ...review, open_disagreements: [{ case_id: 'x', question: 'is this a duplicate?' }] }));
+    for (const invalid of [{ reviewers: [] }, { reviewers: [' '] }, { reviewers: 'placeholder' }, { reviewers: [null] }, { reviewed_at: ' ' }, { reviewed_at: 'not-a-timestamp' }, { reviewed_at: 123 }]) {
+      await writeFile(reviewPath, JSON.stringify({ ...review, ...invalid }));
+      await assert.rejects(requireReview(dir, reviewPath), /reviewers.*timestamp/);
+    }
+    await writeFile(reviewPath, JSON.stringify({ ...review, manifest_sha256: undefined }));
+    await assert.rejects(requireReview(dir, reviewPath), /manifest/);
+    await writeFile(reviewPath, JSON.stringify({ ...review, open_disagreements: [{ case_id: 'x', question: 'is this a duplicate?' }] }));
     await assert.rejects(requireReview(dir, reviewPath), /disagreement/);
-    await (await import('node:fs/promises')).writeFile(reviewPath, JSON.stringify({ ...review, labels_sha256: sha256('changed') }));
+    await writeFile(reviewPath, JSON.stringify({ ...review, labels_sha256: sha256('changed') }));
     await assert.rejects(requireReview(dir, reviewPath), /re-review is required/);
+    for (const [file, key] of [['inputs.json', 'inputs_sha256'], ['labels.evaluator-only.json', 'labels_sha256'], ['policy.json', 'policy_sha256']] as const) {
+      const filePath = path.join(dir, file);
+      const original = await readFile(filePath, 'utf8');
+      await writeFile(filePath, original + '\n');
+      await writeFile(reviewPath, JSON.stringify(review));
+      await assert.rejects(requireReview(dir, reviewPath), /re-review is required/);
+      // Updating a review field alone cannot bypass the manifest's original file hash.
+      await writeFile(reviewPath, JSON.stringify({ ...review, [key]: sha256(original + '\n') }));
+      await assert.rejects(requireReview(dir, reviewPath), /re-review is required/);
+      await writeFile(filePath, original);
+    }
+    await writeFile(reviewPath, JSON.stringify(review));
+    const document = manifest.documents[0];
+    const documentPath = path.join(dir, document.file);
+    const documentBytes = await readFile(documentPath);
+    const changedBytes = Buffer.concat([documentBytes, Buffer.from('\n')]);
+    await writeFile(documentPath, changedBytes);
+    await assert.rejects(requireReview(dir, reviewPath), /Document hash changed/);
+    const rehashed = structuredClone(manifest);
+    rehashed.documents[0].sha256 = sha256(changedBytes);
+    await writeFile(manifestPath, JSON.stringify(rehashed));
+    await assert.rejects(requireReview(dir, reviewPath), /Reviewed manifest changed/);
+    await writeFile(manifestPath, manifestText);
+    await rm(documentPath);
+    await assert.rejects(requireReview(dir, reviewPath));
+    const outside = path.join(root, 'outside.pdf');
+    await writeFile(outside, documentBytes);
+    await symlink(outside, documentPath);
+    await assert.rejects(requireReview(dir, reviewPath), /symlink escapes/);
+    await rm(documentPath);
+    await writeFile(documentPath, documentBytes);
+
+    // Even newly bound test records must reject inconsistent inventories and unsafe paths.
+    const missingDocument = JSON.stringify({ ...manifest, documents: manifest.documents.slice(1) });
+    await writeFile(manifestPath, missingDocument);
+    await writeFile(reviewPath, JSON.stringify({ ...review, manifest_sha256: sha256(missingDocument) }));
+    await assert.rejects(requireReview(dir, reviewPath), /inventory/);
+    for (const unsafePath of ['documents/../../outside.pdf', outside]) {
+      const unsafeInputs = JSON.parse(inputs);
+      unsafeInputs.cases[0].documents[0].file = unsafePath;
+      const unsafeInputsText = JSON.stringify(unsafeInputs);
+      const unsafeManifest = structuredClone(manifest);
+      unsafeManifest.inputs_sha256 = sha256(unsafeInputsText);
+      unsafeManifest.documents[0].file = unsafePath;
+      const unsafeManifestText = JSON.stringify(unsafeManifest);
+      await writeFile(path.join(dir, 'inputs.json'), unsafeInputsText);
+      await writeFile(manifestPath, unsafeManifestText);
+      await writeFile(reviewPath, JSON.stringify({ ...review, inputs_sha256: unsafeManifest.inputs_sha256, manifest_sha256: sha256(unsafeManifestText) }));
+      await assert.rejects(requireReview(dir, reviewPath), /paths must remain under documents/);
+    }
+    await writeFile(path.join(dir, 'inputs.json'), inputs);
+    await writeFile(manifestPath, manifestText);
+    await writeFile(reviewPath, JSON.stringify(review));
+    assert.equal((await requireReview(dir, reviewPath)).manifest_sha256, review.manifest_sha256);
+    await rm(manifestPath);
+    await assert.rejects(writePack(dir, SEED), /Refusing to overwrite/);
+    assert.deepEqual(await readFile(documentPath), documentBytes, 'an incomplete output must not be overwritten');
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
   }
 });
 
 test('review packet shows every original, its supporting documents, the policy and the expected answer', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'demo20-review-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'demo20-review-'));
+  const dir = path.join(root, 'pack');
   try {
     await writePack(dir, SEED);
     const html = await readFile(path.join(dir, 'review.html'), 'utf8');
@@ -156,7 +224,7 @@ test('review packet shows every original, its supporting documents, the policy a
     assert.equal(csv.length, 21);
     assert.ok(csv[0].includes('agrees_yes_no'));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
   }
 });
 

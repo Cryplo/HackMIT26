@@ -24,7 +24,7 @@ const byCohort = (cohort: string) => pack.filter(c => c.label.cohort === cohort)
 
 /* ------------------------------------------------------------------ money and duplicates */
 
-test('every pack case assesses to its reviewed expectation, and nothing unsafe is matched', async () => {
+test('every pack case assesses to its unreviewed development expectation, and nothing unsafe is matched', async () => {
   const outcomes = await assessPack(pack);
   for (const outcome of outcomes) {
     const c = pack.find(x => x.case_id === outcome.case_id)!;
@@ -83,10 +83,10 @@ test('a different document for an already-claimed purchase cannot authorize a se
   assert.equal(store.state.submissions.find(s => s.id === ids[0])!.status, 'approved');
 });
 
-test('supporting evidence never adds a second reimbursable total', async () => {
+test('receipt-only assessment rejects a request for twice the primary receipt total', async () => {
   const booking = byCohort('unfamiliar_linked_booking')[0];
   const outcomes = await assessPack([{ ...booking, sequence: 1 }]);
-  // The claim asks for exactly the printed total; the booking confirmation repeats it.
+  // This harness loads only the primary receipt. Supporting-document summing is not tested.
   assert.equal(outcomes[0].checks.amount, 'pass');
   const inflated = { ...booking, sequence: 1, input: { ...booking.input, amount_requested_minor: booking.input.amount_requested_minor * 2 } };
   assert.equal((await assessPack([inflated]))[0].status, 'flagged');
@@ -138,7 +138,7 @@ test('a knowledge change after assessment blocks approval until the claim is rec
 
 /* -------------------------------------------------------------------- learning safety */
 
-test('only a reviewed, tested, explicitly activated alias can change a merchant verdict', async () => {
+test('an alias proposal requires an approved source, not a pending or rejected claim', async () => {
   const booking = byCohort('unfamiliar_linked_booking').map((c, i) => ({ ...c, sequence: i + 1 }));
   const { core, store } = isolatedCore(snapshotFor(booking));
   const id = stableId('submission', booking[0].case_id);
@@ -154,7 +154,7 @@ test('only a reviewed, tested, explicitly activated alias can change a merchant 
     (e: unknown) => e instanceof CoreError && ['RULE_SOURCE_REQUIRED', 'APPROVAL_BLOCKED'].includes(e.code)
   );
 
-  // With a source approval the draft exists, but an untested draft cannot be activated.
+  // A rejected source is also ineligible for an alias proposal.
   store.state.submissions.find(s => s.id === id)!.status = 'needs_review';
   await core.correct({ submission_id: id, expected_review_revision: workspaceRows(store.state).find(r => r.id === id)!.review_revision, human_verdict: 'rejected', human_note: 'Recorded for source-history only.', correction_type: 'decision_override', correction_payload_json: {} });
   await assert.rejects(
@@ -164,7 +164,7 @@ test('only a reviewed, tested, explicitly activated alias can change a merchant 
   assert.equal((store.state.rules ?? []).length, 0);
 });
 
-test('an untested draft cannot be activated and a disabled rule stops applying', async () => {
+test('an untested alias draft cannot be activated', async () => {
   const { store } = isolatedCore(snapshotFor([{ ...pack[0], sequence: 1 }]));
   const id = stableId('submission', pack[0].case_id);
   store.state.corrections.push({ id: crypto.randomUUID(), submission_id: id, human_verdict: 'approved', human_note: 'Source approval.', correction_type: 'decision_override', correction_payload_json: {}, corrected_at: '2026-09-27T13:00:00.000Z' });

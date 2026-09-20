@@ -4,7 +4,7 @@
  * build upload requests without ever opening the answers. Nothing here marks the pack as
  * reviewed: `review.json` is written by a human after reading `review.html`.
  */
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { sha256 } from './documents';
 import { buildPack, documentHashes, PACK_VERSION, POLICY_WINDOW, type PackCase } from './pack';
@@ -49,9 +49,13 @@ export function evaluatorLabels(pack: PackCase[], seed: number) {
 
 export async function writePack(dir: string, seed: number): Promise<PackManifest> {
   const pack = buildPack(seed);
-  if (await access(path.join(dir, 'manifest.json')).then(() => true, () => false))
-    throw new Error(`Refusing to overwrite an existing pack at ${dir}.`);
-  await mkdir(path.join(dir, 'documents'), { recursive: true });
+  await mkdir(path.dirname(dir), { recursive: true });
+  try { await mkdir(dir); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(`Refusing to overwrite an existing output path at ${dir}.`);
+    throw error;
+  }
+  await mkdir(path.join(dir, 'documents'));
   for (const c of pack) for (const d of c.documents) await writeFile(path.join(dir, d.file), d.bytes);
 
   const inputs = JSON.stringify(appVisibleInputs(pack), null, 2);
@@ -78,6 +82,7 @@ export interface PackReview {
   reviewers: string[];
   reviewed_at: string;
   minutes_spent: number;
+  manifest_sha256: string;
   inputs_sha256: string;
   labels_sha256: string;
   policy_sha256: string;
@@ -89,14 +94,36 @@ export interface PackReview {
 /** A scored or demonstrated run may only use a pack whose reviewed hashes still match disk. */
 export async function requireReview(dir: string, reviewPath: string): Promise<PackReview> {
   const review: PackReview = JSON.parse(await readFile(reviewPath, 'utf8'));
-  const manifest: PackManifest = JSON.parse(await readFile(path.join(dir, 'manifest.json'), 'utf8'));
-  const inputs = sha256(await readFile(path.join(dir, 'inputs.json')));
-  const labels = sha256(await readFile(path.join(dir, 'labels.evaluator-only.json')));
-  const policy = sha256(await readFile(path.join(dir, 'policy.json')));
-  if (!review.reviewers?.length || !review.reviewed_at) throw new Error('review.json names no reviewer; a human gate cannot be inferred.');
+  const manifestBytes = await readFile(path.join(dir, 'manifest.json'));
+  const manifest: PackManifest = JSON.parse(manifestBytes.toString('utf8'));
+  if (!Array.isArray(review.reviewers) || !review.reviewers.length || review.reviewers.some(name => typeof name !== 'string' || !name.trim()) || typeof review.reviewed_at !== 'string' || !review.reviewed_at.trim() || !Number.isFinite(Date.parse(review.reviewed_at)))
+    throw new Error('review.json requires named human reviewers and a valid review timestamp.');
   if (review.pack_version !== manifest.pack_version) throw new Error('review.json reviewed a different pack version.');
-  if (review.inputs_sha256 !== inputs || review.labels_sha256 !== labels || review.policy_sha256 !== policy)
-    throw new Error('Reviewed hashes do not match the pack on disk; evidence or policy changed and re-review is required.');
+  if (review.manifest_sha256 !== sha256(manifestBytes)) throw new Error('Reviewed manifest changed or was not bound to the review; re-review is required.');
+  const inputsBytes = await readFile(path.join(dir, 'inputs.json'));
+  for (const [key, bytes] of [
+    ['inputs_sha256', inputsBytes],
+    ['labels_sha256', await readFile(path.join(dir, 'labels.evaluator-only.json'))],
+    ['policy_sha256', await readFile(path.join(dir, 'policy.json'))]
+  ] as const) {
+    if (manifest[key] !== sha256(bytes) || review[key] !== manifest[key])
+      throw new Error('Reviewed hashes do not match the pack on disk; evidence or policy changed and re-review is required.');
+  }
+  const inputs: ReturnType<typeof appVisibleInputs> = JSON.parse(inputsBytes.toString('utf8'));
+  const inventory = inputs.cases.flatMap(c => c.documents.map(d => ({ case_id: c.case_id, ...d })));
+  const listed = new Map(manifest.documents.map(d => [d.file, d]));
+  if (listed.size !== manifest.documents.length || listed.size !== inventory.length || new Set(inventory.map(d => d.file)).size !== inventory.length || inventory.some(d => {
+    const entry = listed.get(d.file);
+    return !entry || entry.case_id !== d.case_id || entry.role !== d.role || entry.kind !== d.kind;
+  })) throw new Error('Manifest document inventory does not match inputs.json; re-review is required.');
+  const documentsRoot = path.join(await realpath(dir), 'documents') + path.sep;
+  for (const document of manifest.documents) {
+    if (typeof document.file !== 'string' || !document.file.startsWith('documents/') || document.file.includes('\\') || path.posix.normalize(document.file) !== document.file)
+      throw new Error('Document paths must remain under documents/ without traversal.');
+    const file = await realpath(path.join(dir, document.file));
+    if (!file.startsWith(documentsRoot)) throw new Error('Document symlink escapes documents/.');
+    if (sha256(await readFile(file)) !== document.sha256) throw new Error(`Document hash changed: ${document.file}; re-review is required.`);
+  }
   if (review.open_disagreements?.length) throw new Error(`${review.open_disagreements.length} label disagreement(s) are still open.`);
   return review;
 }
@@ -133,6 +160,6 @@ function reviewPacket(pack: PackCase[], seed: number): string {
 <h1>Investigation development pack review — ${PACK_VERSION} (seed ${seed})</h1>
 <p>Every merchant, person, reference and total below is synthetic and invalid for payment. This pack is development and demonstration material for the investigation and booking-reference work; it is not independent accuracy evidence.</p>
 <p><strong>Policy the labels assume:</strong> USD only, window ${POLICY_WINDOW.start} to ${POLICY_WINDOW.end}, caps flight 500.00, hotel 250.00, train 200.00, bus 100.00, other 50.00, claimant identity from the receipt only unless a specific reviewed policy says otherwise.</p>
-<p><strong>What to do:</strong> open each original and its supporting documents, decide the correct answer yourself, then mark agreement in <code>review.csv</code>. When every case is settled, write <code>review.json</code> with your name, the date, minutes spent and the three hashes from <code>manifest.json</code>. Leave any unsettled case in <code>open_disagreements</code>: an open disagreement blocks scoring. Automated agreement is not review.</p>
+<p><strong>What to do:</strong> open each original and its supporting documents, decide the correct answer yourself, then mark agreement in <code>review.csv</code>. When every case is settled, write <code>review.json</code> with your name, the date, minutes spent, the three hashes from <code>manifest.json</code>, and <code>manifest_sha256</code>, the SHA-256 of that manifest file itself. Leave any unsettled case in <code>open_disagreements</code>: an open disagreement blocks scoring. Automated agreement is not review.</p>
 ${sections}`;
 }
