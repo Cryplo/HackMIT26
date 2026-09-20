@@ -19,8 +19,8 @@ export function deterministic(s: Submission, r: Receipt | null, policies: Policy
   return checks;
 }
 export const requiredChecks = ['currency','amount','policy','receipt_date','policy_cap','merchant','name','duplicate'];
-export function overall(ds: Pick<Decision, 'field_checked' | 'verdict'>[]): SubmissionStatus {
+export function overall(ds: Pick<Decision, 'field_checked' | 'verdict'>[], required: readonly string[] = requiredChecks): SubmissionStatus {
   if (ds.some(d => d.verdict === 'fail')) return 'flagged';
-  if (ds.some(d => d.verdict === 'unknown') || requiredChecks.some(f => !ds.some(d => d.field_checked === f && d.verdict === 'pass'))) return 'needs_review';
+  if (ds.some(d => d.verdict === 'unknown') || required.some(f => !ds.some(d => d.field_checked === f && d.verdict === 'pass'))) return 'needs_review';
   return 'approved';
 }

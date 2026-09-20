@@ -2,7 +2,8 @@ import { sendAutomaticApprovalNotice } from './email-actions';
 import { boundedEvidence, bookingLink, applicableProcedures, itineraryIdentity } from './evidence';
 import type { CorrectionInput, DecisionSummary, ReconcileResult, ReviewsResponse, SubmissionStatus } from '../contracts';
 import { decision, deterministic, overall } from './checks';
-import type { Jev, SemanticField } from './jev';
+import { applicableCustomChecks, requiredFieldsFor } from './custom-checks';
+import { customQuestion, type Jev, type SemanticField } from './jev';
 import type { Justification, Justifier, JustificationRequest, ReviewOverride } from './justification';
 import { deterministicJustification, SimulatedJustifier } from './justification';
 import type { Retrieval } from './retrieval';
@@ -13,7 +14,7 @@ import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation'
 import { publicEvidence, workspaceRows } from './projection';
 import { automaticApproval, shouldInvestigateAutomatically } from './automation';
 import { investigateClaim } from './investigations';
-type AbortableJev = {evaluate(state:Parameters<Jev['evaluate']>[0],runId:string,log:Parameters<Jev['evaluate']>[2],signal?:AbortSignal):ReturnType<Jev['evaluate']>};
+type AbortableJev = {evaluate(state:Parameters<Jev['evaluate']>[0],runId:string,log:Parameters<Jev['evaluate']>[2],signal?:AbortSignal,extraQuestions?:Parameters<Jev['evaluate']>[4]):ReturnType<Jev['evaluate']>};
 export class CoreService {
   constructor(public store: Store, private retrieval: Retrieval, private jev: AbortableJev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string; investigation?:string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort, public investigationMode:'disabled'|'simulated'|'live'='disabled', public automationEnabled=false) {}
   async reconcile(ids: string[], signal?:AbortSignal): Promise<{ results: ReconcileResult[] }> {
@@ -51,7 +52,7 @@ export class CoreService {
       const state = await this.store.snapshot(); const s = state.submissions.find(s => s.id === id)!;
       const r = state.receipts.find(r => r.submission_id === id) || null;
       const ds = await this.assess(state,id,run,call=>this.store.usage(call),signal);
-      const status = overall(ds);
+      const status = overall(ds, requiredFieldsFor(state, s.category));
       const justification = await this.narrate({ submission: s, receipt: r?.parsed_fields_json ?? null, decisions: ds, status }, run);
       const auto_approval=automaticApproval(state,id,run,ds,this.automationEnabled);
       ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id), justification, ...(auto_approval?{auto_approval}:{}) }));
@@ -80,8 +81,10 @@ export class CoreService {
           const evidence = await this.retrieval.retrieve(s, r.parsed_fields_json, state);
           const supporting=boundedEvidence(state,id),procedures=applicableProcedures(state,id),identity=itineraryIdentity(state,id);
           const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence: {...evidence,...supporting,booking_link:bookingLink(state,id),procedure_matches:procedures.map(p=>({procedure_id:p.procedure.id,reference:p.reference,canonical_vendor:p.procedure.trigger_scope.canonical_vendor,evidence_refs:p.refs})),identity_evidence_refs:identity??[]} };
+          const customChecks = applicableCustomChecks(state, s.category);
+          const extraQuestions = customChecks.length ? Object.fromEntries(customChecks.map(check => [check.field, customQuestion(check)])) : undefined;
           signal?.throwIfAborted();
-          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call),signal);
+          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call),signal,extraQuestions);
           signal?.throwIfAborted();
           const confirmed=confirmedDuplicates(state,s.id);
           for (const field of ['merchant', 'name', 'duplicate'] as SemanticField[]) {
@@ -93,6 +96,13 @@ export class CoreService {
             const verdict = field==='duplicate'&&confirmed.length?'fail':missingEvidence||conflictingAliases?'unknown':procedureMatch||exactName?'pass':a.confidence < .7 || a.probabilities[a.choice] < .85 ? 'unknown' : a.choice;
             const unknown_reason=verdict!=='unknown'?null:missingEvidence?'missing_evidence':conflictingAliases?'conflicting_aliases':a.confidence<.7?'confidence_threshold':a.probabilities[a.choice]<.85?'chosen_probability_threshold':'provider_unknown';
             const d = decision(s, run, field, verdict, a.choice, `${evaluation.simulated ? 'SIMULATED fixture' : 'Jev'} ${field} assessment: ${verdict}. ${field === 'merchant' ? `${evidence.aliases.length} scoped alias records supplied.` : field === 'duplicate' ? `${evidence.candidates.length} prior receipt candidates supplied.` : `${r.parsed_fields_json.names.length} receipt names supplied.`}`, { ...evidence, unknown_reason, chosen_answer:a.choice,chosen_probability:a.probabilities[a.choice], procedure_ids:procedureMatch?procedures.map(p=>p.procedure.id):[], evidence_refs:procedureMatch?procedures.flatMap(p=>p.refs):exactName?(identity??[{kind:'receipt',id:r.id}]):[], exact_method:procedureMatch?'booking_reference_identity':exactName?'exact_claimant_identity':null, confirmed_duplicates:field==='duplicate'?confirmed:[],comparison_method:field==='duplicate'?'exact bytes or corroborated receipt identity; remaining candidates are possible':null, simulated: evaluation.simulated, provider_answer: a, probability_label: 'Probability the check passes (true)', probability_option: 'pass', provider_response: evaluation.raw });
+            Object.assign(d, { check_method: 'jev', question_type: 'choice', probability: evaluation.simulated ? null : a.probabilities.pass, confidence_score: evaluation.simulated ? null : a.confidence, model_used: evaluation.model, state_snapshot_json: semanticState }); ds.push(d);
+          }
+          for (const check of customChecks) {
+            const a = evaluation.answers[check.field];
+            const verdict = a.confidence < .7 || a.probabilities[a.choice] < .85 ? 'unknown' : a.choice;
+            const unknown_reason = verdict !== 'unknown' ? null : a.confidence < .7 ? 'confidence_threshold' : a.probabilities[a.choice] < .85 ? 'chosen_probability_threshold' : 'provider_unknown';
+            const d = decision(s, run, check.field, verdict, a.choice, `${evaluation.simulated ? 'SIMULATED fixture' : 'Jev'} custom check "${check.label}": ${verdict}.`, { unknown_reason, chosen_answer: a.choice, chosen_probability: a.probabilities[a.choice], custom_check_id: check.id, check_label: check.label, check_version: check.version, check_instructions: check.instructions, check_criteria: check.criteria, check_category: check.category, simulated: evaluation.simulated, provider_answer: a, probability_label: 'Probability the check passes (true)', probability_option: 'pass', provider_response: evaluation.raw });
             Object.assign(d, { check_method: 'jev', question_type: 'choice', probability: evaluation.simulated ? null : a.probabilities.pass, confidence_score: evaluation.simulated ? null : a.confidence, model_used: evaluation.model, state_snapshot_json: semanticState }); ds.push(d);
           }
         } catch (error) {

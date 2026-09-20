@@ -9,6 +9,7 @@ import { workspaceRows, publicInvestigation } from './projection';
 import { activeAliases } from './rule-state';
 import { boundedEvidence, deriveCandidate, supportingFor } from './evidence';
 import { decision,overall } from './checks';
+import { requiredFieldsIn } from './custom-checks';
 import { DatabaseRetrieval } from './retrieval';
 import { validClaim } from '../intake/supporting-documents';
 import { automaticApproval, shouldInvestigateAutomatically } from './automation';
@@ -86,7 +87,7 @@ export async function investigateClaim(core:CoreService,id:string,raw:unknown,re
   const assessSignal=AbortSignal.any([outer,AbortSignal.timeout(25000)]);
   const checks=await core.assess(state,id,run.run_id,c=>core.store.usage(c),assessSignal,e=>{providerFailed=true;providerError=e;});
   assessSignal.throwIfAborted();if(providerFailed)throw providerError;
-  const status=overall(checks),question=typeof result.unresolved_question==='string'?result.unresolved_question.trim().slice(0,2000):'';
+  const status=overall(checks,requiredFieldsIn(checks)),question=typeof result.unresolved_question==='string'?result.unresolved_question.trim().slice(0,2000):'';
   const auto_approval=automaticApproval(state,id,run.run_id,checks,core.automationEnabled);
   checks.push(decision(s,run.run_id,'overall_status',status==='approved'?'pass':status==='flagged'?'fail':'unknown',status,'Investigation reassessed stored evidence through mandatory core checks.',{investigation_run_id:run.run_id,...(auto_approval?{auto_approval}:{})}));
   const completed:InvestigationRun={...run,status:'completed',headline:auto_approval?'Automatically approved':status==='approved'?'Ready for approval':status==='flagged'?'Discrepancy found':'Needs your input',summary:typeof result.summary==='string'?result.summary.slice(0,4000):'Stored evidence reassessed.',unresolved_question:status==='needs_review'?(question||'Which additional evidence resolves the remaining unknown checks?'):null,findings,proposed_learning:proposed,model:result.model,error:null};

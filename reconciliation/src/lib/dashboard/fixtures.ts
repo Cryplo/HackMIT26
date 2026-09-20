@@ -43,7 +43,7 @@ function claim(n: number, name: string, amount: number, category: Category, vend
 }
 export function previewResponse(rows: ReviewRow[], knowledgeRevision: number): ReviewsResponse {
   return {
-    capabilities: { rule_learning: true, extraction_retry: true, export: false, custom_checks: false, duplicate_links: true, knowledge_revisions: true },
+    capabilities: { rule_learning: true, extraction_retry: true, export: false, custom_checks: true, duplicate_links: true, knowledge_revisions: true },
     coverage: { complete: true, returned: rows.length, total: rows.length },
     contract_version: 2, snapshot_token: `preview:${knowledgeRevision}:${rows.map(row => `${row.id}:${row.review_revision}`).sort().join("|")}`,
     knowledge_revision: knowledgeRevision, submissions: rows, demo_mode: true,

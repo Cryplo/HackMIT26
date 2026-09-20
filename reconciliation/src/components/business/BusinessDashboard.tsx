@@ -17,6 +17,7 @@ import { AppShell } from "./AppShell";
 import { ReviewTable } from "./ReviewTable";
 import { ReviewSheet } from "./ReviewSheet";
 import { RulesPanel } from "./RulesPanel";
+import { ChecksPanel } from "./ChecksPanel";
 import styles from "./business.module.css";
 
 const tabs = [{ value: "pending", label: "To resolve" }, { value: "approved", label: "Approved" }, { value: "rejected", label: "Rejected" }, { value: "all", label: "All" }] as const;
@@ -27,7 +28,7 @@ const categories = ["flight", "hotel", "train", "bus", "other"] as const;
 
 export default function BusinessDashboard({ preview = false }: { preview?: boolean }) {
   const { client, data, error, loading, refresh, updatedAt } = useWorkspace(preview);
-  const [view, setView] = useState<"reviews" | "rules">("reviews");
+  const [view, setView] = useState<"reviews" | "rules" | "checks">("reviews");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,6 +77,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
     linkedClaimHandled.current = true;
     const params = new URLSearchParams(window.location.search);
     if (params.get("view") === "rules") setView("rules");
+    if (params.get("view") === "checks") setView("checks");
     if (params.get("assessment") === "unchecked") setAssessment("unchecked");
     const id = params.get("claim");
     if (!id) return;
@@ -213,7 +215,7 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
   return (
     <AppShell view={view} onViewChange={setView} preview={preview}>
       <div className={styles.topline}>
-        <span className={styles.breadcrumb}>Expenses <ChevronRight aria-hidden="true" /> <span>{view === "reviews" ? "Reimbursements" : "Learned rules"}</span></span>
+        <span className={styles.breadcrumb}>Expenses <ChevronRight aria-hidden="true" /> <span>{view === "reviews" ? "Reimbursements" : view === "checks" ? "Checks" : "Learned rules"}</span></span>
         <details className={styles.modeDetails}>
           <summary>{preview ? "Preview — synthetic data" : data?.demo_mode ? "Demo environment" : "API workspace"}</summary>
           <div className={styles.modePopover}>
@@ -223,14 +225,14 @@ export default function BusinessDashboard({ preview = false }: { preview?: boole
         </details>
       </div>
       <header className={styles.header}>
-        <div><h1 tabIndex={-1} data-review-focus-fallback>{view === "reviews" ? "Reimbursements" : "Learned rules"}</h1><p>{view === "reviews" ? "Track every claim and resolve the exceptions." : "Test and manage the merchant names your team has confirmed."}</p></div>
+        <div><h1 tabIndex={-1} data-review-focus-fallback>{view === "reviews" ? "Reimbursements" : view === "checks" ? "Checks" : "Learned rules"}</h1><p>{view === "reviews" ? "Track every claim and resolve the exceptions." : view === "checks" ? "Every check that runs on a claim — local rules and the questions sent to Jev." : "Test and manage the merchant names your team has confirmed."}</p></div>
         {view === "reviews" && <div className={styles.headerActions}><Button asChild variant="outline"><Link href="/submit"><Plus aria-hidden="true" /> New claim</Link></Button><Button variant="outline" disabled={!data?.snapshot_token || !data.capabilities?.export || !selected.length || exporting || busy} aria-describedby="export-availability" onClick={() => void exportSelected()}><Download aria-hidden="true" />{exporting ? "Exporting…" : "Export selected"}</Button><span id="export-availability" className="text-xs text-muted-foreground">{!data ? "Connecting…" : !data.capabilities?.export ? "Export unavailable" : selected.length ? `${selected.length} selected` : "Select claims to export"}</span></div>}
       </header>
       {error && <div role="alert" className={`${styles.error} motion-enter`}><AlertCircle aria-hidden="true" /><div><strong>{error}</strong><p>{data ? "Showing the last successful snapshot. Your selection and open claim are preserved." : "Check the connection and retry. Your stored claims have not been changed."}</p><div className={styles.inlineActions}><Button variant="outline" onClick={() => void refresh().catch(() => {})}>Retry connection</Button></div></div></div>}
       {actionError && <div className={`${styles.error} motion-enter`} role="alert"><AlertCircle aria-hidden="true" /><span>{actionError}</span></div>}
       {notice && <div className={`${styles.notice} motion-enter`} role="status"><span>{notice}</span><Button variant="ghost" size="icon-sm" aria-label="Dismiss update" onClick={() => setNotice("")}><X /></Button></div>}
       <div key={view} className="motion-enter">
-      {view === "rules" ? <RulesPanel client={client} rows={rows} knowledgeRevision={data?.knowledge_revision ?? 0} capabilities={data?.capabilities} simulatedEnvironment={data?.demo_mode === true && data.execution.decisions === "simulated" && data.execution.storage === "local disk"} onOpenClaim={openClaim} onChanged={onChanged} onRecheck={recheck} /> : <>
+      {view === "checks" ? <ChecksPanel client={client} knowledgeRevision={data?.knowledge_revision ?? 0} capabilities={data?.capabilities} simulatedEnvironment={data?.demo_mode === true} onChanged={onChanged} /> : view === "rules" ? <RulesPanel client={client} rows={rows} knowledgeRevision={data?.knowledge_revision ?? 0} capabilities={data?.capabilities} simulatedEnvironment={data?.demo_mode === true && data.execution.decisions === "simulated" && data.execution.storage === "local disk"} onOpenClaim={openClaim} onChanged={onChanged} onRecheck={recheck} /> : <>
         {data && <div className={styles.machineCounts} aria-label="Claim progress"><span>Checked <strong>{checkedCount} / {rows.length}</strong></span><progress value={checkedCount} max={rows.length || 1} aria-label="Claims checked" />{data.capabilities?.automatic_processing && <span>Approved automatically <strong>{automaticCount}</strong></span>}</div>}
         {runningCount > 0 && <div role="status" className={styles.runningBanner}><LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /><span>{runningCount} {runningCount === 1 ? "claim is" : "claims are"} being checked or investigated. You can keep reviewing.</span></div>}
         <Tabs value={decision} onValueChange={(value) => { setDecision(value as HumanDecision | "all"); clearSemanticSearch(); }} className={styles.tabs}>

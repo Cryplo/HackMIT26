@@ -137,6 +137,29 @@ export interface MerchantRule {
 }
 export interface RulesResponse { rules: MerchantRule[]; knowledge_revision: number }
 export interface RuleResponse { rule: MerchantRule; knowledge_revision: number }
+/** Reviewer-configured semantic check, evaluated by Jev alongside the built-in questions. */
+export interface CustomCheckCriteria { pass: string; fail: string; unknown: string }
+export interface CustomCheck {
+  id: string; version: number; state: 'active' | 'disabled';
+  /** Immutable check identifier used as field_checked; always custom_-prefixed. */
+  field: string; label: string; instructions: string;
+  criteria: CustomCheckCriteria; category: Category | null;
+  created_at: string; updated_at: string;
+}
+/** One row of the checks page: a built-in (code or Jev) or a custom Jev check. */
+export interface CheckDescriptor {
+  key: string; label: string; layer: 'local' | 'jev'; builtin: boolean;
+  description: string; category: Category | null;
+  id?: string; state?: 'active' | 'disabled'; version?: number;
+  instructions?: string; criteria?: CustomCheckCriteria;
+}
+export interface ChecksResponse { checks: CheckDescriptor[]; knowledge_revision: number }
+export interface CheckResponse { check: CustomCheck; knowledge_revision: number }
+export interface CustomCheckUpsert {
+  label: string; instructions: string; category?: Category | null;
+  criteria?: Partial<CustomCheckCriteria>;
+}
+export interface CheckMutationRequest { expected_check_version: number }
 export interface SearchFilters { assessment_status?: Assessment; decision_status?: HumanDecision; category?: Category }
 export interface SearchRequest { query: string; snapshot_token: string; filters: SearchFilters }
 export interface SearchRow {

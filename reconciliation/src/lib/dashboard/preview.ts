@@ -1,7 +1,8 @@
 import type { DashboardClient } from "./ui-contracts";
 import type { ClaimMessage, DecisionResponse } from "../review-contracts";
 import { decisionReason } from "./decision-reason";
-import type { Check, InvestigationRun, MerchantRule, ResolutionProcedure, ReviewRow, RuleResponse, SearchResponse, SupportingDocument } from "./types";
+import type { Check, CheckMutationRequest, CustomCheck, CustomCheckUpsert, InvestigationRun, MerchantRule, ResolutionProcedure, ReviewRow, RuleResponse, SearchResponse, SupportingDocument } from "./types";
+import { checkCatalog } from "../check-catalog";
 import { approvalBlock, investigationFailure } from "./review";
 import { DashboardError } from "./helpers";
 import { fixtureCheck, fixtureReviews, fixtureRules, normalizeVendor, previewReceiptUrl, previewResponse } from "./fixtures";
@@ -17,6 +18,7 @@ export function createPreviewClient(): DashboardClient {
   const documents = fixtureSupportingDocuments(rows);
   const runs = fixtureInvestigations(rows);
   const procedures: ResolutionProcedure[] = [];
+  const customChecks: CustomCheck[] = [];
   const messages: ClaimMessage[] = [];
   const decisions = new Map<string, { payload: string; response: DecisionResponse }>();
   const evidenceRevisions = new Map(rows.map(row => [row.id, documents.some(document => document.claim_id === row.id) ? 1 : 0]));
@@ -35,6 +37,23 @@ export function createPreviewClient(): DashboardClient {
     if (rule.version !== version) fail("STALE_RULE", "This rule changed. Refresh before trying again.");
     return rule;
   }
+  function currentCheck(id: string, version: number) {
+    const check = customChecks.find(item => item.id === id) ?? fail("NOT_FOUND", "Check not found.", 404);
+    if (!Number.isSafeInteger(version) || version < 1) fail("INVALID_BODY", "Supply a positive integer check version.", 400);
+    if (check.version !== version) fail("STALE_CHECK", "This check changed. Refresh before trying again.");
+    return check;
+  }
+  function validCheckInput(input: CustomCheckUpsert) {
+    const label = input.label?.trim(), instructions = input.instructions?.trim();
+    if (!label || label.length > 80 || !instructions || instructions.length < 10 || instructions.length > 2000) fail("INVALID_BODY", "Enter a check name up to 80 characters and instructions of 10–2,000 characters.", 400);
+    if (input.category !== undefined && input.category !== null && !["flight", "hotel", "train", "bus", "other"].includes(input.category)) fail("INVALID_BODY", "Choose a valid category scope.", 400);
+    for (const key of ["pass", "fail", "unknown"] as const) {
+      const criterion = input.criteria?.[key];
+      if (criterion !== undefined && (!criterion.trim() || criterion.length > 500)) fail("INVALID_BODY", "Each criterion must be 1–500 characters.", 400);
+    }
+    return { label, instructions, category: input.category ?? null };
+  }
+  const checkResult = (check: CustomCheck) => copy({ check, knowledge_revision: knowledgeRevision });
   function touch(row: ReviewRow) {
     row.review_revision++;
     row.updated_at = new Date().toISOString();
@@ -122,6 +141,10 @@ export function createPreviewClient(): DashboardClient {
         evidence_refs: [{ kind: "receipt", id: row.receipt!.id }, { kind: "supporting_document", id: booking.id }],
         ...(appliedProcedure ? { procedure_ids: [appliedProcedure.id] } : {}),
       };
+      // The simulated fixture cannot judge reviewer-authored questions; active custom checks stay honestly unknown.
+      for (const check of customChecks.filter(item => item.state === "active" && (item.category === null || item.category === row.category))) {
+        checks.push({ ...make(check.field, "unknown", `Simulated fixture cannot evaluate custom check "${check.label}"; the claim needs human review.`), check_method: "jev", evidence_json: { simulated: true, custom_check_id: check.id, check_label: check.label, check_version: check.version } });
+      }
     }
     row.decisions = [...checks, ...humanChecks];
     row.assessment_status = checks.some(check => check.verdict === "fail") ? "flagged" : checks.some(check => check.verdict === "unknown") ? "needs_review" : "matched";
@@ -256,6 +279,43 @@ export function createPreviewClient(): DashboardClient {
       return procedureResult(procedure);
     },
     async getRules(signal) { signal?.throwIfAborted(); return copy({ rules, knowledge_revision: knowledgeRevision }); },
+    async getChecks(signal) { signal?.throwIfAborted(); return copy({ checks: checkCatalog({ custom_checks: customChecks }), knowledge_revision: knowledgeRevision }); },
+    async createCheck(input) {
+      const valid = validCheckInput(input);
+      if (customChecks.length >= 12) fail("CHECK_LIMIT", "At most 12 custom checks are supported.");
+      const base = `custom_${valid.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32)}`;
+      if (!/^custom_[a-z0-9]/.test(base)) fail("INVALID_BODY", "The check name must contain a letter or digit.", 400);
+      const taken = new Set(customChecks.map(item => item.field));
+      let field = base, suffix = 2;
+      while (taken.has(field) || !/^custom_[a-z0-9_]{2,40}$/.test(field)) field = `${base}_${suffix++}`;
+      const now = new Date().toISOString();
+      const check: CustomCheck = { id: crypto.randomUUID(), version: 1, state: "active", field, label: valid.label, instructions: valid.instructions,
+        criteria: { pass: input.criteria?.pass?.trim() || "The receipt evidence clearly satisfies this check.", fail: input.criteria?.fail?.trim() || "The receipt evidence clearly violates this check.", unknown: input.criteria?.unknown?.trim() || "The evidence is missing, incomplete, or conflicting." },
+        category: valid.category, created_at: now, updated_at: now };
+      customChecks.push(check); knowledgeRevision++;
+      return checkResult(check);
+    },
+    async updateCheck(id, input) {
+      const check = currentCheck(id, input.expected_check_version);
+      const valid = validCheckInput(input);
+      Object.assign(check, { label: valid.label, instructions: valid.instructions, category: valid.category,
+        criteria: { pass: input.criteria?.pass?.trim() || check.criteria.pass, fail: input.criteria?.fail?.trim() || check.criteria.fail, unknown: input.criteria?.unknown?.trim() || check.criteria.unknown },
+        version: check.version + 1, updated_at: new Date().toISOString() });
+      if (check.state === "active") knowledgeRevision++;
+      return checkResult(check);
+    },
+    async enableCheck(id, input) {
+      const check = currentCheck(id, input.expected_check_version);
+      if (check.state === "active") fail("STALE_CHECK", "This check is already enabled.");
+      check.state = "active"; check.version++; check.updated_at = new Date().toISOString(); knowledgeRevision++;
+      return checkResult(check);
+    },
+    async disableCheck(id, input) {
+      const check = currentCheck(id, input.expected_check_version);
+      if (check.state === "disabled") fail("STALE_CHECK", "This check is already disabled.");
+      check.state = "disabled"; check.version++; check.updated_at = new Date().toISOString(); knowledgeRevision++;
+      return checkResult(check);
+    },
     async reconcile(input) {
       if (!input.submission_ids.length || input.submission_ids.length > 50 || new Set(input.submission_ids).size !== input.submission_ids.length) fail("INVALID_BODY", "Select 1–50 unique claims to recheck.", 400);
       return { results: input.submission_ids.map(id => {
