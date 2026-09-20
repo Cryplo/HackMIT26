@@ -133,6 +133,7 @@ test("live storage retries database timeouts and treats its own landed write as 
       const call = `${String(init?.method || "GET")} ${new URL(target).pathname}`;
       seen.push(call);
       const attempts = seen.filter((entry) => entry === call).length;
+      if (target.includes("/rpc/core_platform_version")) return Response.json(2);
       if (target.includes("/storage/v1/bucket/"))
         return Response.json({ id: "receipts", public: false });
       if (target.includes("/storage/v1/object/"))

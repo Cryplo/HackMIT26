@@ -8,6 +8,9 @@ import { CoreService } from '../service';
 import { SimulatedJev } from '../jev';
 import { SimulatedRetrieval } from '../retrieval';
 import { DEMO_IDS } from '../fixtures';
+import { workspaceRows, workspaceDecide } from '../workspace';
+import { proposeRule, changeRule } from '../rules';
+import { intelligence } from '../../intelligence';
 import type { CoreError } from '../validation';
 import { LocalStore } from '../../intake/store';
 import { submitReceipt } from '../../intake/service';
@@ -16,7 +19,7 @@ import { receiptPdf, sampleReceipts } from '../../demo/samples';
 
 test('durable local intake -> reconcile -> duplicate -> reviewer learning survives a fresh service', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'reconcile-integration-'));
-  const service = () => new CoreService(new FileStore(dir), new SimulatedRetrieval(), new SimulatedJev(), true);
+  const service = () => new CoreService(new FileStore(dir), new SimulatedRetrieval(), new SimulatedJev(), true, undefined, undefined, intelligence);
   try {
     const core = service();
     assert.equal((await core.reviews()).submissions.length, 5);
@@ -30,11 +33,20 @@ test('durable local intake -> reconcile -> duplicate -> reviewer learning surviv
     const second = await upload();
     assert.equal((await core.reconcile([second.submission_id])).results[0].status, 'flagged');
     assert.equal((await core.reconcile([DEMO_IDS[2]])).results[0].status, 'needs_review');
-    await core.correct({ submission_id: DEMO_IDS[2], human_verdict: 'approved', human_note: 'Synthetic vendor alias verified.', correction_type: 'vendor_alias', correction_payload_json: { observed_vendor: 'SYN HBR 042', canonical_vendor: 'Synthetic Harbor Hotel', scope: { category: 'hotel', currency: 'USD' } } });
+    const source = workspaceRows(await core.store.snapshot()).find(s => s.id === DEMO_IDS[2])!;
+    const { row: approved } = await workspaceDecide(core, { submission_id: source.id, expected_review_revision: source.review_revision, human_verdict: 'approved', human_note: 'Synthetic vendor identity verified.', correction_type: 'decision_override', correction_payload_json: {} });
+    const { rule } = await proposeRule(core, { submission_id: source.id, expected_review_revision: approved.review_revision, canonical_vendor: 'Synthetic Harbor Hotel' });
+    const signal = new AbortController().signal;
+    const report = await changeRule(core, rule.id, 'test', { expected_rule_version: rule.version }, signal);
+    assert.ok('passed' in report && report.passed);
+    await changeRule(core, rule.id, 'activate', { expected_rule_version: rule.version }, signal);
     const restarted = service();
     assert.equal((await restarted.reviews()).submissions.find(s => s.id === first.submission_id)!.status, 'approved');
     assert.deepEqual((await restarted.reconcile([DEMO_IDS[3], DEMO_IDS[4]])).results.map(r => r.status), ['approved', 'needs_review']);
-    assert.equal((await restarted.store.snapshot()).corrections.length, 1);
+    const persisted = await restarted.store.snapshot();
+    assert.equal(persisted.corrections.length, 1); assert.equal(persisted.rules![0].state, 'active'); assert.equal(persisted.rules![0].latest_test!.passed, true); assert.equal(persisted.knowledge_revision, 1);
+    assert.equal(workspaceRows(persisted).find(s => s.id === source.id)!.decision_status, 'approved');
+    assert.equal(workspaceRows(persisted).find(s => s.id === DEMO_IDS[3])!.decision_status, 'pending');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

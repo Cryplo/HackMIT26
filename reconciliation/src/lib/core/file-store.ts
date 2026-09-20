@@ -1,11 +1,12 @@
 import 'server-only';
 import { mkdir, readFile, writeFile, rename, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { CorrectionInput, Decision, ModelCall, Receipt, Submission, SubmissionStatus } from '../contracts';
 import { MemoryStore, type Snapshot, type Store } from './store';
 import { demoSnapshot } from './fixtures';
 import { receiptPdf } from '../demo/samples';
+import type { RuleCommand } from './rule-state';
 import { CoreError } from './validation';
 
 type Saved = { version: 1; state: Snapshot; calls: ModelCall[] };
@@ -69,7 +70,8 @@ export class FileStore implements Store {
         for (const r of state.receipts) {
           r.file_type = 'application/pdf';
           r.raw_extracted_text = `SYNTHETIC fixture: ${JSON.stringify(r.parsed_fields_json)}`;
-          await writeFile(path.join(this.dir, `${r.id}.bin`), receiptPdf(r.parsed_fields_json!), { mode: 0o600 });
+          const bytes=receiptPdf(r.parsed_fields_json!);r.sha256=createHash('sha256').update(bytes).digest('hex');r.extraction_provenance='simulated fixture';
+          await writeFile(path.join(this.dir, `${r.id}.bin`), bytes, { mode: 0o600 });
           await this.put(`${r.id}.receipt.json`, r);
           await this.put(`${r.submission_id}.submission.json`, state.submissions.find(s => s.id === r.submission_id));
         }
@@ -90,6 +92,9 @@ export class FileStore implements Store {
           let submission: Submission;
           try { submission = JSON.parse(await readFile(path.join(this.dir, `${receipt.submission_id}.submission.json`), 'utf8')); }
           catch (e) { if (missing(e)) continue; throw e; }
+          const current=store.state.receipts.find(r=>r.id===receipt.id);
+          if(current?.extracted_at && (!receipt.extracted_at||current.extracted_at>receipt.extracted_at))continue;
+          receipt.sha256??=current?.sha256;receipt.extraction_provenance??=current?.extraction_provenance;
           await store.importIntakeRecord(submission, receipt);
         } catch (e) {
           if (e instanceof CoreError && e.code === 'RUN_ACTIVE') continue;
@@ -102,6 +107,14 @@ export class FileStore implements Store {
       return result;
     } finally { if (await this.ownsLock(lock, token)) await rm(lock, { recursive: true, force: true }); }
   }
+  finishInitialExtraction(receipt:Receipt){return this.transaction(async store=>{
+    const old=store.state.receipts.find(r=>r.id===receipt.id);
+    if(!old||old.extraction_status!=='pending'||store.state.runs.some(r=>r.submission_id===old.submission_id&&r.status==='running'))throw new CoreError('STALE_REVIEW','Initial extraction was superseded; refresh the saved claim.',409);
+    if(old.sha256&&old.sha256!==receipt.sha256)throw new CoreError('RECEIPT_CONFLICT','Original receipt hash changed.',409);
+    const submission=store.state.submissions.find(s=>s.id===old.submission_id)!;
+    await store.importIntakeRecord(submission,receipt);
+    await this.put(`${receipt.id}.receipt.json`,receipt);
+  });}
   snapshot() { return this.transaction(store => store.snapshot()); }
   begin(id: string) { return this.transaction(store => store.begin(id)); }
   finish(id: string, ds: Decision[], status: SubmissionStatus) { return this.transaction(store => store.finish(id, ds, status)); }
@@ -116,6 +129,10 @@ export class FileStore implements Store {
     }
   }
   correct(input: CorrectionInput) { return this.transaction(store => store.correct(input)); }
+  rule(command:RuleCommand){return this.transaction(store=>store.rule(command));}
+  beginExtraction(id:string,revision:number){return this.transaction(store=>store.beginExtraction(id,revision));}
+  finishExtraction(lease:string,receipt:Receipt){return this.transaction(store=>store.finishExtraction(lease,receipt));}
+  receiptHash(id:string,hash:string){return this.transaction(store=>store.receiptHash(id,hash));}
   usage(call: ModelCall) { return this.transaction(store => store.usage(call)); }
   importIntakeRecord(s: Submission, r: Receipt) { return this.transaction(store => store.importIntakeRecord(s, r)); }
 }

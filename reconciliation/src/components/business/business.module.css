@@ -44,7 +44,7 @@
 .tab { position: relative; flex: none; height: 44px; padding: 0 0 12px; margin-top: 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted-foreground); box-shadow: none; font-size: 13px; font-weight: 500; }
 .tab[data-state="active"], .tab[data-active] { color: var(--foreground); background: transparent; border-bottom-color: var(--foreground); box-shadow: none; }
 .tab span { padding: 1px 5px; border-radius: var(--radius-chip); background: var(--muted); color: var(--muted-foreground); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
-.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 64px; padding: 14px 0; }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 56px; padding: 10px 0; }
 .searchForm { display: flex; align-items: center; gap: 8px; }
 .searchInput { display: block; position: relative; width: 232px; }
 .searchInput > svg { position: absolute; top: 10px; left: 10px; width: 16px; height: 16px; color: var(--muted-foreground); pointer-events: none; }
@@ -143,4 +143,20 @@
   .guideNav { gap: 8px; }
   .guideNav .brand { font-size: 18px; }
   .guideNav > a:last-child { font-size: 12px; }
+}
+
+.headerActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.headerActions > span { flex-basis: 100%; text-align: right; }
+.insights { display: flex; gap: 8px; align-items: center; overflow-x: auto; padding-top: 8px; font-size: 12px; color: var(--muted-foreground); }
+.insights > button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; text-align: left; flex-shrink: 0; cursor: pointer; }
+.insights > button[aria-pressed="true"] { background: var(--muted); color: var(--foreground); }
+.insights svg { width: 14px; height: 14px; }
+.activeFilter { display: flex; align-items: center; gap: 8px; font-size: 12px; padding-top: 8px; }
+.table .actionCell { white-space: nowrap; }
+@media (max-width: 767px) {
+  .header { flex-wrap: wrap; }
+  .headerActions { justify-content: flex-start; }
+  .headerActions > span { text-align: left; }
+  .main :global(button), .main :global([data-slot="button"]), .modeDetails summary, .claimButton { min-height: 44px; }
+  .main :global([role="checkbox"]) { min-width: 44px; }
 }

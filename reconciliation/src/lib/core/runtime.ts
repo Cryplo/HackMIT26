@@ -1,3 +1,4 @@
+import { intelligence } from '../intelligence';
 import { responsesConfig } from '../providers/responses';
 import type { Submission, Receipt } from '../contracts';
 import 'server-only';
@@ -23,14 +24,17 @@ export function getCore(): CoreService {
   const channel = directKey ? 'typesafe' : 'gateway';
   const liveJev = !simulated && !!jevKey;
   if (e.RECONCILIATION_MODE === 'live' && (!url || !liveJev)) throw new CoreError('CONFIG_ERROR', 'Live mode requires Supabase and Jev credentials.', 503);
-  const demoMode = !url || !liveJev;
+  if(url && !liveJev)throw new CoreError('CONFIG_ERROR','Shared Supabase requires live Jev; simulation is restricted to isolated local storage.',503);
+  if(!simulated&&!liveJev)throw new CoreError('CONFIG_ERROR','Configure live Jev or explicitly select isolated simulated mode.',503);
+  if(liveJev&&!url)throw new CoreError('CONFIG_ERROR','Live assessments require Supabase. Local storage is exclusively simulated.',503);
+  const demoMode = !liveJev;
   if (e.RECONCILIATION_JUSTIFICATION_MODE && !['simulated','live'].includes(e.RECONCILIATION_JUSTIFICATION_MODE)) throw new CoreError('CONFIG_ERROR', 'RECONCILIATION_JUSTIFICATION_MODE must be live or simulated.', 503);
   if (e.RECONCILIATION_JUSTIFICATION_MODE === 'live' && simulated) throw new CoreError('CONFIG_ERROR', 'Live justifications require Azure or OpenAI configuration outside simulated mode.', 503);
   // Opt-in only: an OPENAI_API_KEY in the environment must never start spending on narratives by itself.
   const liveJustification = e.RECONCILIATION_JUSTIFICATION_MODE === 'live';
   let narrative;
   if(liveJustification) { try { narrative=responsesConfig('justification'); } catch { throw new CoreError('CONFIG_ERROR','Configure Azure endpoint/key/deployment or OPENAI_API_KEY for live justifications.',503); } }
-  globalCore.reimbursementCore = new CoreService(store, new DatabaseRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: url ? 'Supabase candidate scan' : 'local candidate scan', storage: url ? 'Supabase' : 'local disk', justification: narrative ? `live ${narrative.provider}` : 'deterministic summary' }, narrative ? new OpenAiJustifier(narrative.key, narrative.model, fetch, narrative) : new SimulatedJustifier());
+  globalCore.reimbursementCore = new CoreService(store, new DatabaseRetrieval(), liveJev ? new LiveJev(jevKey!, e.JEV_MODEL || (channel === 'gateway' ? 'typesafe-ai/jev' : 'jev-latest'), channel) : new SimulatedJev(), demoMode, { decisions: liveJev ? 'live Jev' : 'simulated', retrieval: url ? 'Supabase candidate scan' : 'local candidate scan', storage: url ? 'Supabase' : 'local disk', justification: narrative ? `live ${narrative.provider}` : 'deterministic summary' }, narrative ? new OpenAiJustifier(narrative.key, narrative.model, fetch, narrative) : new SimulatedJustifier(), intelligence);
   return globalCore.reimbursementCore;
 }
 

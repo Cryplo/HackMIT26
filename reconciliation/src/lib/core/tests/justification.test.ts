@@ -8,6 +8,7 @@ import { SimulatedJev } from '../jev';
 import { OpenAiJustifier, SimulatedJustifier, evidenceLines, validateNarrative } from '../justification';
 import type { Justification, Justifier } from '../justification';
 import { justificationInput, CoreError } from '../validation';
+import { workspaceRows } from '../workspace';
 const narrative = { summary: 'The claim was approved.', reasons: ['amount: pass — cents matched'], next_step: 'No reviewer action is required.' };
 const body = (text: string, status = 'completed') => ({ ok: true, status: 200, json: async () => ({ status, model: 'gpt-4.1-mini-2026', usage: { input_tokens: 120, output_tokens: 40 }, output: [{ content: [{ type: 'output_text', text }] }] }) }) as unknown as Response;
 const transport = (response: Response | Error, seen: Request[] = []) => (async (url: string | URL | Request, init?: RequestInit) => { seen.push(new Request(String(url), init)); if (response instanceof Error) throw response; return response; }) as unknown as typeof fetch;
@@ -78,20 +79,30 @@ test('an invalid narrative is logged once and degrades without a second usage ro
   const justification = store.state.decisions.find(d => d.field_checked === 'overall_status')!.evidence_json.justification as Justification;
   assert.equal(justification.error, 'JUSTIFICATION_INVALID');
 });
-test('a human override is narrated as an override, not as the machine checks passing', async () => {
+test('an approved semantic ambiguity remains a reviewer override before and after rechecking', async () => {
   const { core, store } = setup();
-  await core.reconcile([DEMO_IDS[1]]);
-  const machine = store.state.decisions.find(d => d.field_checked === 'overall_status')!;
-  await core.correct({ submission_id: DEMO_IDS[1], human_verdict: 'approved', human_note: 'Receipt confirmed offline.', correction_type: 'decision_override', correction_payload_json: {} });
-  const result = await core.justify(DEMO_IDS[1]);
-  assert.equal(result.status, 'approved');
-  assert.match(result.justification.summary, /reviewer override/);
-  assert.match(result.justification.summary, new RegExp(machine.answer_json.value === 'flagged' ? 'flagged' : 'review'));
-  assert.doesNotMatch(result.justification.summary, /because every check passed/);
+  await core.reconcile([DEMO_IDS[2]]);
+  const row = workspaceRows(await store.snapshot())[2];
+  assert.equal(row.assessment_status, 'needs_review');
+  await core.correct({ submission_id: row.id, expected_review_revision: row.review_revision, human_verdict: 'approved', human_note: 'Receipt merchant identity confirmed offline.', correction_type: 'decision_override', correction_payload_json: {} });
+  for (const recheck of [false, true]) {
+    if (recheck) await core.reconcile([row.id]);
+    const result = await core.justify(row.id);
+    assert.equal(result.status, 'approved');
+    assert.match(result.justification.summary, /reviewer override/);
+    assert.match(result.justification.summary, /automated run ended as sent to human review/);
+    assert.doesNotMatch(result.justification.summary, /because every check passed/);
+    assert.equal(workspaceRows(await store.snapshot())[2].assessment_status, 'needs_review');
+  }
 });
-test('a claim approved before any run is never described as having passed checks', async () => {
-  const { core } = setup();
-  await core.correct({ submission_id: DEMO_IDS[0], human_verdict: 'approved', human_note: 'Approved out of band.', correction_type: 'decision_override', correction_payload_json: {} });
+test('approval before any run is blocked; a rejection never claims checks passed', async () => {
+  const { core, store } = setup();
+  const input = { submission_id: DEMO_IDS[0], expected_review_revision: workspaceRows(await store.snapshot())[0].review_revision, human_verdict: 'approved' as const, human_note: 'Reviewed out of band.', correction_type: 'decision_override' as const, correction_payload_json: {} };
+  const before = await store.snapshot();
+  await assert.rejects(core.correct(input), { code: 'APPROVAL_BLOCKED', status: 409 });
+  assert.deepEqual(await store.snapshot(), before);
+  await assert.rejects(core.justify(DEMO_IDS[0]), { code: 'NO_COMPLETED_RUN' });
+  await core.correct({ ...input, human_verdict: 'rejected' });
   const { justification } = await core.justify(DEMO_IDS[0]);
   assert.doesNotMatch(justification.summary, /every check passed/);
   assert.match(justification.summary, /never produced a machine outcome|no automated checks/);

@@ -6,15 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, statusLabel } from "@/lib/dashboard/helpers";
+import { activationBlock, normalizeVendor as normalize } from "@/lib/dashboard/review";
 import type { RulesPanelProps } from "@/lib/dashboard/ui-contracts";
 import type { MerchantRule, RulesResponse } from "@/lib/review-contracts";
 import styles from "./panels.module.css";
 
-const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 const message = (error: unknown) => error instanceof Error ? error.message : "The request failed. Please try again.";
 type Action = "test" | "activate" | "disable";
 
-export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onRecheck }: RulesPanelProps) {
+export function RulesPanel({ client, rows, knowledgeRevision, capabilities, simulatedEnvironment, onOpenClaim, onChanged, onRecheck }: RulesPanelProps) {
   const [data, setData] = useState<RulesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,9 +23,12 @@ export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onReche
   const [activationDenied, setActivationDenied] = useState<string[]>([]);
   const request = useRef(0);
   const mutationLock = useRef(false);
+  const enabled = capabilities?.rule_learning === true;
+  const sourceRevisions = rows.map(row => `${row.id}:${row.review_revision}`).join("|");
   const revision = Math.max(knowledgeRevision, data?.knowledge_revision ?? 0);
 
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (!enabled) return;
     const id = ++request.current;
     setLoading(true);
     try {
@@ -34,25 +37,33 @@ export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onReche
     } finally {
       if (id === request.current && !signal?.aborted) setLoading(false);
     }
-  }, [client]);
+  }, [client, enabled]);
 
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal).catch((failure) => { if (!controller.signal.aborted) setError(message(failure)); });
     return () => controller.abort();
-  }, [load, knowledgeRevision]);
+  }, [load, knowledgeRevision, sourceRevisions]);
 
   async function mutate(rule: MerchantRule, action: Action) {
-    if (mutationLock.current) return;
+    if (!enabled || mutationLock.current) return;
     mutationLock.current = true;
     ++request.current;
     setLoading(false); setBusy({ id: rule.id, action }); setError(null); setNotice(null);
     try {
       const input = { expected_rule_version: rule.version };
-      const result = action === "test" ? await client.testRule(rule.id, input) : action === "activate" ? await client.activateRule(rule.id, input) : await client.disableRule(rule.id, input);
-      setData((previous) => ({ knowledge_revision: result.knowledge_revision, rules: previous ? previous.rules.map((item) => item.id === result.rule.id ? result.rule : item) : [result.rule] }));
-      if (action === "test") setActivationDenied((previous) => previous.filter((id) => id !== rule.id));
-      setNotice(action === "activate" ? "Rule activated. Recheck related claims to apply it; human decisions are preserved." : action === "disable" ? "Rule disabled. Its history is retained. Existing assessments need an explicit recheck." : result.rule.latest_test?.passed ? "Rule test passed. Review the results before activation." : "Rule test finished without a passing report. Review the reasons below.");
+      if (action === "test") {
+        // A test returns a report, not a rule. Only the subsequent GET can supply authoritative state/version.
+        setActivationDenied(previous => [...new Set([...previous, rule.id])]);
+        setData(previous => previous && ({ ...previous, rules: previous.rules.map(item => item.id === rule.id ? { ...item, latest_test: null } : item) }));
+        const report = await client.testRule(rule.id, input);
+        await load();
+        setActivationDenied(previous => previous.filter(id => id !== rule.id));
+        setNotice(report.passed ? "Rule test passed. Review the current report before activation." : "Rule test finished without a passing report. Review the reasons below.");
+      } else {
+        await (action === "activate" ? client.activateRule(rule.id, input) : client.disableRule(rule.id, input));
+        setNotice(action === "activate" ? "Rule activated. Recheck related claims to apply it; human decisions are preserved." : "Rule disabled. Its history is retained. Existing assessments need an explicit recheck.");
+      }
       const refreshes = await Promise.allSettled([load(), onChanged()]);
       const failedRefresh = refreshes.find((result) => result.status === "rejected");
       if (failedRefresh?.status === "rejected") setError(`The change was saved, but refresh failed. ${message(failedRefresh.reason)}`);
@@ -74,6 +85,8 @@ export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onReche
     finally { mutationLock.current = false; setBusy(null); }
   }
 
+  if (!enabled) return <section aria-label="Learned merchant rules"><p className="py-6 text-sm text-muted-foreground">Merchant rule learning is unavailable on this backend. Claim review remains available.</p></section>;
+
   return <section className={`${styles.rules} space-y-5`} aria-label="Learned merchant rules">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-semibold">Merchant rules</h2><p className="mt-1 text-sm text-muted-foreground">Approved exceptions become drafts. Test a draft before making it active.</p></div><Button variant="outline" size="lg" disabled={loading || !!busy} aria-busy={loading} onClick={() => { setError(null); void load().catch((failure) => setError(message(failure))); }}><RotateCw aria-hidden="true" className={loading ? "motion-safe:animate-spin" : undefined} />{loading ? "Refreshing…" : "Refresh rules"}</Button></div>
     {client.mode === "preview" && <div className="flex items-start gap-2 text-sm text-muted-foreground"><FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><p>Preview — synthetic data. Tests below are simulated examples, not measured live AI accuracy.</p></div>}
@@ -85,18 +98,19 @@ export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onReche
     {data?.rules.map((rule) => {
       const report = rule.latest_test;
       const source = rows.find((row) => row.id === rule.source_submission_id);
-      const currentReport = !!report && report.rule_id === rule.id && report.rule_version === rule.version && report.knowledge_revision === revision && report.suite_version === "alias-v1";
       const approvedSource = source?.decision_status === "approved";
       const denied = activationDenied.includes(rule.id);
-      const canActivate = rule.state === "draft" && approvedSource && currentReport && report.passed && !denied && (client.mode !== "preview" || report.mode === "simulated");
-      const related = rows.filter((row) => row.assessment_knowledge_revision !== revision && row.category === rule.payload.scope.category && row.currency === rule.payload.scope.currency && normalize(row.receipt?.parsed_fields_json?.vendor || "") === normalize(rule.payload.observed_vendor));
+      const block = activationBlock(rule, rows, revision, client.mode, simulatedEnvironment);
+      const canActivate = rule.state === "draft" && !block && !denied && !error;
+      const related = rows.filter((row) => (row.assessment_status === null || row.assessment_knowledge_revision !== revision) && row.processing_status !== "running" && row.receipt?.extraction_status === "succeeded" && row.category === rule.payload.scope.category && row.currency === rule.payload.scope.currency && normalize(row.receipt?.parsed_fields_json?.vendor || "") === normalize(rule.payload.observed_vendor));
       const ids = related.slice(0, 50).map((row) => row.id);
       const testing = busy?.id === rule.id && busy.action === "test";
-      const activationReason = !approvedSource ? "Source claim must remain approved." : denied ? "Refresh and test this draft again before activation." : !report ? "Test this draft before activation." : !currentReport ? "The rule or active knowledge changed. Test this draft again." : !report.passed ? "This test did not pass. Activation is blocked." : client.mode === "preview" && report.mode !== "simulated" ? "The test mode does not match this preview." : "Passing test is current. Ready for activation.";
+      const activationReason = denied ? "Refresh and test this draft again before activation." : block || "Passing test is current. Ready for activation.";
       return <article key={rule.id} aria-label={`${rule.payload.observed_vendor} rule`} className="border-t py-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words font-semibold">{rule.payload.observed_vendor}</h3><ArrowRight className="size-4 text-muted-foreground" aria-label="maps to" /><span className="break-words font-medium">{rule.payload.canonical_vendor}</span></div><p className="mt-2 text-xs text-muted-foreground">Scope: {statusLabel(rule.payload.scope.category)} · {rule.payload.scope.currency} · Exact merchant name</p></div><Badge variant="secondary" className={`h-6 rounded capitalize ${rule.state === "active" ? "bg-[var(--status-good-bg)] text-[var(--status-good)]" : ""}`}>{rule.state === "active" && <ShieldCheck aria-hidden="true" />}{rule.state}</Badge></div>
-        <p className="mt-3 text-xs text-muted-foreground">Source claim: <span className="text-foreground">{source?.attendee_name || rule.source_submission_id}</span> · {source ? statusLabel(source.decision_status) : "Not in current ledger"} · Created {formatDate(rule.created_at)} · Version {rule.version}</p>
+        <p className="mt-3 text-xs text-muted-foreground">Source claim: {source ? <button type="button" className="min-h-11 text-foreground underline" onClick={() => onOpenClaim(source.id)}>{source.attendee_name}</button> : <span>{rule.source_submission_id} (not loaded)</span>} · {source ? statusLabel(source.decision_status) : "Not in current ledger"} · Created {formatDate(rule.created_at)} · Version {rule.version}</p>
 
+        {rule.latest_test_error && <p role="alert" className="mt-3 text-sm text-destructive">Latest test failed: {rule.latest_test_error}. Activation requires another complete test.</p>}
         {report ? <div className="mt-5 max-w-2xl"><div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-medium">Last test</h4><Badge variant="outline" className="rounded">{report.mode === "simulated" ? "Simulated test" : "Live test"}</Badge><span className={`flex items-center gap-1 text-xs ${report.passed ? "text-[var(--status-good)]" : "text-destructive"}`}>{report.passed ? <Check className="size-3.5" aria-hidden="true" /> : <TriangleAlert className="size-3.5" aria-hidden="true" />}{report.passed ? "Passed" : "Failed"}</span></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(report.tested_at)} · Tested version {report.rule_version} · Rule set {report.knowledge_revision} · {report.suite_version}</p>
           <Table className="mt-3 text-sm"><TableHeader><TableRow><TableHead>Evaluation cases</TableHead><TableHead className="text-right">Before</TableHead><TableHead className="text-right">After</TableHead></TableRow></TableHeader><TableBody>{([ ["Total cases", "total"], ["Correct outcomes", "correct"], ["False matches", "false_matches"], ["Needs review", "needs_review"] ] as const).map(([label, key]) => <TableRow key={key}><TableCell>{label}</TableCell><TableCell className="text-right tabular-nums">{report.before[key]}</TableCell><TableCell className="text-right tabular-nums">{report.after[key]}</TableCell></TableRow>)}</TableBody></Table>
           {report.reasons.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-4 text-xs leading-5 text-muted-foreground">{report.reasons.map((reason, index) => <li key={index}>{reason}</li>)}</ul>}
@@ -105,7 +119,7 @@ export function RulesPanel({ client, rows, knowledgeRevision, onChanged, onReche
         </div> : <p className="mt-4 text-sm text-muted-foreground">No completed test report.</p>}
 
         {rule.state === "draft" && <p className={`mt-4 text-xs ${report && !report.passed ? "text-destructive" : "text-muted-foreground"}`}>{activationReason}</p>}
-        {testing && <p role="status" className="mt-3 text-sm text-muted-foreground">Testing this rule. Live evaluation can take up to 90 seconds.</p>}
+        {testing && <p role="status" className="mt-3 text-sm text-muted-foreground">Testing this rule. Wait for the provider results; no claims will be approved.</p>}
         <div className="mt-4 flex flex-wrap gap-2">
           {rule.state === "draft" && <><Button variant="outline" size="lg" disabled={!!busy || loading || !approvedSource} aria-busy={testing} onClick={() => void mutate(rule, "test")}>{testing ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <FlaskConical aria-hidden="true" />}{testing ? "Testing…" : "Test rule"}</Button><Button size="lg" disabled={!!busy || loading || !canActivate} aria-busy={busy?.id === rule.id && busy.action === "activate"} onClick={() => void mutate(rule, "activate")}>{busy?.id === rule.id && busy.action === "activate" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy?.id === rule.id && busy.action === "activate" ? "Activating…" : "Activate"}</Button></>}
           {rule.state !== "disabled" && <Button variant="outline" size="lg" disabled={!!busy || loading} aria-busy={busy?.id === rule.id && busy.action === "disable"} onClick={() => void mutate(rule, "disable")}>{busy?.id === rule.id && busy.action === "disable" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy?.id === rule.id && busy.action === "disable" ? "Disabling…" : "Disable rule"}</Button>}

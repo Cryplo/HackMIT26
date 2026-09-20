@@ -47,6 +47,8 @@ export const Submission = z
 export type SubmissionInput = z.infer<typeof Submission>;
 export type ParsedFields = z.infer<typeof Fields>;
 export type Receipt = {
+  sha256?: string | null;
+  extraction_provenance?: string | null;
   id: string;
   submission_id: string;
   storage_path: string;

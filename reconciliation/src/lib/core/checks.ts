@@ -18,8 +18,9 @@ export function deterministic(s: Submission, r: Receipt | null, policies: Policy
   if (applicable.length === 1) checks.push(d('policy_cap', s.amount_requested_minor <= applicable[0].max_amount_minor ? 'pass' : 'fail', s.amount_requested_minor <= applicable[0].max_amount_minor, 'Requested amount must not exceed the reimbursement cap.', { maximum_minor: applicable[0].max_amount_minor, requested_minor: s.amount_requested_minor }));
   return checks;
 }
-export function overall(ds: Decision[]): SubmissionStatus {
-  // Incomplete evidence/provider failures always require review. Hard failures never become approval.
-  if (ds.some(d => d.verdict === 'unknown')) return 'needs_review';
-  return ds.some(d => d.verdict === 'fail') ? 'flagged' : 'approved';
+export const requiredChecks = ['currency','amount','policy','receipt_date','policy_cap','merchant','name','duplicate'];
+export function overall(ds: Pick<Decision, 'field_checked' | 'verdict'>[]): SubmissionStatus {
+  if (ds.some(d => d.verdict === 'fail')) return 'flagged';
+  if (ds.some(d => d.verdict === 'unknown') || requiredChecks.some(f => !ds.some(d => d.field_checked === f && d.verdict === 'pass'))) return 'needs_review';
+  return 'approved';
 }
