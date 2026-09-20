@@ -114,14 +114,14 @@ export default function SubmitForm({
         <div role="status" className="mt-4 space-y-2 rounded-md border border-border bg-muted/50 p-4 text-sm leading-6">
           <p className="flex items-center gap-2 font-medium"><CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />Claim saved. Review is pending.</p>
           <p>{result.extraction_status === "failed"
-            ? "We couldn’t extract the receipt. The original is saved for manual review."
+            ? "We couldn’t extract the receipt. Open this saved claim to retry extraction when available; the original is retained."
             : mode === "demo"
               ? "Extraction was simulated. Bundled sample receipts have fixture fields; other files remain unknown."
               : "Receipt details extracted. An organizer can now run reconciliation."}</p>
           <p className="break-all text-xs text-muted-foreground">Claim {result.submission_id}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <a className="inline-flex min-h-11 items-center underline underline-offset-4" href={`/api/receipts/${result.receipt_id}`} target="_blank" rel="noreferrer">View saved receipt ↗</a>
-            <a className="inline-flex min-h-11 items-center underline underline-offset-4" href="/business-demo">Open organizer dashboard ↗</a>
+            <a className="inline-flex min-h-11 items-center underline underline-offset-4" href={`/business-demo?claim=${encodeURIComponent(result.submission_id)}`}>Open saved claim ↗</a>
           </div>
         </div>
       )}

@@ -1,0 +1,28 @@
+[
+  {
+    "provider": "azure-openai",
+    "requested_model": "gpt-5.6-luna",
+    "returned_model": "gpt-5.6-luna",
+    "sku": "ASSUMED GPT-5.6 Luna short context Global Standard; actual deployment tier unverified",
+    "region": "ASSUMED westus3",
+    "source_url": "https://prices.azure.com/api/retail/prices?$filter=contains%28meterName%2C%20%275.6%20luna%20ShortCo%27%29%20and%20contains%28meterName%2C%20%27Std%20Gl%27%29%20and%20armRegionName%20eq%20%27westus3%27%20and%20currencyCode%20eq%20%27USD%27",
+    "checked_at": "2026-09-20",
+    "input_usd_per_million": 0.2,
+    "output_usd_per_million": 1.2,
+    "cached_input_usd_per_million": 0.02,
+    "cache_write_usd_per_million": 0.25,
+    "cache_write_accounting": "included_in_input"
+  },
+  {
+    "provider": "vercel-typesafe",
+    "requested_model": "typesafe-ai/jev",
+    "returned_model": "typesafe-ai/jev",
+    "sku": "Gateway public models API listed rate; excludes temporary free promotion",
+    "region": "Gateway",
+    "source_url": "https://ai-gateway.vercel.sh/v1/models",
+    "checked_at": "2026-09-20",
+    "input_usd_per_million": 0.041999999999999996,
+    "output_usd_per_million": 0.0,
+    "cached_input_usd_per_million": 0.041999999999999996
+  }
+]

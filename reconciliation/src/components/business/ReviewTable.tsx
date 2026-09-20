@@ -1,19 +1,21 @@
 "use client";
 
-import { ArrowUpRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { ReviewRow } from "@/lib/review-contracts";
+import type { ReviewRow, WorkspaceCapabilities } from "@/lib/review-contracts";
 import { money, statusLabel } from "@/lib/dashboard/helpers";
+import { amountDelta, nextAction } from "@/lib/dashboard/review";
 import { AssessmentBadge, DecisionBadge } from "./ReviewStatus";
 import styles from "./business.module.css";
 
-export function ReviewTable({ rows, selected, activeId, busy, onSelect, onSelectVisible, onOpen, label = "Reimbursement claims" }: {
+export function ReviewTable({ rows, selected, activeId, busy, knowledgeRevision, capabilities, onSelect, onSelectVisible, onOpen, label = "Reimbursement claims" }: {
   rows: ReviewRow[];
   selected: string[];
   activeId: string | null;
   busy: boolean;
+  knowledgeRevision: number;
+  capabilities?: WorkspaceCapabilities;
   onSelect(id: string): void;
   onSelectVisible(ids: string[], checked: boolean): void;
   onOpen(id: string): void;
@@ -28,15 +30,16 @@ export function ReviewTable({ rows, selected, activeId, busy, onSelect, onSelect
         <TableHeader>
           <TableRow>
             <TableHead className={styles.checkboxCell}>
-              <Checkbox aria-label={`Select all ${label.toLowerCase()}`} checked={allSelected ? true : someSelected ? "indeterminate" : false} disabled={busy || !rows.length || (!someSelected && selected.length >= 50)} onCheckedChange={(checked) => onSelectVisible(rows.map((row) => row.id), checked === true)} />
+              <Checkbox aria-label={`Select all ${label.toLowerCase()}`} checked={allSelected ? true : someSelected ? "indeterminate" : false} disabled={busy || !rows.length || (!someSelected && selected.length >= 1000)} onCheckedChange={(checked) => onSelectVisible(rows.map((row) => row.id), checked === true)} />
             </TableHead>
             <TableHead>Claimant</TableHead>
             <TableHead>Merchant</TableHead>
             <TableHead className={styles.numeric}>Claimed</TableHead>
             <TableHead className={styles.numeric}>Receipt</TableHead>
+            <TableHead className={styles.numeric}>Delta</TableHead>
             <TableHead>Assessment</TableHead>
             <TableHead>Decision</TableHead>
-            <TableHead><span className="sr-only">Open claim</span></TableHead>
+            <TableHead>Next</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -47,7 +50,7 @@ export function ReviewTable({ rows, selected, activeId, busy, onSelect, onSelect
               onOpen(row.id);
             }}>
               <TableCell className={styles.checkboxCell}>
-                <Checkbox aria-label={`Select ${row.attendee_name}`} checked={selected.includes(row.id)} disabled={busy || (!selected.includes(row.id) && selected.length >= 50)} onCheckedChange={() => onSelect(row.id)} />
+                <Checkbox aria-label={`Select ${row.attendee_name}`} checked={selected.includes(row.id)} disabled={busy || (!selected.includes(row.id) && selected.length >= 1000)} onCheckedChange={() => onSelect(row.id)} />
               </TableCell>
               <TableCell>
                 <div className={styles.claimant}>
@@ -58,9 +61,10 @@ export function ReviewTable({ rows, selected, activeId, busy, onSelect, onSelect
               <TableCell><span className={styles.merchant}>{row.receipt?.parsed_fields_json?.vendor ?? "—"}</span><span className={styles.cellMeta}>{statusLabel(row.category)}</span></TableCell>
               <TableCell className={styles.numeric}>{money(row.amount_requested_minor, row.currency)}</TableCell>
               <TableCell className={styles.numeric}>{money(row.receipt?.parsed_fields_json?.amount_minor, row.receipt?.parsed_fields_json?.currency ?? null)}{row.receipt?.extraction_status === "failed" && <span className={styles.extractionFailed}>Extraction failed</span>}</TableCell>
+              <TableCell className={styles.numeric}>{amountDelta(row).label}</TableCell>
               <TableCell><AssessmentBadge status={row.assessment_status} processingStatus={row.processing_status} /></TableCell>
               <TableCell><DecisionBadge status={row.decision_status} /></TableCell>
-              <TableCell className={styles.actionCell}><Button variant="ghost" size="icon" aria-label={`Review ${row.attendee_name}'s receipt`} aria-haspopup="dialog" onClick={() => onOpen(row.id)}>{row.receipt ? <FileText aria-hidden="true" /> : <ArrowUpRight aria-hidden="true" />}</Button></TableCell>
+              <TableCell className={styles.actionCell}><Button variant="ghost" aria-label={`${nextAction(row, knowledgeRevision, capabilities)}: ${row.attendee_name}`} aria-haspopup="dialog" onClick={() => onOpen(row.id)}>{nextAction(row, knowledgeRevision, capabilities)}</Button></TableCell>
             </TableRow>
           ))}
         </TableBody>

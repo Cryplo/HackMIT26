@@ -1,6 +1,10 @@
 # Sift: hackathon reimbursements
 
-Current UI branch: `feat/ramp-ui`. See [the current build instructions](../BUILD_INSTRUCTIONS.md) and open `/business-demo?preview=1` for the new review workspace. The v2 backend integration is still pending; preview data and learning results are simulated. The backend behavior and setup described below refer to the existing v1 implementation.
+The app has two main pages: `/business-demo` for the real review queue and integrated
+Jev search, and `/submit` for claim uploads. `/search`, `/demo`, and `/` redirect to
+`/business-demo`. The queue reads the existing Supabase/local records through a
+server projection that keeps machine assessments and persisted human corrections
+separate. No extra database migration is needed for this integration.
 
 Integrated intake, reconciliation, and organizer review. A reviewer can correct a merchant alias and improve a later claim without changing financial rules. **Synthetic data only: no authentication or payments.** Approved means approved for reimbursement, not paid. The older browser prototype remains untouched outside this directory. Integration branch: `codex/reconciliation-integrated`.
 
@@ -13,7 +17,7 @@ npm ci
 npm run demo
 ```
 
-Open **http://127.0.0.1:3000/demo** for the walkthrough, **/business-demo** for the organizer, and **/submit** for intake. Use the exact hostname: mutations enforce same origin. For another port: `npm run demo -- --port 3002`.
+Open **http://127.0.0.1:3000/business-demo** for review and search, and **/submit** for intake. Use the exact hostname: mutations enforce same origin. For another port: `npm run demo -- --port 3002`.
 
 This command disables live services even when keys exist. Five fictional claims and PDF receipts initialize automatically. Uploads, decisions, runs, and corrections persist in ignored `.intake-demo/`. Local storage uses atomic snapshots and a cross-process lock on one machine; use Supabase for deployment. Interrupted runs expire after five minutes and can then be retried.
 
@@ -23,7 +27,7 @@ This command disables live services even when keys exist. Five fictional claims 
 npm run demo:jev
 ```
 
-Stop the other server first, or pass `-- --port 3002`. This uses `AI_GATEWAY_API_KEY` or `TYPESAFE_API_KEY` from environment/`.env.local`; if absent, it can reuse the browser prototype's key in `../.env`. It does not print or copy keys. Real Jev calls incur provider usage. Extraction still uses sample fixtures, retrieval uses local simulated matching, and storage stays local. The dashboard labels the execution modes. Unknown/low-confidence live results require review; the exact walkthrough numbers describe simulation.
+Stop the other server first, or pass `-- --port 3002`. This uses `AI_GATEWAY_API_KEY` or `TYPESAFE_API_KEY` from environment/`.env.local`; if absent, it can reuse the browser prototype's key in `../.env`. It does not print or copy keys. Real Jev calls incur provider usage. Extraction still uses sample fixtures, retrieval scans actual stored receipt fields locally, and storage stays local. The dashboard labels the execution modes. Unknown/low-confidence live results require review; the exact walkthrough numbers describe simulation.
 
 ## Three-minute demo
 
@@ -47,19 +51,18 @@ Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, withou
 ## Full live setup: manual credentials required
 
 1. Create a **dedicated demo Supabase project**. Run `supabase/migrations/202609190001_reimbursement_core.sql` once in its SQL editor, then `supabase/seed.sql`. This creates service-only tables/RPCs, a private `receipts` bucket, and fictional records.
-2. Create an Elasticsearch deployment and API key with create-index, indexing, and search permissions. Use its HTTPS endpoint, not a Cloud ID, and a dedicated index.
+2. No search service setup is needed. Candidate retrieval reads your stored receipt records.
 3. Obtain an OpenAI key with access to a PDF/vision Responses model. Default is `gpt-4.1-mini`.
-4. Copy `.env.example` to `.env.local`. Set all three modes to `live`. Fill Supabase, OpenAI, Elasticsearch, and one Jev provider's credentials. Gateway uses `JEV_MODEL=typesafe-ai/jev`; direct TypeSafe uses `jev-latest`. Never commit keys or expose them to browser code.
+4. Copy `.env.example` to `.env.local`. Set all three modes to `live`. Fill Supabase, OpenAI, and one Jev provider's credentials. Gateway uses `JEV_MODEL=typesafe-ai/jev`; direct TypeSafe uses `jev-latest`. Never commit keys or expose them to browser code.
 5. Set `RECONCILIATION_APP_ORIGIN` to the exact URL you open, then:
 
 ```sh
-npm run search:setup
 npm run seed:receipts
 npm run check:jev
 npm run dev -- --hostname 127.0.0.1
 ```
 
-`search:setup` creates the index once and will not replace an existing index. `seed:receipts` uploads five fictional PDFs after SQL seeding, overwriting only their fixed synthetic storage objects. `check:jev` makes one live call; `npm run check:jev -- --workflow` runs seven calls covering the correction loop. Seed parsed fields are fixtures: upload a **new file through the form** to verify OpenAI extraction.
+`seed:receipts` uploads five fictional PDFs after SQL seeding, overwriting only their fixed synthetic storage objects. `check:jev` makes one live call; `npm run check:jev -- --workflow` runs seven calls covering the correction loop. Seed parsed fields are fixtures: upload a **new file through the form** to verify OpenAI extraction.
 
 Live mode fails closed on missing configuration and never silently simulates provider failure. Restart after changing environment settings.
 
@@ -80,7 +83,7 @@ npm run test:browser
 
 Browser tests start an isolated app on port 3100 and use fresh temporary data, without modifying your demo ledger. Google Chrome is required; if missing, run `npx playwright install chrome`. `DASHBOARD_BASE_URL` selects an external test server, which must have a fresh synthetic dataset. Tests cover real upload/API/storage/review integration using simulated providers, failed requests, and desktop/mobile layouts.
 
-SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase harness. Provider contract tests mock HTTP. Actual Gateway Jev workflow evidence is in `docs/live-jev-smoke.json`; this is a small smoke test, **not an accuracy/cost benchmark**. OpenAI, remote Supabase, and Elasticsearch still need live verification after configuration.
+SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase harness. Provider contract tests mock HTTP. Actual Gateway Jev workflow evidence is in `docs/live-jev-smoke.json`; this is a small smoke test, **not an accuracy/cost benchmark**. OpenAI and remote Supabase still need live verification after configuration.
 
 ## Boundaries and useful next work
 
@@ -90,6 +93,49 @@ SQL tests exercise PostgreSQL functions under PGlite with a minimal Supabase har
 - Usage is logged once per call; unknown costs stay null. Highest-value next sponsor feature: a fair labeled Jev-versus-LLM benchmark with measured latency/cost and decision quality, plus visible usage reporting.
 - Justifications are explanations of recorded checks, not model reasoning traces and not an independent audit of the outcome.
 - Dashboard shows current decisions and the applicable human override. A historical run comparison/export, extraction edit/retry controls, and policy editor would improve usability. Rationale is an evidence-based template, not a claim to expose model reasoning.
-- Elasticsearch retrieval is bounded to a small demo corpus (1000 records), not production incremental indexing. Evaluate varied receipts and near-duplicates before broad quality claims.
+- Database candidate retrieval is bounded to a small demo corpus (1000 claims), not production-scale indexing. Evaluate varied receipts and near-duplicates before broad quality claims.
 - Before real users: authentication/authorization, retention controls, upload abuse limits, and background jobs/retries. No payments, DOCX, currency conversion, or independent auditor.
 - Hosting must support private durable storage, 8 MiB uploads, extraction requests up to 90 seconds, and reconciliation batches up to 300 seconds. Some serverless platforms need direct storage uploads and background workers. No deployment has been performed.
+
+## Integrated review and search (no Elasticsearch)
+
+The business page displays real stored claims, original receipts, machine checks,
+and the latest human approval/rejection note. Machine passes appear as **Matched**
+with the human decision still **Pending**. Human corrections persist across reruns.
+Approvals require successful extraction, a completed assessment, passing financial
+and duplicate checks, and a reviewer note. An existing database run lease serializes
+reviewer writes against reconciliation; stale revisions return an explicit error.
+
+Use the existing search box and **AI search** for questions such as `hotel claims`
+or `claims above $200`. Decision/category/assessment filters run first; Jev then
+classifies up to 100 claims in batches of ten. Uncertain matches are separate.
+Provider failures never become fabricated results. Search is read-only, checks its
+snapshot before and after evaluation, and logs usage. `demo:jev` enables real search;
+`demo` deliberately disables paid search. Azure/OpenAI is not needed for search.
+
+The workspace uses `/api/workspace/reviews`, `/api/workspace/reconcile`,
+`/api/workspace/decisions`, and `/api/search`. Legacy APIs remain for existing scripts.
+The independent search page has been removed; its old URL redirects to the workspace.
+The explicit `?preview=1` fixture mode remains for automated UI tests but is not linked
+from the real workflow. Unimplemented learning/investigation controls are not offered
+in the live UI; failed extraction directs users to submit a replacement document.
+
+Candidate retrieval scans authoritative stored receipt fields and needs no external
+search service. It rejects corpora above 1000 claims rather than truncating evidence.
+Exact file-hash duplicate enforcement, autonomous investigations, tested rule
+activation, and extraction retry still need their broader platform implementation.
+
+## Azure OpenAI
+
+Azure is supported for real receipt extraction and optional decision explanations.
+Set `AZURE_OPENAI_ENDPOINT` to the HTTPS resource root or `/openai/v1` base,
+`AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT` to your deployment name.
+No direct `OPENAI_API_KEY` is needed. A partial Azure configuration fails explicitly;
+it never redirects the Azure key to OpenAI. Requests use `/openai/v1/responses`,
+`api-key` authentication, and the deployment name as `model`. Usage records identify
+`azure-openai`. PDF/image and structured-output support depend on your deployment.
+
+Set extraction mode to `live`. Written explanations remain opt-in through
+`RECONCILIATION_JUSTIFICATION_MODE=live`. Start ordinary `npm run dev` to honor the
+file's settings; demo commands deliberately disable paid extraction/explanations.
+The larger v2 autonomous investigator is still pending.

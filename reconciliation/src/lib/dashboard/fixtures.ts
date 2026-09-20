@@ -2,7 +2,7 @@ import type { Category, Check, MerchantRule, ReviewRow, ReviewsResponse } from "
 
 export const fixtureId = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const date = "2026-09-19T14:00:00.000Z";
-export const normalizeVendor = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+export { normalizeVendor } from "./review";
 export function fixtureCheck(n: number, field: string, verdict: Check["verdict"], rationale: string, value: unknown = verdict): Check {
   return { id: fixtureId(n), field_checked: field, check_method: ["merchant", "name", "duplicate"].includes(field) ? "jev" : "deterministic",
     verdict, answer_json: { value }, probability: null, confidence_score: null,
@@ -19,6 +19,7 @@ function claim(n: number, name: string, amount: number, category: Category, vend
     decision_status: n === 4 ? "approved" : n === 5 ? "rejected" : "pending", assessment_knowledge_revision: 0,
     processing_status: "idle", processing_error: null, status: n === 4 ? "approved" : n === 5 ? "rejected" : n === 2 ? "flagged" : unknownMerchant || n === 6 ? "needs_review" : "pending",
     receipt: { id: fixtureId(200 + n), file_type: "image/svg+xml", sha256: String(n === 5 ? 1 : n).repeat(64),
+      extraction_provenance: "Synthetic preview fixture; no live extraction",
       extraction_status: n === 6 ? "failed" : "succeeded", extraction_error: n === 6 ? "Synthetic extraction failure: receipt could not be read. Original retained." : null,
       parsed_fields_json: n === 6 ? null : { schema_version: 1, vendor, receipt_date: "2026-09-18", amount_minor: receiptAmount, currency: "USD",
         names: [n === 5 ? "Maya Chen" : name], receipt_number: n === 5 ? "SYN-001" : `SYN-00${n}` } },
@@ -37,11 +38,13 @@ function claim(n: number, name: string, amount: number, category: Category, vend
       next_action: "human_review", evidence_refs: [`receipt:${fixtureId(200 + n)}`],
       steps: [{ tool: "read_receipt", evidence_refs: [`receipt:${fixtureId(200 + n)}`], summary: "Fixture receipt has a matching total and guest; merchant identity remains unresolved." }], error_code: null } : null,
   };
-  if (n === 4 || n === 5) row.decisions.push({ ...fixtureCheck(700 + n, "human_decision", n === 4 ? "pass" : "fail", n === 4 ? "Synthetic reviewer verified Harbor Hotel and approved this claim." : "Synthetic reviewer rejected this duplicate.", row.decision_status), check_method: "human" });
+  if (n === 4 || n === 5) row.decisions.push({ ...fixtureCheck(700 + n, "human_decision", n === 4 ? "pass" : "fail", n === 4 ? "Synthetic reviewer verified Harbor Hotel and approved this claim." : "Synthetic reviewer rejected this duplicate.", row.decision_status), check_method: "human", evidence_json: { simulated: true, correction_id: fixtureId(700 + n) } });
   return row;
 }
 export function previewResponse(rows: ReviewRow[], knowledgeRevision: number): ReviewsResponse {
   return {
+    capabilities: { rule_learning: true, extraction_retry: true, export: false, custom_checks: false, duplicate_links: true, knowledge_revisions: true },
+    coverage: { complete: true, returned: rows.length, total: rows.length },
     contract_version: 2, snapshot_token: `preview:${knowledgeRevision}:${rows.map(row => `${row.id}:${row.review_revision}`).sort().join("|")}`,
     knowledge_revision: knowledgeRevision, submissions: rows, demo_mode: true,
     summary: { approved_amount_minor: rows.filter(r => r.decision_status === "approved").reduce((sum, r) => sum + r.amount_requested_minor, 0),

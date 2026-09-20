@@ -19,7 +19,7 @@ test('recorded explanations preserve pending decisions and approval blocks', asy
   page.on('request', (request) => {
     if (request.method() === 'POST' && new URL(request.url()).pathname.startsWith('/api/')) mutations.push(request.url());
   });
-  await page.route('**/api/reviews', (route) => route.fulfill({ json: data }));
+  await page.route('**/api/workspace/reviews', (route) => route.fulfill({ json: data }));
   await page.route('**/api/receipts/*', (route) => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><text x="10" y="30">Synthetic receipt</text></svg>' }));
   await page.goto('/business-demo');
   await page.getByRole('button', { name: "Open Jordan Lee's claim", exact: true }).click();

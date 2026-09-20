@@ -1,0 +1,411 @@
+{
+  "mode": "offline_recorded_answer_replay",
+  "source_commit": "c9e87bd4440c17b82d8e52ed7487b86909fddc1a",
+  "current_commit": "59ee979598534b2483b1049150a21a135e05d175",
+  "source_results_sha256": "62092e7c786dd6bd394eabd594af46890e04439b3bea7b6c96192c390ccb3f0e",
+  "provider_calls": 0,
+  "before_correct": 30,
+  "after_correct": 38,
+  "rows": [
+    {
+      "case_id": "case-01",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-02",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-03",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-04",
+      "expected": "matched",
+      "before": null,
+      "after": null,
+      "error": "RECORDED_PROVIDER_FAILURE",
+      "changed": false
+    },
+    {
+      "case_id": "case-05",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-06",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-07",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-08",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-09",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-10",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-11",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-12",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-13",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-14",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-15",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-16",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-17",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-18",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-19",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-20",
+      "expected": "matched",
+      "before": "matched",
+      "after": "matched",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-21",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-22",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-23",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-24",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-25",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-26",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-27",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-28",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-29",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-30",
+      "expected": "matched",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-31",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-32",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-33",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-34",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-35",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-36",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-37",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-38",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-39",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-40",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-41",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-42",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-43",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-44",
+      "expected": "needs_review",
+      "before": "needs_review",
+      "after": "needs_review",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-45",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-46",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-47",
+      "expected": "flagged",
+      "before": "flagged",
+      "after": "flagged",
+      "error": null,
+      "changed": false
+    },
+    {
+      "case_id": "case-48",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-49",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    },
+    {
+      "case_id": "case-50",
+      "expected": "flagged",
+      "before": "needs_review",
+      "after": "flagged",
+      "error": null,
+      "changed": true
+    }
+  ]
+}

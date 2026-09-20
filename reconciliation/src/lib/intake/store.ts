@@ -5,6 +5,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { intakeMode } from "./config";
 import { IntakeError, type Claim, type Receipt, type Usage } from "./schema";
+import { SupabaseStore } from "../core/store";
+import { CoreError } from "../core/validation";
 export interface IntakeStore {
   create(claim: Claim, receipt: Receipt, bytes: Uint8Array): Promise<void>;
   finish(receipt: Receipt): Promise<void>;
@@ -28,7 +30,8 @@ export class LocalStore implements IntakeStore {
     await this.put(`${receipt.id}.receipt.json`, receipt);
   }
   async finish(receipt: Receipt) {
-    await this.put(`${receipt.id}.receipt.json`, receipt);
+    const { FileStore } = await import("../core/file-store");
+    await new FileStore(this.dir).finishInitialExtraction(receipt);
   }
   async usage(call: Usage) {
     await this.put(`${call.id}.usage.json`, call);
@@ -75,11 +78,20 @@ export function getStore(): IntakeStore {
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const platform = new SupabaseStore(url, key);
+  async function checkSchema() {
+    try { await platform.assertSchema(); }
+    catch (error) {
+      if (error instanceof CoreError) throw new IntakeError(error.code.toLowerCase(), error.message, error.status);
+      checked(error);
+    }
+  }
   const bucket = client.storage.from(
     process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
   );
   return {
     async create(claim, receipt, bytes) {
+      await checkSchema();
       const bucketInfo = await client.storage.getBucket(
         process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
       );
@@ -98,25 +110,18 @@ export function getStore(): IntakeStore {
           })
         ).error,
       );
-      const submission = await client.from("submissions").insert(claim);
-      if (submission.error) {
-        await bucket.remove([receipt.storage_path]);
-        checked(submission.error);
-      }
-      const saved = await client.from("receipts").insert(receipt);
-      if (saved.error) {
-        await client.from("submissions").delete().eq("id", claim.id);
-        await bucket.remove([receipt.storage_path]);
-        checked(saved.error);
-      }
+      // An insert can commit before its response fails. Retain the private original for recovery.
+      checked((await client.from("submissions").insert(claim)).error);
+      checked((await client.from("receipts").insert(receipt)).error);
     },
     async finish(receipt) {
-      const { id, ...values } = receipt;
+      await checkSchema();
       checked(
-        (await client.from("receipts").update(values).eq("id", id)).error,
+        (await client.rpc("core_finish_initial_extraction", { p_receipt: receipt })).error,
       );
     },
     async usage(call) {
+      await checkSchema();
       checked((await client.from("model_calls").insert(call)).error);
     },
     async read(id) {
@@ -135,6 +140,8 @@ export function getStore(): IntakeStore {
       )
         return null;
       const file = await bucket.download(receipt.storage_path);
+      // Only a confirmed missing object is unavailable evidence; auth/network errors must surface.
+      if (file.error && (("code" in file.error && file.error.code === "NoSuchKey") || (file.error.statusCode === "404" && file.error.message === "Object not found"))) return null;
       checked(file.error);
       return { receipt, bytes: new Uint8Array(await file.data!.arrayBuffer()) };
     },

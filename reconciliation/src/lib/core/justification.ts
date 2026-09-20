@@ -1,3 +1,4 @@
+import { responsesHeaders, type ResponsesConfig } from '../providers/responses';
 import type { Decision, ModelCall, ParsedReceipt, Submission, SubmissionStatus } from '../contracts';
 import { CoreError, isObject } from './validation';
 export interface ReviewOverride { verdict: 'approved' | 'rejected'; note: string; machine_status: SubmissionStatus | null }
@@ -50,14 +51,14 @@ export function validateNarrative(raw: unknown, status: SubmissionStatus): { sum
 }
 const tokenCount = (v: unknown): number | null => Number.isSafeInteger(v) && Number(v) >= 0 ? Number(v) : null;
 export class OpenAiJustifier implements Justifier {
-  constructor(private key: string, private model = 'gpt-4.1-mini', private transport: typeof fetch = fetch) {}
+  constructor(private key: string, private model = 'gpt-4.1-mini', private transport: typeof fetch = fetch, private config?: ResponsesConfig) {}
   async explain(request: JustificationRequest, runId: string | null, log: (call: ModelCall) => Promise<void>): Promise<Justification> {
     const started = Date.now();
     let model = this.model;
     let logged = false;
     const record = async (usage: Record<string, unknown>) => { logged = true; await log(this.call(runId, model, started, usage)); };
     try {
-      const response = await this.transport('https://api.openai.com/v1/responses', { method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000),
+      const response = await this.transport(this.config?.url || 'https://api.openai.com/v1/responses', { method: 'POST', headers: responsesHeaders(this.config || {url:'https://api.openai.com/v1/responses',key:this.key,model:this.model,provider:'openai'}), signal: AbortSignal.timeout(25000),
         body: JSON.stringify({ model: this.model, store: false, max_output_tokens: 1200, instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: evidenceLines(request).join('\n') }] }], text: { format: { type: 'json_schema', name: 'reimbursement_justification', strict: true, schema } } }) });
       if (!response.ok) throw new CoreError('JUSTIFICATION_UNAVAILABLE', `The justification model returned HTTP ${response.status}.`, 503);
       const payload: unknown = await response.json();
@@ -76,6 +77,6 @@ export class OpenAiJustifier implements Justifier {
     }
   }
   private call(runId: string | null, model: string, started: number, usage: Record<string, unknown>): ModelCall {
-    return { id: crypto.randomUUID(), run_id: runId, receipt_id: null, provider: 'openai', model, input_tokens: tokenCount(usage.input_tokens), output_tokens: tokenCount(usage.output_tokens), latency_ms: Date.now() - started, estimated_cost_usd: null, created_at: new Date().toISOString() };
+    return { id: crypto.randomUUID(), run_id: runId, receipt_id: null, provider: this.config?.provider || 'openai', model, input_tokens: tokenCount(usage.input_tokens), output_tokens: tokenCount(usage.output_tokens), latency_ms: Date.now() - started, estimated_cost_usd: null, created_at: new Date().toISOString() };
   }
 }

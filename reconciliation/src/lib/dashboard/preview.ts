@@ -1,9 +1,9 @@
 import type { DashboardClient } from "./ui-contracts";
 import type { Check, MerchantRule, ReviewRow, RuleResponse, SearchResponse } from "./types";
+import { approvalBlock } from "./review";
 import { DashboardError } from "./helpers";
 import { fixtureCheck, fixtureReviews, fixtureRules, normalizeVendor, previewReceiptUrl, previewResponse } from "./fixtures";
 
-const financialFields = ["amount", "currency", "receipt_date", "policy", "policy_cap", "duplicate"];
 function fail(code: string, message: string, status = 409): never { throw new DashboardError(code, message, status); }
 const copy = <T>(value: T): T => structuredClone(value);
 
@@ -37,13 +37,13 @@ export function createPreviewClient(): DashboardClient {
         rows.some(other => other.id !== row.id && other.decision_status === "approved" && row.receipt?.sha256 && other.receipt?.sha256 === row.receipt.sha256)) {
       fail("DUPLICATE_BLOCKED", "This receipt may already be claimed. Duplicate claims cannot be approved.");
     }
-    if (financialFields.some(field => !row.decisions.some(check => check.field_checked === field && check.verdict === "pass"))) {
+    if (approvalBlock(row, knowledgeRevision, rows, true)) {
       fail("APPROVAL_BLOCKED", "Approval is blocked by a failed or incomplete amount, currency, date, policy, cap, or duplicate check.");
     }
   }
   function eligibleSource(rule: MerchantRule) {
     const source = getRow(rule.source_submission_id);
-    if (source.decision_status !== "approved" || source.decisions.findLast(check => check.check_method === "human")?.id !== rule.source_correction_id) {
+    if (source.decision_status !== "approved" || source.decisions.findLast(check => check.check_method === "human")?.evidence_json.correction_id !== rule.source_correction_id) {
       fail("RULE_INELIGIBLE", "The source approval is no longer valid.");
     }
   }
@@ -59,7 +59,7 @@ export function createPreviewClient(): DashboardClient {
       checks = [make("extraction", "unknown", "Synthetic receipt extraction is unavailable; retry extraction first.")];
     } else {
       const same = rows.filter(other => other.id !== row.id && row.receipt?.sha256 && other.receipt?.sha256 === row.receipt.sha256);
-      row.duplicate_submission_ids = same.map(other => other.id);
+      row.duplicate_submission_ids = same.filter(other => `${other.submitted_at}:${other.id}` < `${row.submitted_at}:${row.id}`).map(other => other.id);
       const duplicate = same.some(other => other.decision_status === "approved" || `${other.submitted_at}:${other.id}` < `${row.submitted_at}:${row.id}`);
       const aliases = rules.filter(rule => rule.state === "active" && getRow(rule.source_submission_id).decision_status === "approved" &&
         normalizeVendor(rule.payload.observed_vendor) === normalizeVendor(parsed.vendor || "") && rule.payload.scope.category === row.category && rule.payload.scope.currency === row.currency);
@@ -109,31 +109,30 @@ export function createPreviewClient(): DashboardClient {
       row.processing_status = "idle";
       row.processing_error = null;
       const correctionId = crypto.randomUUID();
-      row.decisions.push({ ...fixtureCheck(0, "human_decision", input.human_verdict === "approved" ? "pass" : "fail", note, input.human_verdict), id: correctionId, check_method: "human" });
-      if (input.human_verdict === "rejected") {
-        let changed = false;
-        for (const rule of rules) if (rule.source_submission_id === row.id && rule.state === "active") { rule.state = "disabled"; rule.version++; changed = true; }
-        if (changed) knowledgeRevision++;
+      row.decisions.push({ ...fixtureCheck(0, "human_decision", input.human_verdict === "approved" ? "pass" : "fail", note, input.human_verdict), id: correctionId, check_method: "human", evidence_json: { simulated: true, correction_id: correctionId } });
+      let changed = false;
+      for (const rule of rules) if (rule.source_submission_id === row.id && rule.state !== "disabled") {
+        changed ||= rule.state === "active";
+        rule.state = "disabled"; rule.version++; rule.latest_test = null;
       }
+      if (changed) knowledgeRevision++;
       touch(row);
       return copy({ correction_id: correctionId, row });
     },
     async proposeRule(input) {
       const row = currentRow(input.submission_id, input.expected_review_revision);
       const canonical = input.canonical_vendor.trim();
-      if (!canonical || canonical.length > 200) fail("INVALID_BODY", "Enter a merchant name between 1 and 200 characters.", 400);
+      if (!canonical || canonical.length > 120) fail("INVALID_BODY", "Enter a merchant name between 1 and 120 characters.", 400);
       if (row.decision_status !== "approved") fail("RULE_INELIGIBLE", "Approve the supported source claim before proposing a rule.");
-      approvalGuard(row);
       const vendor = row.receipt?.parsed_fields_json?.vendor;
-      const unresolved = row.decisions.filter(check => check.check_method !== "human" && check.verdict !== "pass");
-      if (!vendor || unresolved.length !== 1 || unresolved[0].field_checked !== "merchant" || unresolved[0].verdict !== "unknown") fail("RULE_INELIGIBLE", "Only an unresolved merchant with all other checks passing can teach a rule.");
+      if (!vendor?.trim() || row.receipt?.extraction_status !== "succeeded") fail("RULE_INELIGIBLE", "The approved source must contain an extracted observed vendor.");
       if (normalizeVendor(vendor) === normalizeVendor(canonical)) fail("RULE_INELIGIBLE", "The canonical name must differ from the observed descriptor.");
-      const correction = row.decisions.findLast(check => check.check_method === "human" && check.answer_json.value === "approved");
-      if (!correction) fail("RULE_INELIGIBLE", "The source needs a recorded approval.");
-      const existing = rules.find(rule => rule.state === "draft" && rule.source_correction_id === correction.id && normalizeVendor(rule.payload.canonical_vendor) === normalizeVendor(canonical));
+      const correctionId = row.decisions.findLast(check => check.check_method === "human" && check.answer_json.value === "approved")?.evidence_json.correction_id;
+      if (typeof correctionId !== "string" || !correctionId.trim()) fail("RULE_INELIGIBLE", "The source needs a recorded approval.");
+      const existing = rules.find(rule => rule.state === "draft" && rule.source_correction_id === correctionId && normalizeVendor(rule.payload.canonical_vendor) === normalizeVendor(canonical));
       if (existing) return ruleResult(existing);
       const rule: MerchantRule = { id: crypto.randomUUID(), version: 1, state: "draft", source_submission_id: row.id,
-        source_correction_id: correction.id, created_at: new Date().toISOString(), latest_test: null,
+        source_correction_id: correctionId, created_at: new Date().toISOString(), latest_test: null,
         payload: { observed_vendor: vendor, canonical_vendor: canonical, scope: { category: row.category, currency: row.currency } } };
       rules.push(rule);
       return ruleResult(rule);
@@ -150,7 +149,7 @@ export function createPreviewClient(): DashboardClient {
         reasons: [passed ? "Simulated fixture: two valid hotel examples improve; protected examples remain unchanged. Not a live model benchmark." : "Simulated fixture: this canonical merchant does not resolve the valid hotel examples. Use Harbor Hotel to explore the passing flow."],
         before: { total: 10, correct: 8, false_matches: 0, needs_review: 4 },
         after: { total: 10, correct: passed ? 10 : 8, false_matches: 0, needs_review: passed ? 2 : 4 } };
-      return ruleResult(rule);
+      return copy(rule.latest_test);
     },
     async activateRule(id, input) {
       const rule = currentRule(id, input.expected_rule_version);
@@ -165,7 +164,7 @@ export function createPreviewClient(): DashboardClient {
     },
     async disableRule(id, input) {
       const rule = currentRule(id, input.expected_rule_version);
-      if (rule.state !== "disabled") { rule.state = "disabled"; rule.version++; knowledgeRevision++; }
+      if (rule.state !== "disabled") { if (rule.state === "active") knowledgeRevision++; rule.state = "disabled"; rule.version++; rule.latest_test = null; }
       return ruleResult(rule);
     },
     async retryExtraction(id, expectedRevision) {
@@ -206,6 +205,7 @@ export function createPreviewClient(): DashboardClient {
       return copy({ snapshot_token: input.snapshot_token, evaluated_count: filtered.length, matches, possible_matches: possible,
         mode: "simulated", model: null, latency_ms: Math.round(performance.now() - started) });
     },
+    async exportReviews() { return fail("UNAVAILABLE", "CSV export is unavailable in this UI preview. Use the configured API workspace.", 503); },
     receiptUrl: previewReceiptUrl,
   };
 }
