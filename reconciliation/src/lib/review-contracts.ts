@@ -20,6 +20,7 @@ export interface ClaimFacts {
 export interface ReceiptEvidence {
   id: string; submission_id: string; file_type: string; sha256: string | null;
   extraction_status: 'pending' | 'succeeded' | 'failed'; extraction_error: string | null;
+  extraction_provenance?: string | null;
   parsed_fields_json: ParsedReceipt | null; raw_extracted_text: string | null;
 }
 export interface PolicyRule {
@@ -60,7 +61,16 @@ export interface ReviewRow extends ClaimFacts {
   decisions: Check[]; duplicate_submission_ids: string[];
   investigation: InvestigationResult | null;
 }
+export interface WorkspaceCapabilities {
+  rule_learning: boolean; extraction_retry: boolean; export: boolean;
+  custom_checks: boolean; duplicate_links: boolean; knowledge_revisions: boolean;
+}
+export interface RetryExtractionRequest { expected_review_revision: number }
+export interface RetryExtractionResponse { row: ReviewRow }
+export interface ExportRequest { snapshot_token: string; submission_ids: string[] }
 export interface ReviewsResponse {
+  capabilities?: WorkspaceCapabilities;
+  coverage?: { complete: boolean; returned: number; total: number };
   contract_version: 2; snapshot_token: string; knowledge_revision: number;
   submissions: ReviewRow[];
   summary: {
@@ -100,6 +110,7 @@ export interface MerchantRule {
   id: string; version: number; state: 'draft' | 'active' | 'disabled';
   source_submission_id: string; source_correction_id: string; payload: AliasPayload;
   created_at: string; latest_test: RuleTestReport | null;
+  latest_test_error?: string | null;
 }
 export interface RulesResponse { rules: MerchantRule[]; knowledge_revision: number }
 export interface RuleResponse { rule: MerchantRule; knowledge_revision: number }
