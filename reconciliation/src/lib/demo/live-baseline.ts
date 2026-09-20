@@ -69,3 +69,14 @@ export async function liveBaseline(previous: Pick<Snapshot, 'submissions' | 'kno
   }
   return fixture;
 }
+
+/** Prepared history shares the immutable saved baseline instead of copying its full ledger 70 times. */
+export function liveResetSeed(state: Snapshot) {
+  const { submissions, receipts, policies, supporting_documents, decisions, corrections } = state;
+  const runs = state.runs.map(run => {
+    if (run.status !== 'completed' || run.evidence_snapshot?.demo_baseline !== true) throw new Error('Only authored prepared runs may reference the saved demo baseline.');
+    return { ...run, evidence_snapshot: { demo_baseline: true, provenance: BASELINE_PROVENANCE,
+      baseline_id: 'live-80-v1', source_submission_id: run.submission_id } };
+  });
+  return { submissions, receipts, policies, supporting_documents, runs, decisions, corrections };
+}

@@ -115,7 +115,7 @@ test('live reset archives all raw tables atomically and refuses stale, busy, rea
   } finally { await db.close(); }
 });
 
-test('live reset helper verifies originals without overwrite and never retries an uncertain reset', async t => {
+test('live reset copies the saved baseline without rebuilding or downloading originals and never retries', async t => {
   const env = { SUPABASE_URL: 'https://reset.example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-test-key',
     SUPABASE_RECEIPTS_BUCKET: 'receipts', RECONCILIATION_MODE: 'live', RECONCILIATION_INTAKE_MODE: 'live',
     RECONCILIATION_ALLOW_DEMO_RESET: 'true', RECONCILIATION_SYNTHETIC_ONLY: 'true' };
@@ -123,58 +123,41 @@ test('live reset helper verifies originals without overwrite and never retries a
   Object.assign(process.env, env);
   t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
   const fixture = showcaseFixture();
-  const originals = new Map([...fixture.originals.map(x => [x.receipt.storage_path, x.bytes] as const),
-    ...fixture.supporting.map(x => [x.document.storage_path, x.bytes] as const)]);
   const core = { store: new SupabaseStore(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY), demoMode: false } as unknown as CoreService;
   const token = workspaceSnapshot(fixture.state).token;
-  let requests = 0, uploads = 0, resets = 0, uncertain = false;
+  let requests = 0, resets = 0, failure = '', privateBucket = true;
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     requests++;
     const path = new URL(typeof input === 'string' || input instanceof URL ? input : input.url).pathname;
     if (path.endsWith('/core_platform_version')) return Response.json(4);
     if (path.endsWith('/core_snapshot')) return Response.json(fixture.state);
-    if (path.endsWith('/bucket/receipts')) return Response.json({ id: 'receipts', name: 'receipts', public: false });
-    if (path.endsWith('/core_reset_demo')) {
-      resets++;
-      const body = JSON.parse(String(init?.body));
-      assert.deepEqual(body.p_expected, fixture.state);
-      assert.equal(body.p_seed.submissions.length, 80);
-      assert.equal(body.p_seed.receipts[0].raw_extracted_text, fixture.state.receipts[0].raw_extracted_text, 'cached facts preserve the designed original text');
-      assert.match(body.p_seed.receipts[0].extraction_provenance, /no extraction provider called/);
-      if (uncertain) throw new Error('response lost after possible commit');
-      return Response.json({ reset: true, archive_id: '66000000-0000-4000-8000-000000000001' });
-    }
-    const storagePath = path.slice(path.indexOf('/synthetic/') + 1);
-    assert.ok(storagePath.startsWith('synthetic/'), 'only known mocked storage requests');
-    if (init?.method === 'POST') {
-      uploads++;
-      assert.equal(new Headers(init.headers).get('x-upsert'), 'false');
-      assert.equal(originals.has(storagePath), false, 'an existing original is never overwritten');
-      originals.set(storagePath, Buffer.from(init.body as Uint8Array));
-      return Response.json({ Id: 'fixture-upload', Key: storagePath });
-    }
-    const bytes = originals.get(storagePath);
-    return bytes ? new Response(new Uint8Array(bytes), { headers: { 'Content-Type': 'application/pdf' } })
-      : Response.json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, { status: 404 });
+    if (path.endsWith('/bucket/receipts')) return Response.json({ id: 'receipts', name: 'receipts', public: !privateBucket });
+    assert.ok(path.endsWith('/core_reset_saved_demo'), `Unexpected rebuild/storage request: ${path}`);
+    resets++;
+    const body = JSON.parse(String(init?.body));
+    assert.deepEqual(body, { p_expected: fixture.state, p_bucket: 'receipts' });
+    assert.equal('p_seed' in body, false, 'Never upload the generated 13MB seed during reset.');
+    if (failure === 'uncertain') throw new Error('response lost after possible commit');
+    if (failure) return Response.json({ message: failure }, { status: 400 });
+    return Response.json({ reset: true, archive_id: '66000000-0000-4000-8000-000000000001' });
   });
   process.env.RECONCILIATION_ALLOW_DEMO_RESET = 'false';
   await assert.rejects(resetLiveDemo(core, token), { code: 'RESET_DISABLED' });
   assert.equal(requests, 0);
   process.env.RECONCILIATION_ALLOW_DEMO_RESET = 'true';
   await assert.rejects(resetLiveDemo(core, 'b'.repeat(64)), { code: 'STALE_SNAPSHOT' });
-  assert.equal(uploads, 0);
   assert.equal(resets, 0);
-  const first = fixture.originals[0];
-  originals.delete(first.receipt.storage_path);
+  privateBucket = false;
+  await assert.rejects(resetLiveDemo(core, token), { code: 'PRIVATE_BUCKET_REQUIRED' });
+  assert.equal(resets, 0);
+  privateBucket = true;
   assert.equal((await resetLiveDemo(core, token)).reset, true);
-  assert.equal(uploads, 79, 'restores the missing original and uploads 78 new originals');
-  assert.equal(originals.size, 100);
-  originals.set(first.receipt.storage_path, Buffer.from('different original'));
-  await assert.rejects(resetLiveDemo(core, token), { code: 'ORIGINAL_CONFLICT' });
-  assert.equal(uploads, 79);
-  assert.equal(resets, 1, 'conflicting bytes cannot reach the reset RPC');
-  originals.set(first.receipt.storage_path, first.bytes);
-  uncertain = true;
+  assert.equal(resets, 1);
+  failure = 'BASELINE_MISSING';
+  await assert.rejects(resetLiveDemo(core, token), { code: 'BASELINE_MISSING' });
+  failure = 'STALE_SNAPSHOT';
+  await assert.rejects(resetLiveDemo(core, token), { code: 'STALE_SNAPSHOT' });
+  failure = 'uncertain';
   await assert.rejects(resetLiveDemo(core, token), { code: 'RESET_UNCONFIRMED' });
-  assert.equal(resets, 2, 'one attempt for each reset, no uncertain-write retry');
+  assert.equal(resets, 4, 'Exactly one RPC per attempt; no uncertain-write or stale-snapshot retry.');
 });

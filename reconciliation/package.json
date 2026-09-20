@@ -11,6 +11,7 @@
     "test": "NODE_OPTIONS=--conditions=react-server tsx --test src/lib/intake/*.test.ts src/lib/core/tests/*.test.ts src/lib/core/tests/*.test.mjs src/lib/dashboard/tests/*.test.ts",
     "demo": "node scripts/demo.mjs",
     "demo:reset": "node scripts/reset-demo.mjs",
+    "demo:prepare-live-reset": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/prepare-live-reset.ts",
     "test:browser": "playwright test",
     "search:setup": "node --env-file-if-exists=.env.local src/lib/core/provision-search.mjs",
     "demo:jev": "node --env-file-if-exists=.env.local scripts/demo.mjs --live-jev",
