@@ -1,0 +1,33 @@
+.sheet[data-slot="sheet-content"][data-side="right"] {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  gap: 0;
+}
+
+.body { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0; }
+.columns { flex: 1; min-height: 0; overflow: hidden; }
+.document, .evidence { height: 100%; min-width: 0; overflow-y: auto; }
+.document[data-state="inactive"], .evidence[data-state="inactive"] { display: none; }
+.document { background: var(--muted); padding: 20px; }
+.evidence { padding: 24px; }
+.receipt { display: block; width: 100%; height: auto; background: var(--document-paper); border: 1px solid var(--border); }
+.pdf { width: 100%; height: calc(100% - 58px); min-height: 360px; border: 1px solid var(--border); background: var(--document-paper); }
+.json { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
+
+@media (min-width: 1200px) {
+  .sheet[data-slot="sheet-content"][data-side="right"] { width: min(960px, calc(100vw - 32px)); }
+  .columns { display: grid; grid-template-columns: 42% 58%; }
+  .document[data-state="inactive"], .evidence[data-state="inactive"] { display: block; }
+  .document { border-right: 1px solid var(--border); }
+}
+
+@media (max-width: 639px) {
+  .sheet :global([data-slot="button"]), .sheet :global([data-slot="tabs-trigger"]),
+  .rules :global([data-slot="button"]), .confirmation :global([data-slot="button"]) { min-height: 44px; }
+  .evidence, .document { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .sheet *, .confirmation, .confirmation * { animation-duration: 0s !important; transition-duration: 0s !important; }
+}

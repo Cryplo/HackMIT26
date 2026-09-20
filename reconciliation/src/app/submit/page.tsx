@@ -1,81 +1,31 @@
+import Link from "next/link";
+import { ArrowLeft, ArrowUpRight, FileCheck2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import SubmitForm from "./submit-form";
+
 export const dynamic = "force-dynamic";
 export default function SubmitPage() {
   const mode = process.env.RECONCILIATION_EXTRACTION_MODE || process.env.RECONCILIATION_INTAKE_MODE;
   return (
-    <main className="intake-shell">
-      <nav className="intake-nav">
-        <a className="intake-brand" href="/submit">
-          <span>↗</span>Fieldnotes
-        </a>
-        <a className="intake-tag" href="/business-demo">Organizer dashboard ↗</a>
+    <main className="min-h-dvh bg-muted/40 text-foreground">
+      <nav aria-label="Main navigation" className="flex h-16 items-center justify-between border-b border-border bg-background px-4 sm:px-8">
+        <Link href="/business-demo" className="flex items-center gap-2 text-sm font-semibold"><FileCheck2 className="size-5" aria-hidden="true" />Fieldnotes</Link>
+        <Button asChild variant="ghost" className="h-11 sm:h-9"><Link href="/business-demo"><ArrowLeft aria-hidden="true" />Review workspace</Link></Button>
       </nav>
-      <div className="intake-grid">
-        <section className="intake-intro">
-          <div className="intake-eyebrow">
-            Hackathon travel / Attendee intake
-          </div>
-          <h1>
-            You made
-            <br />
-            the trip.
-            <br />
-            <em>
-              We’ll take it
-              <br />
-              from here.
-            </em>
-          </h1>
-          <p>
-            Submit your travel expense and one receipt. Keep the evidence
-            together, ready for reimbursement review.
-          </p>
-          <ol className="intake-steps">
-            <li>
-              <b>01</b>
-              <div>
-                <strong>Share the trip</strong>
-                <small>Name, travel category, and requested amount.</small>
-              </div>
-            </li>
-            <li>
-              <b>02</b>
-              <div>
-                <strong>Attach the evidence</strong>
-                <small>One receipt. Original file kept for review.</small>
-              </div>
-            </li>
-            <li>
-              <b>03</b>
-              <div>
-                <strong>Ready for review</strong>
-                <small>Submission is saved before extraction begins.</small>
-              </div>
-            </li>
-          </ol>
-          <p className="intake-note">
-            <a href="/api/demo/receipt/train">Download a sample receipt ↗</a>
-            <br />Try Alex Demo, train, $123.45, New York, and any fictional email.
-            <br />
-            Use fictional names, emails, and receipts only. This unauthenticated
-            demo does not issue payments.
-          </p>
-        </section>
-        <section>
-          <SubmitForm
-            mode={
-              mode === "demo"
-                ? "demo"
-                : mode === "live"
-                  ? "live"
-                  : "unconfigured"
-            }
-          />
-        </section>
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
+        <div className="mb-6">
+          <p className="mb-2 text-xs text-muted-foreground">Travel reimbursements</p>
+          <h1 className="text-[28px] leading-9 font-semibold tracking-tight">Submit a travel claim</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Share your expense and original receipt. An organizer will review the details before approving reimbursement.</p>
+        </div>
+        <SubmitForm mode={mode === "demo" ? "demo" : mode === "live" ? "live" : "unconfigured"} />
+        <aside className="mt-6 rounded-lg border border-border bg-background px-5 py-4 text-sm leading-6">
+          <p className="font-medium">Trying the demo?</p>
+          <p className="mt-1 text-muted-foreground">Use fictional names, emails, and receipts only. This demo does not issue payments.</p>
+          <a className="mt-2 inline-flex min-h-11 items-center gap-1 underline underline-offset-4 sm:min-h-0" href="/api/demo/receipt/train">Download a sample receipt <ArrowUpRight className="size-4" aria-hidden="true" /></a>
+          <p className="mt-1 text-xs text-muted-foreground">Sample: Alex Demo · Train · $123.45 · New York</p>
+        </aside>
       </div>
-      <footer className="intake-footer">
-        Travel reimbursement · USD · One receipt per claim
-      </footer>
     </main>
   );
 }

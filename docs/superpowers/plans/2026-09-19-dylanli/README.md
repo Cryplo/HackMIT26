@@ -1,4 +1,4 @@
-# Dylan branch upgrade — platform and intelligence handoffs
+# Dylan branch upgrade — three independent agent handoffs
 
 This packet replaces the greenfield implementation instructions in `docs/reimbursements-v1/` for work on Dylan's existing application. It is a plan and frozen contract, not an implemented upgrade.
 
@@ -8,24 +8,23 @@ Give each agent access to this **entire directory** in the repository, then send
 
 | Agent | Send | Suggested development tool |
 | --- | --- | --- |
+| A | [agent-1-frontend.md](agent-1-frontend.md) | Cursor or your preferred coding agent |
 | B | [agent-2-platform.md](agent-2-platform.md) | Devin |
 | C | [agent-3-intelligence.md](agent-3-intelligence.md) | Codex |
 
-The frontend brief follows separately.
-
 Copy-paste launch message, substituting the appropriate agent file:
 
-> Implement `docs/superpowers/plans/2026-09-19-dylanli/agent-2-platform.md`. Read its referenced context and contracts first. Work only within its ownership boundaries. Other agents are implementing the other modules independently and cannot communicate with you. Preserve their work and the frozen interfaces. Begin by checking the baseline and reporting any discrepancy, then complete your assigned tasks and verification.
+> Implement `docs/superpowers/plans/2026-09-19-dylanli/agent-1-frontend.md`. Read its referenced context and contracts first. Work only within its ownership boundaries. Other agents are implementing the other modules independently and cannot communicate with you. Preserve their work and the frozen interfaces. Begin by checking the baseline and reporting any discrepancy, then complete your assigned tasks and verification.
 
 ## Integration owner: do this once before dispatch
 
 The fourth teammate owns this short preparation and the eventual integration. These steps are not three separate setup tasks for the agents.
 
-1. Start from current `main` in `Cryplo/HackMIT26` at reviewed baseline commit `97ac7ec8d72f845e257d9822665645c1c7311c35` (formerly reviewed on `dylanli`), or a reviewed descendant. Do not reset newer teammate work. If using a descendant, first check that the files/interfaces cited here still match.
+1. Start from `Cryplo/HackMIT26` commit `97ac7ec8d72f845e257d9822665645c1c7311c35` on current `main`, or a reviewed descendant. This commit was originally reviewed on `dylanli`; that remote branch was subsequently removed. Do not reset newer teammate work. If using a descendant, first check that the files/interfaces cited here still match.
 2. Use this committed packet from the repository; do not substitute a private copy from another chat. Keep all implementation work inside the existing `reconciliation/` app; preserve the root browser prototype. Publishing these instructions does not perform the app setup in steps 3–7.
 3. Use Node `24.11.1`, npm `11.6.2` (the versions used for this review); commit `.nvmrc` and the `packageManager` setting in the app. Run `npm ci` from `reconciliation/`.
 4. Copy this packet's `contracts.ts` **unchanged** to `reconciliation/src/lib/review-contracts.ts`. Leave legacy `src/lib/contracts.ts` in place. B can extend its internal persistence types; everyone imports v2 API/intelligence types from the new frozen file.
-5. Before frontend dispatch only: Run `npx shadcn@latest init -d --base radix --no-monorepo` from `reconciliation/` for the one-time shadcn setup: Radix + Nova, Tailwind CSS variables, neutral base and Lucide. Generate only these components: button, input, label, textarea, table, badge, checkbox, select, sheet, dialog, tabs, tooltip, skeleton, separator. Review and commit generated components/config, `src/lib/utils.ts` and the lockfile once. A owns generated components after this step and applies the theme from the forthcoming frontend brief. Do not scaffold another Next app, upgrade Next/React, or add TanStack, Motion, an ORM, an agent framework, or another test framework preemptively. B/C need not wait for shadcn or UI work.
+5. Before frontend dispatch only: Follow [the visual contract's one-time shadcn setup](ramp-ui.md): Radix + Nova, Tailwind CSS variables, neutral base and Lucide. Generate only its listed components. Review and commit generated components/config, `src/lib/utils.ts` and the lockfile once. A owns generated components after this step and applies the visual contract's theme. Do not scaffold another Next app, upgrade Next/React, or add TanStack, Motion, an ORM, an agent framework, or another test framework preemptively. B/C need not wait for shadcn or UI work.
 6. Add package scripts once: `test:intelligence` = `node --conditions=react-server --import tsx --test src/lib/intelligence/*.test.ts`; `eval:heldout` = `node --env-file-if-exists=.env.local --conditions=react-server --import tsx evals/run-heldout.ts`. Those files are C's deliverables. Keep the existing scripts. Ignore `evals/results/`, local data, secrets, test artifacts and screenshots of submissions.
 7. Commit the common backend baseline after steps 3, 4 and 6. B/C can then branch and start independently (suggested names: `feat/review-platform`, `feat/review-intelligence`). A branches after the integration owner completes and commits shadcn step 5 (suggested name: `feat/review-ui`). Each person/agent uses its own clone or worktree and `npm ci`. Do not share an uncommitted working directory across machines.
 
@@ -36,6 +35,7 @@ Only the integration owner changes `src/lib/review-contracts.ts`, package/lock/T
 - [Context, decisions, ownership, and sponsor intent](context.md)
 - [Exact API behavior and integration rules](api.md)
 - [Frozen TypeScript DTOs and intelligence interface](contracts.ts)
+- [Ramp-style visual contract, official screenshot references, tokens and shadcn setup](ramp-ui.md)
 
 The contract defines final v2 behavior. It is fine for A to build against explicitly labeled fixtures while B/C are incomplete. Live provider failures must never switch to fixtures automatically.
 

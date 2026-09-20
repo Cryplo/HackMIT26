@@ -4,13 +4,13 @@
 
 We are four technical HackMIT teammates building an event travel reimbursement review desk. An attendee submits a reimbursement claim plus one receipt. A finance reviewer checks that the receipt supports the claim and that the expense fits the event's policy. The system extracts evidence, checks deterministic financial rules, uses Jev for ambiguous structured judgments, investigates unresolved cases, and learns narrowly scoped merchant aliases from reviewed corrections.
 
-The visible experience is a compact Ramp-style finance queue with obvious exceptions, the original receipt beside claimed and extracted values, and clear human actions. Working name: Fieldnotes, preserving the branch's name; do not spend time renaming the project.
+The visible experience should follow [the Ramp-style visual contract](ramp-ui.md): compact work queue, obvious exceptions, original receipt beside claimed/extracted values, and clear human actions. It includes actual product screenshot references, shadcn Radix/Nova setup and concrete theme/layout choices. Working name: Fieldnotes, preserving the branch's name; do not spend time renaming the project.
 
 Primary demo story: a strange hotel billing descriptor causes an exception. The agent inspects relevant evidence and explains the unresolved merchant. A human reviews it, approves the supported claim and proposes a merchant alias. The system tests the candidate on valid and adversarial examples, activates it only if it improves results without regressions, and handles new receipts for that merchant with less human intervention. Overclaims and duplicate receipts remain flagged.
 
 ## Existing baseline
 
-Repository `Cryplo/HackMIT26`, current branch `main`, reviewed baseline SHA `97ac7ec8d72f845e257d9822665645c1c7311c35` (formerly reviewed on `dylanli`). Application root: `reconciliation/`. Existing pages: `/business-demo`, `/submit`, `/demo`. Existing APIs: `/api/reviews`, `/api/submissions`, `/api/receipts/[id]`, `/api/reconcile`, `/api/corrections`. Next 16.3.5, React 19.3.0, TypeScript, Tailwind 4, Zod, Supabase, PGlite, node:test/tsx, Playwright.
+Repository `Cryplo/HackMIT26`, reviewed SHA `97ac7ec8d72f845e257d9822665645c1c7311c35`, now on `main` (originally reviewed on the subsequently removed `dylanli` branch). Application root: `reconciliation/`. Existing pages: `/business-demo`, `/submit`, `/demo`. Existing APIs: `/api/reviews`, `/api/submissions`, `/api/receipts/[id]`, `/api/reconcile`, `/api/corrections`. Next 16.3.5, React 19.3.0, TypeScript, Tailwind 4, Zod, Supabase, PGlite, node:test/tsx, Playwright.
 
 Read `reconciliation/AGENTS.md` and relevant bundled Next documentation before changing Next APIs. Reuse current code and native fetch. The baseline's 30 core/intake/SQL tests, five browser tests, typecheck and production build passed in review. Live providers were not reverified during that review. Preserve useful test coverage, updating expectations only for the deliberate v2 semantics below.
 

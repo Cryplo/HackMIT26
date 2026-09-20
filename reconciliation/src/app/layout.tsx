@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+
 export const metadata: Metadata = {
-  title: "Fieldnotes · Hackathon reimbursements",
-  description: "Synthetic hackathon reimbursement demo",
+  title: "Fieldnotes · Reimbursements",
+  description: "A workspace for reviewing travel claims and original receipt evidence.",
 };
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body>{children}</body></html>;
 }

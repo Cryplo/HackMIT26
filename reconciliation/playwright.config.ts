@@ -7,7 +7,7 @@ const baseURL = external || 'http://127.0.0.1:3100';
 process.env.DASHBOARD_BASE_URL = baseURL;
 export default defineConfig({
   testDir: './',
-  testMatch: ['src/lib/dashboard/tests/dashboard.spec.ts', 'tests/e2e.spec.ts'],
+  testMatch: ['src/lib/dashboard/tests/dashboard.spec.ts', 'tests/e2e.spec.ts', 'tests/ui/**/*.spec.ts'],
   workers: 1,
   timeout: 45000,
   use: { baseURL, channel: 'chrome', screenshot: 'only-on-failure', trace: 'retain-on-failure' },
