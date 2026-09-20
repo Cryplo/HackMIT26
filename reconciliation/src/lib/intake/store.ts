@@ -28,7 +28,8 @@ export class LocalStore implements IntakeStore {
     await this.put(`${receipt.id}.receipt.json`, receipt);
   }
   async finish(receipt: Receipt) {
-    await this.put(`${receipt.id}.receipt.json`, receipt);
+    const { FileStore } = await import("../core/file-store");
+    await new FileStore(this.dir).finishInitialExtraction(receipt);
   }
   async usage(call: Usage) {
     await this.put(`${call.id}.usage.json`, call);
@@ -98,22 +99,13 @@ export function getStore(): IntakeStore {
           })
         ).error,
       );
-      const submission = await client.from("submissions").insert(claim);
-      if (submission.error) {
-        await bucket.remove([receipt.storage_path]);
-        checked(submission.error);
-      }
-      const saved = await client.from("receipts").insert(receipt);
-      if (saved.error) {
-        await client.from("submissions").delete().eq("id", claim.id);
-        await bucket.remove([receipt.storage_path]);
-        checked(saved.error);
-      }
+      // An insert can commit before its response fails. Retain the private original for recovery.
+      checked((await client.from("submissions").insert(claim)).error);
+      checked((await client.from("receipts").insert(receipt)).error);
     },
     async finish(receipt) {
-      const { id, ...values } = receipt;
       checked(
-        (await client.from("receipts").update(values).eq("id", id)).error,
+        (await client.rpc("core_finish_initial_extraction", { p_receipt: receipt })).error,
       );
     },
     async usage(call) {

@@ -1,5 +1,6 @@
 import type { Correction, ParsedReceipt, Submission } from '../contracts';
 import type { Snapshot } from './store';
+import { activeAliases, aliasCorrections } from './rule-state';
 import { aliasPayload, normalize, CoreError } from './validation';
 export interface Candidate { submission_id: string; attendee_name: string; category: string; currency: string; receipt: ParsedReceipt; search_score?: number }
 export interface Evidence { candidates: Candidate[]; aliases: Correction[]; retrieval_mode: 'elasticsearch' | 'simulated' | 'database'; }
@@ -18,7 +19,7 @@ function candidates(s: Submission, state: Snapshot): Candidate[] {
 }
 export class SimulatedRetrieval implements Retrieval {
   async retrieve(s: Submission, p: ParsedReceipt, state: Snapshot): Promise<Evidence> {
-    return { candidates: candidates(s, state).filter(c => (p.receipt_number && c.receipt.receipt_number === p.receipt_number) || (p.amount_minor !== null && c.receipt.amount_minor === p.amount_minor && c.receipt.receipt_date === p.receipt_date)), aliases: applicableAliases(s, p, state.corrections), retrieval_mode: 'simulated' };
+    return { candidates: candidates(s, state).filter(c => (p.receipt_number && c.receipt.receipt_number === p.receipt_number) || (p.amount_minor !== null && c.receipt.amount_minor === p.amount_minor && c.receipt.receipt_date === p.receipt_date)), aliases: applicableAliases(s, p, aliasCorrections(activeAliases(state))), retrieval_mode: 'simulated' };
   }
 }
 /** Rebuild the small demo corpus before each search; refresh=wait_for makes new corrections visible.
@@ -34,7 +35,7 @@ export class ElasticsearchRetrieval implements Retrieval {
     return res.json();
   }
   async retrieve(s: Submission, p: ParsedReceipt, state: Snapshot): Promise<Evidence> {
-    const all = candidates(s, state); const aliases = state.corrections.filter(c => c.correction_type === 'vendor_alias');
+    const all = candidates(s, state); const aliases = aliasCorrections(activeAliases(state));
     if (all.length + aliases.length > 1000) throw new CoreError('DEMO_LIMIT', 'Demo retrieval corpus exceeds 1000 records.', 503);
     const docs = [...all.map(c => ({ id: c.submission_id, kind: 'candidate', ...c })), ...aliases.map(c => ({ ...c, kind: 'alias', ...aliasPayload(c.correction_payload_json), observed_vendor_normalized: normalize(aliasPayload(c.correction_payload_json).observed_vendor) }))];
     // Fields used in exact filters have explicit keyword mappings (see provision script).
@@ -67,7 +68,7 @@ export class DatabaseRetrieval implements Retrieval {
         (p.amount_minor !== null && c.receipt.amount_minor === p.amount_minor) ||
         (p.vendor && c.receipt.vendor && normalize(p.vendor) === normalize(c.receipt.vendor)) ||
         (p.receipt_date && c.receipt.receipt_date === p.receipt_date)),
-      aliases: applicableAliases(s, p, state.corrections), retrieval_mode: 'database',
+      aliases: applicableAliases(s, p, aliasCorrections(activeAliases(state))), retrieval_mode: 'database',
     };
   }
 }

@@ -23,7 +23,8 @@ export function aliasPayload(v: unknown): AliasPayload {
 }
 export function correctionInput(v: unknown): CorrectionInput {
   if (!isObject(v) || !isUUID(v.submission_id) || (v.decision_id !== undefined && !isUUID(v.decision_id)) || !['approved', 'rejected'].includes(String(v.human_verdict)) || typeof v.human_note !== 'string' || !v.human_note.trim() || v.human_note.length > 2000 || !['decision_override', 'vendor_alias'].includes(String(v.correction_type)) || !isObject(v.correction_payload_json)) throw new CoreError('INVALID_INPUT', 'Invalid correction; a human note and valid identifiers are required.');
-  if (v.correction_type === 'vendor_alias') aliasPayload(v.correction_payload_json);
+  if (v.correction_type === 'vendor_alias') throw new CoreError('LEGACY_ALIAS_DISABLED', 'Use the reviewed /api/rules workflow to propose and test aliases.', 410);
+  if (!Number.isSafeInteger(v.expected_review_revision) || Number(v.expected_review_revision) < 0) throw new CoreError('INVALID_INPUT', 'expected_review_revision is required.');
   else if (Object.keys(v.correction_payload_json).length) throw new CoreError('INVALID_INPUT', 'One-time overrides require an empty payload.');
   return v as unknown as CorrectionInput;
 }
