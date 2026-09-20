@@ -17,10 +17,11 @@ import { SimulatedJev } from '../core/jev';
 import { workspaceRows } from '../core/projection';
 import { extractReceipt } from '../intake/extract';
 import type { InboxDocument } from './schema';
+import { advanceSourceAudit, readSourceAudit } from './audit';
 
 function request(bytes: Uint8Array, name = 'unlinked.pdf', origin = 'http://localhost:3199') {
   const body = new FormData();
-  body.set('file', new File([new Uint8Array(bytes)], name, { type: name.endsWith('.csv') ? 'text/csv' : bytes[0] === 137 ? 'image/png' : 'application/pdf' }));
+  body.set('file', new File([new Uint8Array(bytes)], name, { type: name.endsWith('.eml') ? 'message/rfc822' : name.endsWith('.csv') ? 'text/csv' : bytes[0] === 137 ? 'image/png' : 'application/pdf' }));
   return new Request('http://localhost:3199/api/inbox', { method: 'POST', headers: { origin }, body });
 }
 const sampleDocs = (): InboxDocument[] => inboxSamples().map(s => ({ id: randomUUID(), filename: s.name, evidence: s.evidence, file_type: 'application/pdf', sha256: '', error: null, provenance: 'simulated', latency_ms: null }));
@@ -146,4 +147,46 @@ test('text sources validate UTF-8, size, and email headers before extraction', (
   assert.equal(inboxFileType(Buffer.from('From: ava@example.invalid\nSubject: Receipt\n\nPlease reimburse 190 USD.'), '', 'thread.eml'), 'message/rfc822');
   assert.equal(inboxFileType(Buffer.from('Travel note'), '', 'note.txt'), 'text/plain');
   for (const [bytes, name] of [[Buffer.from([255, 0]), 'a.csv'], [Buffer.from('x'.repeat(100001)), 'a.txt'], [Buffer.from('No mail headers'), 'a.eml'], [Buffer.from('PK binary'), 'a.zip']] as const) assert.throws(() => inboxFileType(bytes, '', name), { code: 'unsupported_file' });
+});
+
+test('source audit reads mixed originals once, queues complete requests, and holds uncertain evidence', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'sift-source-audit-'));
+  const prior = process.env.RECONCILIATION_APP_ORIGIN;
+  process.env.RECONCILIATION_APP_ORIGIN = 'http://localhost:3199';
+  try {
+    const core = new CoreService(new FileStore(path.join(dir, 'claims')), new DatabaseRetrieval(), new SimulatedJev(), true);
+    const deps = { core, intake: new LocalStore(path.join(dir, 'claims')), originals: new LocalSupportingOriginals(path.join(dir, 'claims')), dir: path.join(dir, 'inbox') };
+    let batch = await readSourceAudit(deps.dir);
+    assert.equal(batch.documents.length, 0);
+    for (let i = 0; i <= inboxSamples().length; i++) batch = await advanceSourceAudit(request(Buffer.from('unused')), 'demo', deps);
+    assert.equal(batch.phase, 'ready');
+    assert.equal(batch.documents.length, 10);
+    assert.equal(batch.duplicates, 1);
+    assert.deepEqual(new Set(batch.documents.map(document => document.file_type)), new Set(['application/pdf', 'image/png', 'message/rfc822', 'text/csv']));
+    assert.equal(batch.imports.length, 2);
+    assert.equal(batch.held.length, 4);
+    assert.ok(batch.held.every(item => !batch.imports.some(saved => saved.document_ids.includes(item.document_id))));
+    const ids = batch.imports.map(item => item.result.submission_id);
+    const queued = workspaceRows(await core.store.snapshot()).filter(row => ids.includes(row.id));
+    assert.equal(queued.length, 2);
+    assert.ok(queued.every(row => !row.latest_run_id), 'source intake queues claims without starting hidden audits');
+    assert.equal(queued.find(row => row.attendee_name === 'Ava Demo')!.amount_requested_minor, 19000);
+    assert.equal(queued.find(row => row.attendee_name === 'Ava Demo')!.receipt!.parsed_fields_json!.amount_minor, 18000);
+    assert.deepEqual(await advanceSourceAudit(request(Buffer.from('unused')), 'demo', deps), batch, 'resume neither rereads inputs nor duplicates claims');
+    await core.reconcile(ids);
+    const audited = workspaceRows(await core.store.snapshot()).filter(row => ids.includes(row.id));
+    assert.equal(audited.find(row => row.attendee_name === 'Ava Demo')!.assessment_status, 'flagged');
+    assert.equal(audited.find(row => row.attendee_name === 'Maya Demo')!.assessment_status, 'matched');
+    const ben = batch.documents.find(document => document.filename === 'phone-photo-A.pdf')!;
+    const email = batch.documents.find(document => document.filename === 'Re-train-tickets.pdf')!;
+    await confirmImport({ receipt_id: ben.id, supporting_ids: [email.id], confirmed: true,
+      submission: { attendee_name: 'Ben Demo', email: 'ben@example.invalid', amount_requested_minor: '12000', currency: 'USD', category: 'train', origin_location: 'New York' },
+    }, deps);
+    const resolved = await readSourceAudit(deps.dir);
+    assert.equal(resolved.imports.length, 3, 'manual resolutions survive source-page reloads');
+    assert.equal(resolved.held.length, 2);
+  } finally {
+    if (prior === undefined) delete process.env.RECONCILIATION_APP_ORIGIN; else process.env.RECONCILIATION_APP_ORIGIN = prior;
+    await rm(dir, { recursive: true, force: true });
+  }
 });

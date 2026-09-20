@@ -16,7 +16,7 @@ async function main() {
   await mkdir(claims, { mode: 0o700 });
   await writeFile(path.join(claims, 'core-state.json'), JSON.stringify({ version: 1, state: { ...demoSnapshot(), submissions: [], receipts: [] }, calls: [] }), { mode: 0o600 });
   const env: NodeJS.ProcessEnv = {
-    ...process.env, RECONCILIATION_SYNTHETIC_ONLY: 'true', RECONCILIATION_INTAKE_MODE: 'demo',
+    ...process.env, RECONCILIATION_SYNTHETIC_ONLY: 'true', RECONCILIATION_SOURCE_AUDIT: 'true', RECONCILIATION_INTAKE_MODE: 'demo',
     RECONCILIATION_EXTRACTION_MODE: live ? 'live' : 'demo', RECONCILIATION_MODE: 'simulated',
     RECONCILIATION_APP_ORIGIN: `http://127.0.0.1:${port}`, RECONCILIATION_INTAKE_DEMO_DIR: claims,
     RECONCILIATION_INBOX_DIR: path.join(root, 'inbox'), RECONCILIATION_INVESTIGATION_MODE: 'disabled',

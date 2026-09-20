@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, ArrowUpRight, CheckCircle2, ChevronDown, CircleHelp, Copy, FileImage, Files, FileText, Link2, LoaderCircle, Mail, Paperclip, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { InboxDocument, InboxSuggestion, ImportResult } from "@/lib/inbox/schema";
+import type { InboxDocument, InboxSuggestion, ImportResult, SourceAudit } from "@/lib/inbox/schema";
+import { suggestLinks } from '@/lib/inbox/matching';
 
 import { caseSummary, clarificationDraft, defaultDraft as defaults, money, requestCents, type Draft } from "@/lib/inbox/presentation";
 import { SourceWorkbench, type SourceSample } from './source-workbench';
@@ -54,6 +55,29 @@ export default function ImportWorkspace({ mode, simulatedReview }: { mode: "demo
   const lock = useRef(false);
   const manuallyAssigned = useRef(new Set<string>());
   const editedDrafts = useRef(new Set<string>());
+  useEffect(() => {
+    let cancelled = false;
+    setBusy('Loading saved audit inputs…');
+    json<SourceAudit>('/api/inbox/audit').then(batch => {
+      if (cancelled || !batch.enabled || !batch.documents.length) return;
+      const links = suggestLinks(batch.documents);
+      const assigned = Object.fromEntries(links.map(link => [link.document_id, link.suggested_receipt_id || '']));
+      const used = batch.imports.flatMap(item => item.document_ids);
+      setDocuments(batch.documents);
+      setSuggestions(links);
+      setAssignments(assigned);
+      setConsumed(used);
+      setResults(batch.imports.map(item => item.result));
+      const receipts = batch.documents.filter(document => document.evidence?.document_kind === 'receipt');
+      setAnchors(receipts.filter(document => !used.includes(document.id)).map(document => document.id));
+      setDrafts(Object.fromEntries(receipts.map(receipt => [receipt.id, defaults(receipt, batch.documents.filter(document => assigned[document.id] === receipt.id))])));
+      setUploads(batch.documents.map(document => ({ id: document.id, name: document.filename, documentId: document.id, status: document.error ? 'error' : 'done', message: document.error || undefined,
+        source: document.file_type === 'text/csv' ? 'forms' : document.evidence?.document_kind === 'email' ? 'email' : 'dropbox' })));
+      setUploadOpen(false);
+      if (batch.error) setError(batch.error);
+    }).catch(failure => { if (!cancelled) setError(failure.message); }).finally(() => { if (!cancelled) setBusy(''); });
+    return () => { cancelled = true; };
+  }, []);
   const available = documents.filter(d => !consumed.includes(d.id));
   const receipts = available.filter(d => anchors.includes(d.id));
   const supporting = available.filter(d => !anchors.includes(d.id));

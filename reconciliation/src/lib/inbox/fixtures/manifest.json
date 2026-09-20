@@ -189,9 +189,9 @@
     }
   },
   {
-    "name": "Fwd-bus-receipt.pdf",
-    "asset": "Fwd-bus-receipt.pdf",
-    "file_type": "application/pdf",
+    "name": "Fwd-bus-receipt.eml",
+    "asset": "Fwd-bus-receipt.eml",
+    "file_type": "message/rfc822",
     "evidence": {
       "document_kind": "email",
       "facts": {
@@ -212,7 +212,7 @@
         "category": "bus",
         "origin_location": "Worcester"
       },
-      "raw_extracted_text": "MAIL / EXPORTED CONVERSATION\nFwd: Bus receipt / BUS-MAYA-42\n2 messages\nFrom: Maya Demo <maya@example.invalid>\nTo: Travel desk <travel@example.invalid>\nSent: September 20, 2026, 9:14 AM\nSubject: Fwd: Bus receipt / BUS-MAYA-42\n\nHi travel team,\n\nPlease reimburse USD 42.00 for my Cedar Bus ticket from Worcester to Boston. Category: bus. Passenger: Maya Demo.\n\nI purchased it on 2026-09-18. Ticket total: USD 42.00. Booking reference: BUS-MAYA-42. Receipt number: CB-042.\n\nI took a phone photo of the receipt and put it in the shared folder. The second upload is just another copy of the same photo.\n\nThanks,\nMaya Demo\n\nAttachments: IMG_2048.png\nOn September 19, 2026, Travel desk wrote:\nFrom: travel@example.invalid\nTo: maya@example.invalid\n\nA photo is fine if the passenger, amount and booking reference are readable. Please include your origin and requested amount.\n\nThis email is a reimbursement request, not an approval.\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
+      "raw_extracted_text": "From: Maya Demo <maya@example.invalid>\nTo: Travel desk <travel@example.invalid>\nSubject: Fwd: Bus receipt / BUS-MAYA-42\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\n\nHi travel team,\n\nPlease reimburse USD 42.00 for my Cedar Bus ticket from Worcester to Boston. Category: bus. Passenger: Maya Demo.\n\nI purchased it on 2026-09-18. Ticket total: USD 42.00. Booking reference: BUS-MAYA-42. Receipt number: CB-042.\n\nI took a phone photo of the receipt and put it in the shared folder. The second upload is just another copy of the same photo.\n\nThanks,\nMaya Demo\n\nAttachments: IMG_2048.png\nOn September 19, 2026, Travel desk wrote:\nFrom: travel@example.invalid\nTo: maya@example.invalid\n\nA photo is fine if the passenger, amount and booking reference are readable. Please include your origin and requested amount.\n\nThis email is a reimbursement request, not an approval.\nSYNTHETIC DEMO DOCUMENT - NOT VALID FOR PAYMENT\nAll people, merchants, emails and references are fictional."
     }
   },
   {

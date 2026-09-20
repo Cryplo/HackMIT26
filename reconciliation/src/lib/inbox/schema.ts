@@ -28,3 +28,17 @@ export const ConfirmImport = z.object({
   confirmed: z.literal(true),
 }).strict().refine(v => new Set([v.receipt_id, ...v.supporting_ids]).size === v.supporting_ids.length + 1, 'Select each document only once.');
 export type ImportResult = { submission_id: string; receipt_id: string; supporting_count: number };
+
+export type SourceAudit = {
+  enabled: boolean;
+  extractionMode?: 'demo' | 'live';
+  phase: 'idle' | 'reading' | 'linking' | 'ready' | 'failed';
+  total: number;
+  cursor: number;
+  current: { name: string; source: 'forms' | 'email' | 'dropbox' } | null;
+  documents: InboxDocument[];
+  imports: { document_ids: string[]; result: ImportResult }[];
+  held: { document_id: string; reason: string }[];
+  duplicates: number;
+  error: string;
+};

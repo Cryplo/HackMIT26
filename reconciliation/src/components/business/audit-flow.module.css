@@ -165,3 +165,5 @@
 .sourceIntake a:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 @media(max-width:950px) { .sourceFeeds { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width:520px) { .sourceFeeds { grid-template-columns: 1fr; }.sourceIntake { padding: 13px; }.sourceFlowStatus small { margin-left: 0; flex-basis: 100%; } }
+
+.sourceAuditNote { margin: 0 26px 18px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }

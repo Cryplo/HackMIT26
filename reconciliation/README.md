@@ -31,7 +31,7 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 
 ## Import loose paperwork
 
-The `feat/document-inbox` extension adds `/import`: upload loose receipts, bookings, and email PDFs; inspect suggested links; confirm draft request details; then use ordinary review. The **Data sources** page has connection mockups, file drop, source samples, and side-by-side parsing results; the audit graph shows observed incoming activity. Run `npm run demo:inbox -- --port 3017` for an empty isolated store; **Read all sample inputs** imports eleven mixed PDF/PNG/CSV files, including a duplicate, a complete case, an ambiguous request, and a preserved $10 discrepancy. See [Document inbox](docs/DOCUMENT_INBOX.md) for the single-server demo limits and tests.
+The `feat/document-inbox` extension adds `/import`: upload loose receipts, bookings, and email PDFs; inspect suggested links; confirm draft request details; then use ordinary review. The **Data sources** page has connection mockups, file drop, source samples, and side-by-side parsing results; the audit graph shows observed incoming activity. Run `npm run demo:inbox -- --port 3017` for an empty isolated store; **Start audit** reads eleven mixed PDF/PNG/EML/CSV source files, groups clear requests, and checks them; Data sources restores the same parsed inputs. Manual **Read all sample inputs** remains available for separate imports of the pack, including a duplicate, a complete case, an ambiguous request, and a preserved $10 discrepancy. See [Document inbox](docs/DOCUMENT_INBOX.md) for the single-server demo limits and tests.
 
 ## Pages and workflow
 

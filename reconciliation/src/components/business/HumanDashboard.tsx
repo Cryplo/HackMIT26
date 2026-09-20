@@ -193,6 +193,7 @@ export default function HumanDashboard({ preview = false }: { preview?: boolean 
         <div className={styles.completionIcon}><CircleCheck aria-hidden="true" /></div>
         <DialogTitle>{completion?.title}</DialogTitle>
         <DialogDescription>{completion?.detail} {pendingCount ? `${actions.length} awaiting a decision; ${pendingCount - actions.length} still unchecked or running.` : "Every claim has a saved decision."}</DialogDescription>
+        {audit.sources?.enabled && audit.sources.held.length > 0 && <p className="text-sm text-muted-foreground">{audit.sources.held.length} source inputs still need a connection or missing details. <Link className="underline" href="/import?audit=1">Inspect unresolved inputs</Link></p>}
         <Button onClick={() => { setCompletion(null); if (actions.length) startReview(actions[0].row.id); else if (!pendingCount) router.push(businessHref); }}>{actions.length ? "Review remaining claims" : pendingCount ? "Back to audit" : "View all claims"}<ArrowRight aria-hidden="true" /></Button>
       </DialogContent>
     </Dialog>

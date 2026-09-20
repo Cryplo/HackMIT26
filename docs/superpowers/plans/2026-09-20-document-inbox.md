@@ -43,3 +43,15 @@ User-directed refinement: remove the top overview panel and per-card demo badges
 - [x] Record bounded browser-local upload, parsing, failure, and confirmation activity; show it across tabs and animate confirmed handoff.
 - [x] Preserve edited drafts/manual links while allowing later receipts to connect to earlier requests.
 - [x] Check 20 backend tests, connector geometry, three browser tests, a paid two-source live check, and production build. Correct the observed CSV amount-copy error and document its limits.
+
+
+## Start audit consumes messy originals
+
+User-directed correction: Start audit must consume the mixed-format inputs itself, without a separate manual parsing prerequisite.
+
+- [x] Add a persisted, opt-in sample batch using existing upload/extract/match/confirm helpers; no new queue or dependency.
+- [x] Replace the bus email PDF sample with a real EML export, alongside PDF, PNG, and CSV originals.
+- [x] Queue only complete unambiguous requests, preserve amount discrepancies, and hold missing/ambiguous inputs.
+- [x] Feed source progress into Start audit, support stop/reload/resume, and expose the same saved inputs on Data sources.
+- [x] Distinguish unresolved source inputs in audit completion; keep human decisions and existing financial checks.
+- [x] Verify twelve focused tests, a 37.2-second paid live-extraction browser run, mobile layout, typecheck, and production build. Review stays simulated.

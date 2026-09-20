@@ -3,6 +3,8 @@
 import * as React from "react";
 import { checkClaims, getWorkspaceStore } from "./client";
 import type { ReviewRow } from "./types";
+import type { SourceAudit } from '../inbox/schema';
+import { readSourceActivity, recordSourceActivity } from '../inbox/activity';
 
 export interface AuditSnapshot {
   status: "idle" | "running" | "stopping" | "complete" | "failed";
@@ -13,10 +15,11 @@ export interface AuditSnapshot {
   error: string;
   notice: string;
   startedAt: number | null;
+  sources: SourceAudit | null;
 }
 
 const initial: AuditSnapshot = {
-  status: "idle", total: 0, done: 0, checkingIds: [], completedIds: [], error: "", notice: "", startedAt: null,
+  status: "idle", total: 0, done: 0, checkingIds: [], completedIds: [], error: "", notice: "", startedAt: null, sources: null,
 };
 
 export function isAuditEligible(row: ReviewRow) {
@@ -30,7 +33,7 @@ export function isAuditEligible(row: ReviewRow) {
 type Workspace = Pick<ReturnType<typeof getWorkspaceStore>, "client" | "refresh" | "getSnapshot">;
 
 /** The session owns the loop; leaving a page only unsubscribes its view. */
-export function createAuditSession(workspace: Workspace) {
+export function createAuditSession(workspace: Workspace, sourceRequest?: (advance: boolean) => Promise<SourceAudit>) {
   let snapshot = initial;
   let stopRequested = false;
   const listeners = new Set<() => void>();
@@ -48,6 +51,11 @@ export function createAuditSession(workspace: Workspace) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
+    async loadSources() {
+      if (!sourceRequest || snapshot.status === 'running' || snapshot.status === 'stopping') return;
+      try { publish({ sources: await sourceRequest(false) }); }
+      catch { publish({ error: 'Could not load incoming sources. Reload before starting a source audit.' }); }
+    },
     stop() {
       if (snapshot.status !== "running") return;
       stopRequested = true;
@@ -56,10 +64,19 @@ export function createAuditSession(workspace: Workspace) {
     async start() {
       if (snapshot.status === "running" || snapshot.status === "stopping") return;
       stopRequested = false;
-      publish({ ...initial, status: "running", startedAt: Date.now() });
+      publish({ ...initial, sources: snapshot.sources, status: "running", startedAt: Date.now() });
       let error = "";
       let emailWarnings = 0;
       try {
+        if (sourceRequest) {
+          let sources = await sourceRequest(false);
+          publish({ sources });
+          while (sources.enabled && sources.phase !== 'ready' && sources.phase !== 'failed' && !stopRequested) {
+            sources = await sourceRequest(true);
+            publish({ sources });
+          }
+          if (sources.enabled && sources.phase === 'failed') throw new Error(sources.error);
+        }
         await workspace.refresh();
         const data = workspace.getSnapshot().data;
         if (!data) throw new Error("Unable to load claims for this audit.");
@@ -115,19 +132,38 @@ export function createAuditSession(workspace: Workspace) {
       if (unresolved.length) {
         error = `${unresolved.length} failed attempt${unresolved.length === 1 ? " remains" : "s remain"} for individual review. ${error || failures.get(unresolved[0].id)}`;
       }
-      publish({ status: error ? "failed" : stopRequested && snapshot.done < snapshot.total ? "idle" : "complete", checkingIds: [], error });
+      publish({ status: error ? "failed" : stopRequested ? "idle" : "complete", checkingIds: [], error });
     },
   };
 }
 
 const sessions = new Map<boolean, ReturnType<typeof createAuditSession>>();
 
+async function sourceRequest(advance: boolean): Promise<SourceAudit> {
+  const response = await fetch('/api/inbox/audit', advance ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' } : undefined);
+  const state = await response.json();
+  if (!response.ok) throw new Error(state.error?.message || 'Could not read incoming sources.');
+  if (state.enabled && advance) {
+    const used = new Set((state as SourceAudit).imports.flatMap(item => item.document_ids));
+    const previous = readSourceActivity();
+    for (const document of (state as SourceAudit).documents) {
+      const status = document.error ? 'failed' : used.has(document.id) ? 'confirmed' : 'parsed';
+      if (previous.some(item => item.id === document.id && item.status === status)) continue;
+      recordSourceActivity({ id: document.id, name: document.filename,
+      source: document.file_type === 'text/csv' ? 'forms' : document.evidence?.document_kind === 'email' ? 'email' : 'dropbox',
+      status, at: Date.now() });
+    }
+  }
+  return state;
+}
+
 export function useAudit(preview: boolean) {
   let session = sessions.get(preview);
   if (!session) {
-    session = createAuditSession(getWorkspaceStore(preview ? "preview" : "api"));
+    session = createAuditSession(getWorkspaceStore(preview ? "preview" : "api"), preview ? undefined : sourceRequest);
     sessions.set(preview, session);
   }
   const snapshot = React.useSyncExternalStore(session.subscribe, session.getSnapshot, session.getServerSnapshot);
+  React.useEffect(() => { void session.loadSources(); }, [session]);
   return { ...snapshot, start: session.start, stop: session.stop };
 }
