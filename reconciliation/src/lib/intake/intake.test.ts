@@ -114,6 +114,63 @@ test("failure persists claim, receipt and bytes across store instances", async (
     await rm(dir, { recursive: true, force: true });
   }
 });
+test("live storage retries database timeouts and treats its own landed write as done", async () => {
+  const env = { ...process.env };
+  const original = globalThis.fetch;
+  process.env.RECONCILIATION_SYNTHETIC_ONLY = "true";
+  process.env.RECONCILIATION_INTAKE_MODE = "live";
+  process.env.SUPABASE_URL = "https://synthetic.test";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic-test-only";
+  const seen: string[] = [];
+  const timeout = () =>
+    Response.json(
+      { message: "The connection to the database timed out" },
+      { status: 544 },
+    );
+  try {
+    globalThis.fetch = async (url, init) => {
+      const target = String(url);
+      const call = `${String(init?.method || "GET")} ${new URL(target).pathname}`;
+      seen.push(call);
+      const attempts = seen.filter((entry) => entry === call).length;
+      if (target.includes("/storage/v1/bucket/"))
+        return Response.json({ id: "receipts", public: false });
+      if (target.includes("/storage/v1/object/"))
+        return attempts === 1 ? timeout() : Response.json({ Key: "ok" });
+      if (target.includes("/rest/v1/submissions"))
+        return attempts === 1 ? timeout() : Response.json([]);
+      // The retried receipt insert reports the first attempt's row as a conflict.
+      if (target.includes("/rest/v1/receipts"))
+        return attempts === 1
+          ? timeout()
+          : Response.json(
+              { code: "23505", message: "duplicate key" },
+              { status: 409 },
+            );
+      return Response.json([]);
+    };
+    const { getStore } = await import("./store");
+    const result = await submitReceipt(
+      input,
+      pdf,
+      "application/pdf",
+      getStore(),
+      async () => ({ fields: null, raw: null, error: "skip", usage: null }),
+    );
+    assert.equal(result.extraction_status, "failed");
+    assert.equal(
+      seen.filter((call) => call.includes("/rest/v1/receipts")).length >= 2,
+      true,
+    );
+    assert.equal(
+      seen.some((call) => call.startsWith("DELETE")),
+      false,
+    );
+  } finally {
+    globalThis.fetch = original;
+    process.env = env;
+  }
+});
 test("successful extraction logs exact usage once and PDF is passed inline", async () => {
   process.env.OPENAI_API_KEY = "fake-test-only";
   let calls = 0;

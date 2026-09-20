@@ -26,10 +26,20 @@ export function validateAnswers(raw: unknown): Record<SemanticField, Answer> {
 const tokenCount = (v: unknown): number | null => Number.isSafeInteger(v) && Number(v) >= 0 ? Number(v) : null;
 export class LiveJev implements Jev {
   constructor(private key: string, private model = 'jev-latest', private channel: 'typesafe' | 'gateway' = 'typesafe') {}
+  /** Throttling and gateway blips are retried once; an invalid answer is never retried,
+   * and an exhausted retry still fails closed to human review. */
+  private async post(state: SemanticState, attempt: number): Promise<Response> {
+    const res = await fetch(this.channel === 'gateway' ? 'https://ai-gateway.vercel.sh/typesafe/v1/systemone' : 'https://api.typesafe.ai/v1/systemone', { method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: this.model, state, questions }), signal: AbortSignal.timeout(25000) });
+    if (res.ok || attempt >= 1 || ![408, 429, 500, 502, 503, 504].includes(res.status)) return res;
+    const after = Number(res.headers.get('retry-after'));
+    await res.body?.cancel().catch(() => {});
+    await new Promise(resolve => setTimeout(resolve, Math.min(Number.isFinite(after) && after > 0 ? after * 1000 : 750, 5000)));
+    return this.post(state, attempt + 1);
+  }
   async evaluate(state: SemanticState, runId: string, log: (call: ModelCall) => Promise<void>): Promise<Evaluation> {
     const started = Date.now(); let raw: Record<string, unknown> | undefined;
     try {
-      const res = await fetch(this.channel === 'gateway' ? 'https://ai-gateway.vercel.sh/typesafe/v1/systemone' : 'https://api.typesafe.ai/v1/systemone', { method: 'POST', headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: this.model, state, questions }), signal: AbortSignal.timeout(25000) });
+      const res = await this.post(state, 0);
       if (!res.ok) throw new CoreError('JEV_UNAVAILABLE', `Jev returned HTTP ${res.status}.`, 503);
       const body: unknown = await res.json(); if (!isObject(body)) throw new CoreError('JEV_INVALID', 'Invalid Jev response.', 503); raw = body;
       return { answers: validateAnswers(raw.answers), model: typeof raw.model === 'string' ? raw.model : this.model, simulated: false, raw };

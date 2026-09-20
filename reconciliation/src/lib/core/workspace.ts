@@ -37,11 +37,11 @@ export function workspaceSnapshot(state: Snapshot) {
  return {rows,token:createHash('sha256').update(JSON.stringify(rows)).digest('hex')};
 }
 export async function workspaceReviews(core:CoreService):Promise<ReviewsResponse> {
- const snapshot=workspaceSnapshot(await core.store.snapshot());
- const old=await core.reviews();const rows=snapshot.rows;
+ const snapshot=workspaceSnapshot(await core.readSnapshot());
+ const old=core.execution;const rows=snapshot.rows;
  return {contract_version:2,snapshot_token:snapshot.token,knowledge_revision:0,submissions:rows,demo_mode:core.demoMode,
  summary:{approved_amount_minor:rows.filter(r=>r.decision_status==='approved').reduce((a,r)=>a+r.amount_requested_minor,0),pending_review_count:rows.filter(r=>r.decision_status==='pending').length,matched_count:rows.filter(r=>r.assessment_status==='matched').length,flagged_count:rows.filter(r=>r.assessment_status==='flagged').length,needs_review_count:rows.filter(r=>r.assessment_status==='needs_review').length},
- execution:{extraction:process.env.RECONCILIATION_EXTRACTION_MODE==='live'?(process.env.AZURE_OPENAI_API_KEY?'live Azure':'live OpenAI'):'sample extraction',decisions:old.execution?.decisions||'unknown',retrieval:old.execution?.retrieval||'stored candidates',storage:old.execution?.storage||'unknown',investigation:'not enabled'}};
+ execution:{extraction:process.env.RECONCILIATION_EXTRACTION_MODE==='live'?(process.env.AZURE_OPENAI_API_KEY?'live Azure':'live OpenAI'):'sample extraction',decisions:old?.decisions||'unknown',retrieval:old?.retrieval||'stored candidates',storage:old?.storage||'unknown',investigation:'not enabled'}};
 }
 const financial=['currency','amount','policy','receipt_date','policy_cap'];
 export function assertApprovable(row:ReviewRow){

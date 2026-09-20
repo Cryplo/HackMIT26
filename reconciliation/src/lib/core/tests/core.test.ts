@@ -101,6 +101,13 @@ test('actual Jev wire payload, evidence, response validation, usage once per API
     globalThis.fetch=async()=>Response.json({error:'unavailable'},{status:503});
     await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c)),/503/);
     assert.equal(store.calls.length,2); assert.equal(store.calls[1].input_tokens,null);
+    let attempts=0;
+    globalThis.fetch=async()=>{attempts++;return attempts===1?Response.json({error:'rate limited'},{status:429,headers:{'retry-after':'0'}}):Response.json(raw)};
+    assert.equal((await new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c))).simulated,false);
+    assert.equal(attempts,2); assert.equal(store.calls.length,3);
+    attempts=0; globalThis.fetch=async()=>{attempts++;return Response.json({error:'bad request'},{status:400})};
+    await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c)),/400/);
+    assert.equal(attempts,1);
   } finally { globalThis.fetch=original; }
   const malformed=structuredClone(simulated.answers); malformed.merchant.probabilities.pass=NaN; assert.throws(()=>validateAnswers(malformed));
 });

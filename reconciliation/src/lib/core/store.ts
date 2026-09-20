@@ -80,7 +80,44 @@ export class SupabaseStore implements Store {
     }
     const text = await res.text(); return text ? JSON.parse(text) : undefined;
   }
-  snapshot(): Promise<Snapshot> { return this.request('rpc/core_snapshot', {}); }
+  /** Audit-only column; reading it grows the snapshot by ~2 KB per decision and times the query out. */
+  private static readonly decisionColumns = 'id,run_id,submission_id,field_checked,check_method,question_type,answer_json,probability,confidence_score,verdict,rationale_text,evidence_json,model_used,created_at';
+  /** Reads are idempotent, so a pool timeout or gateway blip is retried rather than
+   * surfaced as an outage; a rejected request is returned on the first attempt. */
+  private async page(path: string, query: string, range: string): Promise<Response> {
+    let last: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+      try {
+        const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/${path}?${query}`, { headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Range-Unit': 'items', Range: range }, signal: AbortSignal.timeout(45000), cache: 'no-store' });
+        if (res.ok || ![408, 429, 500, 502, 503, 504, 544].includes(res.status)) return res;
+        last = res; await res.body?.cancel().catch(() => {});
+      } catch (error) { last = error; }
+    }
+    if (last instanceof Response) return last;
+    throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
+  }
+  private async select<T>(path: string, query: string): Promise<T[]> {
+    const page = 1000; const rows: T[] = [];
+    for (let from = 0; ; from += page) {
+      const res = await this.page(path, query, `${from}-${from + page - 1}`);
+      if (!res.ok) throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
+      const batch = (await res.json()) as T[];
+      rows.push(...batch);
+      if (batch.length < page) return rows;
+    }
+  }
+  async snapshot(): Promise<Snapshot> {
+    const [submissions, receipts, policies, decisions, corrections, runs] = await Promise.all([
+      this.select<Submission>('submissions', 'select=*&order=submitted_at.asc,id.asc'),
+      this.select<Receipt>('receipts', 'select=*&order=id.asc'),
+      this.select<PolicyRule>('policy_rules', 'select=*&order=id.asc'),
+      this.select<Decision>('decisions', `select=${SupabaseStore.decisionColumns}&order=created_at.asc,id.asc`),
+      this.select<Correction>('corrections', 'select=*&order=corrected_at.asc,id.asc'),
+      this.select<ReconciliationRun>('reconciliation_runs', 'select=*&order=id.asc')
+    ]);
+    return { submissions, receipts, policies, decisions, corrections, runs };
+  }
   begin(id: string): Promise<string> { return this.request('rpc/core_begin_run', { p_submission: id }); }
   finish(id: string, ds: Decision[], status: SubmissionStatus) { return this.request('rpc/core_finish_run', { p_run: id, p_decisions: ds, p_status: status }); }
   fail(id: string, message: string) { return this.request('rpc/core_fail_run', { p_run: id, p_error: message }); }

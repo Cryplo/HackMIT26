@@ -4,10 +4,19 @@ import type { Jev, SemanticField } from './jev';
 import type { Justification, Justifier, JustificationRequest, ReviewOverride } from './justification';
 import { deterministicJustification, SimulatedJustifier } from './justification';
 import type { Retrieval } from './retrieval';
-import type { Store } from './store';
+import type { Snapshot, Store } from './store';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
 export class CoreService {
-  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, private execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier()) {}
+  constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier()) {}
+  /** Concurrent read-only projections share one in-flight read instead of queuing a
+   * full snapshot each; nothing is cached past completion, so writes stay visible. */
+  private pending: Promise<Snapshot> | null = null;
+  readSnapshot(): Promise<Snapshot> {
+    if (this.pending) return this.pending;
+    const snapshot = this.store.snapshot().finally(() => { if (this.pending === snapshot) this.pending = null; });
+    this.pending = snapshot;
+    return snapshot;
+  }
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
     // Three workers; stop launching work before the route's five-minute deadline.
     const results: ReconcileResult[] = new Array(ids.length); let next = 0;
@@ -87,7 +96,7 @@ export class CoreService {
   }
   correct(input: CorrectionInput) { return this.store.correct(input); }
   async reviews(): Promise<ReviewsResponse> {
-    const state = await this.store.snapshot();
+    const state = await this.readSnapshot();
     const rows = state.submissions.map(s => {
       const receipt = state.receipts.find(r => r.submission_id === s.id);
       const run = state.runs.find(r => r.id === s.latest_run_id && r.status === 'completed');

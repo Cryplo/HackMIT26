@@ -56,6 +56,40 @@ function checked(error: unknown) {
       503,
     );
 }
+/** Overload and pool-timeout responses from the managed database, as opposed to
+ * rejections of the request itself, which retrying would only repeat. */
+function transient(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const { status, statusCode, code, message } = error as Record<
+    string,
+    unknown
+  >;
+  if (
+    [408, 429, 500, 502, 503, 504, 544].includes(Number(status ?? statusCode))
+  )
+    return true;
+  if (
+    ["08000", "08003", "08006", "53300", "57014", "XX000"].includes(
+      String(code ?? ""),
+    )
+  )
+    return true;
+  return /timed out|timeout|fetch failed/i.test(String(message ?? ""));
+}
+/** A unique-violation seen only after a retry is this call's own first attempt
+ * having landed before the connection dropped, not a rejected duplicate claim. */
+const landed = (error: unknown) =>
+  String((error as { code?: unknown } | null)?.code ?? "") === "23505";
+async function retrying<T extends { error: unknown }>(
+  attempt: (retry: boolean) => PromiseLike<T>,
+): Promise<T> {
+  for (let tries = 0; ; tries++) {
+    const result = await attempt(tries > 0);
+    if (tries > 0 && landed(result.error)) return { ...result, error: null };
+    if (tries === 2 || !transient(result.error)) return result;
+    await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** tries));
+  }
+}
 export function getStore(): IntakeStore {
   if (intakeMode() === "demo")
     return new LocalStore(
@@ -78,32 +112,52 @@ export function getStore(): IntakeStore {
   const bucket = client.storage.from(
     process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
   );
-  return {
-    async create(claim, receipt, bytes) {
-      const bucketInfo = await client.storage.getBucket(
-        process.env.SUPABASE_RECEIPTS_BUCKET || "receipts",
+  /** Bucket visibility is deployment configuration, so it is verified once per
+   * process rather than costing an admin round trip on every upload. */
+  let privacy: Promise<void> | null = null;
+  const requirePrivateBucket = () =>
+    (privacy ??= (async () => {
+      const info = await retrying(() =>
+        client.storage
+          .getBucket(process.env.SUPABASE_RECEIPTS_BUCKET || "receipts")
+          .then((result) => result),
       );
-      checked(bucketInfo.error);
-      if (bucketInfo.data?.public)
+      checked(info.error);
+      if (info.data?.public)
         throw new IntakeError(
           "private_bucket_required",
           "Receipt storage must be private.",
           503,
         );
+    })().catch((error) => {
+      privacy = null;
+      throw error;
+    }));
+  return {
+    async create(claim, receipt, bytes) {
+      await requirePrivateBucket();
       checked(
         (
-          await bucket.upload(receipt.storage_path, bytes, {
-            contentType: receipt.file_type,
-            upsert: false,
-          })
+          await retrying((retry) =>
+            bucket.upload(receipt.storage_path, bytes, {
+              contentType: receipt.file_type,
+              // The path carries a fresh receipt id, so on a retry the only file
+              // that can already be there is this upload's own first attempt.
+              upsert: retry,
+            }),
+          )
         ).error,
       );
-      const submission = await client.from("submissions").insert(claim);
+      const submission = await retrying(() =>
+        client.from("submissions").insert(claim),
+      );
       if (submission.error) {
         await bucket.remove([receipt.storage_path]);
         checked(submission.error);
       }
-      const saved = await client.from("receipts").insert(receipt);
+      const saved = await retrying(() =>
+        client.from("receipts").insert(receipt),
+      );
       if (saved.error) {
         await client.from("submissions").delete().eq("id", claim.id);
         await bucket.remove([receipt.storage_path]);
@@ -113,18 +167,23 @@ export function getStore(): IntakeStore {
     async finish(receipt) {
       const { id, ...values } = receipt;
       checked(
-        (await client.from("receipts").update(values).eq("id", id)).error,
+        (
+          await retrying(() =>
+            client.from("receipts").update(values).eq("id", id),
+          )
+        ).error,
       );
     },
     async usage(call) {
-      checked((await client.from("model_calls").insert(call)).error);
+      checked(
+        (await retrying(() => client.from("model_calls").insert(call))).error,
+      );
     },
     async read(id) {
-      const row = await client
-        .from("receipts")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const row = await retrying(
+        async () =>
+          await client.from("receipts").select("*").eq("id", id).maybeSingle(),
+      );
       checked(row.error);
       if (!row.data) return null;
       const receipt = row.data as Receipt;
