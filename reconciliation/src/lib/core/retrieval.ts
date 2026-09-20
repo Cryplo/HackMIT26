@@ -2,7 +2,7 @@ import type { Correction, ParsedReceipt, Submission } from '../contracts';
 import type { Snapshot } from './store';
 import { aliasPayload, normalize, CoreError } from './validation';
 export interface Candidate { submission_id: string; attendee_name: string; category: string; currency: string; receipt: ParsedReceipt; search_score?: number }
-export interface Evidence { candidates: Candidate[]; aliases: Correction[]; retrieval_mode: 'elasticsearch' | 'simulated'; }
+export interface Evidence { candidates: Candidate[]; aliases: Correction[]; retrieval_mode: 'elasticsearch' | 'simulated' | 'database'; }
 export interface Retrieval { retrieve(s: Submission, receipt: ParsedReceipt, state: Snapshot): Promise<Evidence> }
 export function applicableAliases(s: Submission, p: ParsedReceipt, cs: Correction[]): Correction[] {
   return cs.filter(c => {
@@ -52,5 +52,22 @@ export class ElasticsearchRetrieval implements Retrieval {
     const ids = new Map<string, number>(candidateHits.hits.hits.map((h: { _id: string; _score: number }) => [h._id, h._score]));
     const aliasIds = new Set<string>(aliasHits.hits.hits.map((h: { _id: string }) => h._id));
     return { candidates: all.filter(c => ids.has(c.submission_id)).map(c => ({ ...c, search_score: ids.get(c.submission_id) })), aliases: applicableAliases(s, p, aliases.filter(c => aliasIds.has(c.id))), retrieval_mode: 'elasticsearch' };
+  }
+}
+
+/** Deterministic scan of authoritative stored receipts; no external search service.
+ * Bound the small-demo corpus explicitly rather than silently truncating evidence.
+ */
+export class DatabaseRetrieval implements Retrieval {
+  async retrieve(s: Submission, p: ParsedReceipt, state: Snapshot): Promise<Evidence> {
+    if (state.submissions.length > 1000) throw new CoreError('RETRIEVAL_LIMIT', 'Candidate scan supports up to 1000 claims; narrow the corpus before reconciling.', 503);
+    return {
+      candidates: candidates(s, state).filter(c =>
+        (p.receipt_number && c.receipt.receipt_number && normalize(c.receipt.receipt_number) === normalize(p.receipt_number)) ||
+        (p.amount_minor !== null && c.receipt.amount_minor === p.amount_minor) ||
+        (p.vendor && c.receipt.vendor && normalize(p.vendor) === normalize(c.receipt.vendor)) ||
+        (p.receipt_date && c.receipt.receipt_date === p.receipt_date)),
+      aliases: applicableAliases(s, p, state.corrections), retrieval_mode: 'database',
+    };
   }
 }

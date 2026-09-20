@@ -33,6 +33,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
         </button>
       </nav>
       <div className={styles.sidebarBottom}>
+        <Link href="/search"><ReceiptText aria-hidden="true" /> Search stored claims <ArrowUpRight aria-hidden="true" /></Link>
         <Link href="/demo"><BookOpen aria-hidden="true" /> Demo guide <ArrowUpRight aria-hidden="true" /></Link>
         <div className={styles.workspaceIdentity}><span aria-hidden="true">H</span><div>HackMIT 2026<small>Organizer workspace</small></div></div>
       </div>

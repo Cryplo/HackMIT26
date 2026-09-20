@@ -1,5 +1,11 @@
 # Testing Sift together
 
+**Current search update:** `/search` works against the stored v1 ledger with live Jev.
+Run `npm run demo:jev`; try “hotel claims” and “claims above $200”.
+Elasticsearch is no longer required: candidate retrieval uses stored receipt fields.
+The older v2 handoff below is still pending for investigations, decisions and learning.
+
+
 This is the team runbook. The [Devin benchmark plan](superpowers/plans/2026-09-19-sift-benchmark.md) is prepared; it has not been dispatched or implemented by this handoff.
 
 ## What works now
@@ -56,7 +62,7 @@ Existing Supabase setup, after creating that project:
 | Preview/offline tests | No keys; UI/software behavior only |
 | `npm run demo:jev` | One Jev/Gateway key; actual Jev calls, but fixture extraction/local simulated retrieval |
 | Local storage with live extraction + Jev | OpenAI key and one Jev key; original document extraction plus real assessment, with local retrieval explicitly labeled |
-| Configured full live backend | Supabase + OpenAI + Jev + existing Elasticsearch credentials; integrated v2 routes and investigator required for full product demonstration |
+| Configured full live backend | Supabase + OpenAI + Jev credentials; integrated v2 routes and investigator required for full product demonstration |
 
 For the supported local mixed mode, put provider keys in `.env.local` and start ordinary `npm run dev -- --hostname 127.0.0.1`, **not** `npm run demo`:
 
@@ -76,7 +82,7 @@ ELASTICSEARCH_API_KEY=
 
 Also set `OPENAI_API_KEY` and one of `AI_GATEWAY_API_KEY` or `TYPESAFE_API_KEY` through your own environment. Never paste keys into this guide. Leave `JEV_MODEL` unset to use the existing channel default unless deliberately testing another configuration. B's integrated investigator additionally uses `RECONCILIATION_INVESTIGATION_MODE=live` and `OPENAI_INVESTIGATOR_MODEL`; these are not implemented in the current v1 runtime. Restart after changing modes or directories.
 
-An empty `RECONCILIATION_MODE` currently permits this local configuration. Explicit `RECONCILIATION_MODE=live` requires Supabase, Jev and Elasticsearch. Read actual execution labels: local storage means `demo_mode` can be true even when extraction/Jev calls are real. Paid calls require real keys on **each** machine, including Devin's environment.
+An empty `RECONCILIATION_MODE` currently permits this local configuration. Explicit `RECONCILIATION_MODE=live` requires Supabase and Jev. Read actual execution labels: local storage means `demo_mode` can be true even when extraction/Jev calls are real. Paid calls require real keys on **each** machine, including Devin's environment.
 
 ## Three datasets and the review gate
 
