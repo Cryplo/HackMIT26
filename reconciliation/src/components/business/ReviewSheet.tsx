@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Check, FileText, LoaderCircle, RotateCw, TriangleAlert, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,12 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, money, statusLabel } from "@/lib/dashboard/helpers";
+import { amountDelta, approvalBlock, financialIssue, normalizeVendor as normalize, rulesChanged, nextAction } from "@/lib/dashboard/review";
 import type { ReviewSheetProps } from "@/lib/dashboard/ui-contracts";
 import type { ReviewRow } from "@/lib/review-contracts";
 import { AssessmentBadge, DecisionBadge } from "./ReviewStatus";
 import styles from "./panels.module.css";
 
-const financialFields = ["currency", "amount", "policy", "receipt_date", "policy_cap"];
 const fieldLabels: Record<string, string> = {
   currency: "Currency", amount: "Amount", policy: "Policy coverage", receipt_date: "Receipt date",
   policy_cap: "Policy limit", merchant: "Merchant", name: "Traveler", duplicate: "Duplicate receipt",
@@ -24,7 +24,6 @@ const fieldLabels: Record<string, string> = {
 };
 const message = (error: unknown) => error instanceof Error ? error.message : "The request failed. Please try again.";
 const code = (error: unknown) => error && typeof error === "object" && "code" in error ? String(error.code) : "";
-const normalize = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 
 interface JustificationView {
   summary: string;
@@ -71,22 +70,6 @@ function JustificationPanel({ decisions }: { decisions: ReviewRow["decisions"] }
   </section>;
 }
 
-function approvalBlock(row: ReviewRow, knowledgeRevision: number, rows: ReviewRow[]) {
-  if (row.processing_status === "running") return "Wait for the current check to finish before approving.";
-  if (row.receipt?.extraction_status !== "succeeded") return "Extract the original receipt and recheck before approving.";
-  if (!row.assessment_status || !row.latest_run_id) return "Recheck this claim before approving.";
-  if (row.assessment_knowledge_revision !== knowledgeRevision) return "Rules changed — recheck before approving.";
-  const checks = row.decisions.filter((check) => check.check_method !== "human" && check.field_checked !== "overall_status");
-  const incomplete = financialFields.find((field) => !checks.some((check) => check.field_checked === field && check.verdict === "pass"));
-  if (incomplete) return `${fieldLabels[incomplete]} must pass before approval.`;
-  if (!checks.some((check) => check.field_checked === "duplicate" && check.verdict === "pass") || checks.some((check) => check.field_checked.includes("duplicate") && check.verdict !== "pass")) {
-    return "Resolve the duplicate receipt check before approving.";
-  }
-  if (checks.some((check) => financialFields.includes(check.field_checked) && check.verdict !== "pass")) return "Financial checks must pass before approval.";
-  if (row.receipt.sha256 && rows.some((other) => other.id !== row.id && other.decision_status === "approved" && other.receipt?.sha256 === row.receipt?.sha256)) return "Another approved claim uses the same receipt.";
-  return null;
-}
-
 export function ReviewSheet(props: ReviewSheetProps) {
   const origin = useRef<HTMLElement | null>(null);
   const [closingRow, setClosingRow] = useState(props.row);
@@ -107,9 +90,9 @@ export function ReviewSheet(props: ReviewSheetProps) {
   );
 }
 
-function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChanged, onOpenRules, onOpenChange }: ReviewSheetProps & { row: ReviewRow }) {
+function ReviewContent({ row: incoming, rows, client, knowledgeRevision, capabilities, onChanged, onOpenRules, onOpenChange, onOpenClaim, backId, onBack }: ReviewSheetProps & { row: ReviewRow }) {
   const [updated, setUpdated] = useState<ReviewRow | null>(null);
-  const row = updated && updated.review_revision >= incoming.review_revision ? updated : incoming;
+  const row = updated && updated.review_revision > incoming.review_revision ? updated : incoming;
   const [decision, setDecision] = useState<"approved" | "rejected" | null>(null);
   const [decisionRevision, setDecisionRevision] = useState(0);
   const [note, setNote] = useState("");
@@ -124,28 +107,33 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
   const receiptUrl = client.receiptUrl(row);
   const checks = row.decisions.filter((check) => check.field_checked !== "overall_status" && check.check_method !== "human");
   const humanCheck = row.decisions.findLast((check) => check.check_method === "human");
-  const blocked = approvalBlock(row, knowledgeRevision, rows);
-  const stale = row.assessment_status !== null && row.assessment_knowledge_revision !== knowledgeRevision;
-  const difference = parsed?.amount_minor != null && parsed.currency === row.currency ? row.amount_requested_minor - parsed.amount_minor : null;
-  const duplicateNames = row.duplicate_submission_ids.map((id) => rows.find((other) => other.id === id)?.attendee_name || `claim ${id.slice(0, 8)}`);
-  const merchantException = row.decision_status === "approved" && !blocked && !!parsed?.vendor?.trim()
-    && checks.some((check) => check.field_checked === "merchant" && check.verdict === "unknown")
-    && checks.every((check) => check.field_checked === "merchant" ? check.verdict === "unknown" : check.verdict === "pass");
+  const blocked = approvalBlock(row, knowledgeRevision, rows, capabilities?.knowledge_revisions === true);
+  const stale = rulesChanged(row, knowledgeRevision, capabilities?.knowledge_revisions === true);
+  const delta = amountDelta(row);
+  const difference = delta.minor;
+  const financial = financialIssue(row);
+  const merchantException = row.decision_status === "approved" && !!parsed?.vendor?.trim() && row.receipt?.extraction_status === "succeeded";
+  const section = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const action = nextAction(incoming, knowledgeRevision, capabilities);
+    const target = action === "Compare claims" ? "duplicates" : action === "View decision" ? "human-decision" : null;
+    if (target) section.current?.querySelector<HTMLElement>(`[data-review-section="${target}"]`)?.scrollIntoView({ block: "start" });
+    // Only navigate on opening a claim, not on polling or refreshed evidence.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming.id]);
   const simulation = client.mode === "preview" || row.investigation?.mode === "simulated" || checks.some((check) => check.evidence_json.simulated === true);
-  const changedDuringDecision = decision !== null && decisionRevision !== row.review_revision;
+  const changedDuringDecision = decision !== null && (decisionRevision !== row.review_revision || row.processing_status === "running");
 
   async function refresh() {
     try { await onChanged(); }
-    catch (failure) { setError(`The change was saved, but the queue could not refresh. ${message(failure)}`); }
+    catch (failure) { setError(`The queue could not refresh. ${message(failure)}`); }
   }
 
   async function fail(failure: unknown) {
     const staleError = ["STALE_REVIEW", "STALE_ASSESSMENT"].includes(code(failure));
     setError(staleError ? `${message(failure)} Review the updated claim before trying again. Your note is preserved.` : message(failure));
-    if (staleError) {
-      setDecision(null);
-      try { await onChanged(); } catch { /* Keep the original error and entered note. */ }
-    }
+    setDecision(null);
+    try { await onChanged(); } catch { /* Keep the original error and entered note; never repeat a write. */ }
   }
 
   async function saveDecision() {
@@ -162,7 +150,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
   }
 
   async function recheckOrRetry(action: "recheck" | "retry") {
-    if (mutationLock.current) return;
+    if (mutationLock.current || (action === "retry" && (!capabilities?.extraction_retry || row.decision_status !== "pending" || row.processing_status === "running"))) return;
     mutationLock.current = true;
     setBusy(action); setError(null); setNotice(null);
     try {
@@ -183,7 +171,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
   }
 
   async function propose() {
-    if (!merchantException || !canonical.trim() || normalize(canonical) === normalize(parsed?.vendor || "") || mutationLock.current) return;
+    if (!capabilities?.rule_learning || !merchantException || !canonical.trim() || canonical.trim().length > 120 || normalize(canonical) === normalize(parsed?.vendor || "") || mutationLock.current) return;
     mutationLock.current = true;
     setBusy("proposal"); setError(null);
     try {
@@ -196,10 +184,12 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
 
   return <>
     <SheetHeader className="shrink-0 gap-3 border-b px-5 py-4">
+      {backId && <Button variant="ghost" className="self-start" onClick={onBack}>Back to {rows.find(r => r.id === backId)?.attendee_name || "previous claim"}</Button>}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0"><SheetTitle className="text-lg">{row.attendee_name}</SheetTitle><SheetDescription className="mt-1 break-words">{statusLabel(row.category)} · {formatDate(row.submitted_at)}</SheetDescription></div>
         <div className="flex items-center gap-3"><span className="text-lg font-semibold tabular-nums">{money(row.amount_requested_minor, row.currency)}</span><SheetClose asChild><Button aria-label="Close review" size="icon" variant="ghost"><X /></Button></SheetClose></div>
       </div>
+      <p className="break-all text-xs text-muted-foreground">Claim {row.id}</p>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Assessment</span><AssessmentBadge status={row.assessment_status} processingStatus={row.processing_status} /></div>
         <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">Decision</span><DecisionBadge status={row.decision_status} /></div>
@@ -216,12 +206,13 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
           {client.mode === "preview" && <p className="mt-3 text-xs text-muted-foreground">Synthetic receipt for this preview.</p>}
         </TabsContent>
 
-        <TabsContent value="details" forceMount className={`${styles.evidence} space-y-6`}>
+        <TabsContent value="details" forceMount ref={section} className={`${styles.evidence} space-y-6`}>
           {(row.processing_status === "running" || busy === "recheck") && <p role="status" className="motion-enter text-sm text-muted-foreground">Checking this claim. Previous evidence remains visible.</p>}
           {stale && <div className="rounded border border-[var(--status-review)]/30 bg-[var(--status-review-bg)] p-3 text-[var(--status-review)]"><p className="font-medium">Rules changed — recheck</p><p className="mt-1 text-xs">This assessment used an earlier rule set. The human decision is unchanged.</p></div>}
           {row.processing_error && <p className="text-sm text-destructive">{row.processing_error}</p>}
-          {row.receipt?.extraction_status !== "succeeded" && <section className="rounded border p-4"><h3 className="font-medium">{row.receipt?.extraction_status === "failed" ? "Receipt extraction failed" : "Receipt needs extraction"}</h3><p className="mt-2 text-sm text-muted-foreground">{row.receipt?.extraction_error || "The original document is retained. Extract it before checking the claim."}</p>{row.receipt && client.mode === "preview" && <Button className="mt-3" variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.decision_status !== "pending"} aria-busy={busy === "retry"} onClick={() => void recheckOrRetry("retry")}><RotateCw aria-hidden="true" className={busy === "retry" ? "motion-safe:animate-spin" : undefined} />{busy === "retry" ? "Extracting…" : "Retry extraction"}</Button>}{client.mode === "api" && <a href="/submit" className="mt-3 block text-sm underline">Submit a replacement claim with a clearer receipt</a>}</section>}
+          {row.receipt?.extraction_status !== "succeeded" && <section className="rounded border p-4"><h3 className="font-medium">{row.receipt?.extraction_status === "failed" ? "Receipt extraction failed" : "Receipt needs extraction"}</h3><p className="mt-2 text-sm text-muted-foreground">{row.receipt?.extraction_error || "The original document is retained. Extract it before checking the claim."}</p>{row.receipt && capabilities?.extraction_retry && <Button className="mt-3" variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.decision_status !== "pending"} aria-busy={busy === "retry"} onClick={() => void recheckOrRetry("retry")}><RotateCw aria-hidden="true" className={busy === "retry" ? "motion-safe:animate-spin" : undefined} />{busy === "retry" ? "Extracting…" : "Retry extraction"}</Button>}{!capabilities?.extraction_retry && <p className="mt-3 text-sm text-muted-foreground">Same-claim extraction retry is unavailable on this backend. The saved claim and original are retained.</p>}</section>}
 
+          <p className="text-xs text-muted-foreground">Extraction provenance: {row.receipt?.extraction_provenance || "Unknown — no receipt-specific provenance recorded"}</p>
           <section aria-labelledby="comparison-title"><h3 id="comparison-title" className="mb-3 font-semibold">Claim and receipt</h3>
             <table className="w-full table-fixed text-sm"><thead><tr className="border-b text-xs text-muted-foreground"><th className="w-[26%] py-2 text-left font-normal">Field</th><th className="w-[37%] px-2 py-2 text-left font-normal">Claim</th><th className="w-[37%] py-2 text-left font-normal">Receipt</th></tr></thead><tbody className="[&_td]:break-words [&_td]:py-3 [&_tr]:border-b">
               <tr><td className="text-muted-foreground">Amount</td><td className="px-2 font-medium tabular-nums">{money(row.amount_requested_minor, row.currency)}</td><td className="font-medium tabular-nums">{money(parsed?.amount_minor, parsed?.currency)}</td></tr>
@@ -229,22 +220,30 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
               <tr><td className="text-muted-foreground">Date</td><td className="px-2">{formatDate(row.submitted_at)}<span className="block text-xs text-muted-foreground">Submitted</span></td><td>{formatDate(parsed?.receipt_date)}</td></tr>
               <tr><td className="text-muted-foreground">Traveler</td><td className="px-2">{row.attendee_name}</td><td>{parsed?.names.length ? parsed.names.join(", ") : "—"}</td></tr>
             </tbody></table>
+            {difference === null || difference === 0 ? <p className="mt-3 text-sm">Difference: {delta.label}</p> : null}
             {difference !== null && difference !== 0 && <p className="mt-3 flex items-start gap-2 text-sm font-medium text-destructive"><TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{difference > 0 ? `Claim exceeds receipt by ${money(difference, row.currency)}` : `Claim is ${money(-difference, row.currency)} below receipt`}</p>}
-            {duplicateNames.length > 0 && <p className="mt-3 text-sm text-destructive">Same receipt appears in {duplicateNames.join(", ")}&apos;s claim{duplicateNames.length > 1 ? "s" : ""}.</p>}
+            {difference !== null && difference !== 0 && <p className="mt-2 text-sm text-muted-foreground">Resolve the claimed amount discrepancy before approval; recheck after the evidence is corrected.</p>}
+            {capabilities?.duplicate_links && row.duplicate_submission_ids.length > 0 && <section data-review-section="duplicates" className="mt-4 rounded border p-3"><h3 className="font-semibold">Confirmed prior claims</h3><p className="mt-1 text-xs text-muted-foreground">Earlier receipt evidence confirmed by the backend. Possible candidates in check evidence are not confirmed links.</p><ul className="mt-2 space-y-2">{row.duplicate_submission_ids.map(id => {
+              const prior = rows.find(other => other.id === id);
+              return <li key={id}>{prior ? <Button variant="outline" className="h-auto min-h-11 whitespace-normal text-left" onClick={() => onOpenClaim(id)}>Compare {prior.attendee_name} · {money(prior.amount_requested_minor, prior.currency)} · {statusLabel(prior.decision_status)}</Button> : <p className="break-all text-sm">Claim {id} is not loaded in this snapshot. Refresh the queue to look for it.</p>}</li>;
+            })}</ul></section>}
             {checks.some((check) => check.field_checked === "merchant" && check.verdict === "unknown") && <p className="mt-3 text-sm text-[var(--status-review)]">Merchant needs confirmation.</p>}
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground"><span>Origin: {row.origin_location || "—"}</span><span className="break-all">{row.email}</span>{parsed?.receipt_number && <span>Receipt {parsed.receipt_number}</span>}</div>
           </section>
+
+          {financial && <section aria-label="Financial issue" data-review-section="financial-issue" className="rounded border p-3 text-sm"><h3 className="font-semibold">{financial.title}</h3><p className="mt-2">{financial.rationale}</p>{financial.facts.length > 0 && <p className="mt-2 font-medium">{financial.facts.join(" · ")}</p>}<p className="mt-2 text-muted-foreground">{financial.nextStep}</p></section>}
 
           <JustificationPanel decisions={row.decisions} />
 
           <section><h3 className="mb-3 font-semibold">Checks</h3>{checks.length ? <ul className="space-y-3">{checks.map((check) => <li key={check.id} className="flex gap-2">{check.verdict === "pass" ? <Check className="mt-0.5 size-4 shrink-0 text-[var(--status-good)]" aria-hidden="true" /> : <TriangleAlert className={`mt-0.5 size-4 shrink-0 ${check.verdict === "fail" ? "text-destructive" : "text-[var(--status-review)]"}`} aria-hidden="true" />}<div className="min-w-0"><p className="text-sm font-medium">{fieldLabels[check.field_checked] || statusLabel(check.field_checked)} <span className="font-normal text-muted-foreground">· {check.verdict === "pass" ? "Passed" : check.verdict === "fail" ? "Failed" : "Needs confirmation"}</span></p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{check.rationale_text}</p></div></li>)}</ul> : <p className="text-sm text-muted-foreground">No completed checks. Recheck after receipt extraction.</p>}</section>
 
-          {humanCheck && <section><h3 className="mb-2 font-semibold">Reviewer decision</h3><DecisionBadge status={row.decision_status} /><p className="mt-2 text-sm leading-6 text-muted-foreground">{humanCheck.rationale_text}</p></section>}
+          {humanCheck && <section data-review-section="human-decision"><h3 className="mb-2 font-semibold">Reviewer decision</h3><DecisionBadge status={row.decision_status} /><p className="mt-2 text-sm leading-6 text-muted-foreground">{humanCheck.rationale_text}</p></section>}
 
           {row.investigation && <section><h3 className="mb-2 font-semibold">Investigation</h3><Badge variant="outline" className="mb-2 rounded">{row.investigation.mode === "simulated" ? "Simulated investigation" : "Live investigation"}</Badge><p className="text-sm leading-6 text-muted-foreground">{row.investigation.summary || "The investigation did not return a summary."}</p>{row.investigation.status === "unavailable" && <p className="mt-2 text-xs text-destructive">Investigation unavailable{row.investigation.error_code ? ` (${row.investigation.error_code})` : ""}. Review the receipt and checks directly.</p>}{row.investigation.steps.length > 0 && <details className="mt-3 text-xs"><summary className="cursor-pointer py-2 font-medium">Tool observations ({row.investigation.steps.length})</summary><ol className="mt-2 space-y-3">{row.investigation.steps.map((step, index) => <li key={`${step.tool}-${index}`}><p className="font-medium">{statusLabel(step.tool)}</p><p className="mt-1 leading-5 text-muted-foreground">{step.summary}</p><p className="mt-1 break-all text-muted-foreground">{step.evidence_refs.join(", ")}</p></li>)}</ol></details>}</section>}
 
-          {client.mode === "preview" && merchantException && <section className="rounded border p-4"><h3 className="font-semibold">Remember this merchant name</h3><p className="mt-2 text-sm text-muted-foreground">Save a draft mapping from <span className="font-medium text-foreground">{parsed?.vendor}</span> to its canonical name, only for {row.category} claims in {row.currency}. You will test it before activation.</p><form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); void propose(); }}><Label htmlFor="canonical-vendor">Canonical merchant name</Label><Input id="canonical-vendor" value={canonical} onChange={(event) => setCanonical(event.target.value)} maxLength={200} required disabled={!!busy} placeholder="Full merchant name" /><Button type="submit" variant="outline" size="lg" aria-busy={busy === "proposal"} disabled={!!busy || !canonical.trim() || normalize(canonical) === normalize(parsed?.vendor || "")}>{busy === "proposal" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "proposal" ? "Saving draft…" : "Create draft rule"}</Button></form></section>}
+          {capabilities?.rule_learning && merchantException && <section className="rounded border p-4"><h3 className="font-semibold">Remember this merchant name</h3><p className="mt-2 text-sm text-muted-foreground">Save a draft mapping from <span className="font-medium text-foreground">{parsed?.vendor}</span> to its canonical name, only for {row.category} claims in {row.currency}. You will test it before activation.</p><form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); void propose(); }}><Label htmlFor="canonical-vendor">Canonical merchant name</Label><Input id="canonical-vendor" value={canonical} onChange={(event) => setCanonical(event.target.value)} maxLength={120} required disabled={!!busy} placeholder="Full merchant name" /><Button type="submit" variant="outline" size="lg" aria-busy={busy === "proposal"} disabled={!!busy || !canonical.trim() || canonical.trim().length > 120 || normalize(canonical) === normalize(parsed?.vendor || "")}>{busy === "proposal" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "proposal" ? "Saving draft…" : "Create draft rule"}</Button></form></section>}
 
+          {merchantException && !capabilities?.rule_learning && <p className="text-sm text-muted-foreground">Merchant rule learning is unavailable on this backend.</p>}
           <details className="border-t pt-3 text-xs"><summary className="cursor-pointer py-2 text-muted-foreground">Technical evidence</summary><p className="my-3 text-muted-foreground">Revision {row.review_revision} · Rule set {row.assessment_knowledge_revision ?? "not assessed"}. Provider probabilities are not calibrated accuracy.</p><pre className={styles.json}>{JSON.stringify({ checks: row.decisions, investigation: row.investigation }, null, 2)}</pre></details>
         </TabsContent>
       </div>
@@ -254,7 +253,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, onChang
       {error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}
       {notice && <p role="status" className="motion-enter text-sm text-[var(--status-good)]">{notice}</p>}
       {blocked && row.decision_status !== "approved" && <p id="approval-blocked" className="text-xs text-muted-foreground">{blocked}</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.receipt?.extraction_status !== "succeeded"} aria-busy={busy === "recheck"} onClick={() => void recheckOrRetry("recheck")}><RotateCw aria-hidden="true" className={busy === "recheck" ? "motion-safe:animate-spin" : undefined} />{busy === "recheck" ? "Rechecking…" : "Recheck"}</Button><div className="flex gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.decision_status === "rejected"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("rejected"); setError(null); }}>Reject</Button><Button size="lg" aria-describedby={blocked && row.decision_status !== "approved" ? "approval-blocked" : undefined} disabled={!!busy || !!blocked || row.decision_status === "approved"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("approved"); setError(null); }}>{row.decision_status === "approved" ? "Approved" : "Approve"}</Button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.receipt?.extraction_status !== "succeeded"} aria-busy={busy === "recheck"} onClick={() => void recheckOrRetry("recheck")}><RotateCw aria-hidden="true" className={busy === "recheck" ? "motion-safe:animate-spin" : undefined} />{busy === "recheck" ? "Rechecking…" : "Recheck"}</Button><div className="flex gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.decision_status === "rejected"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("rejected"); setError(null); }}>Reject</Button><Button size="lg" aria-describedby={blocked && row.decision_status !== "approved" ? "approval-blocked" : undefined} disabled={!!busy || !!blocked || row.decision_status === "approved"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("approved"); setError(null); }}>{row.decision_status === "approved" ? "Approved" : "Approve"}</Button></div></div>
     </footer>
 
     <Dialog open={decision !== null} onOpenChange={(open) => { if (!open && !busy) setDecision(null); }}>

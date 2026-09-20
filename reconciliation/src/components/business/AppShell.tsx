@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, Menu, ReceiptText, ScanLine, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Menu, ReceiptText, ScanLine, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import styles from "./business.module.css";
@@ -28,9 +28,9 @@ export function AppShell({ view, onViewChange, preview, children }: {
         <button type="button" aria-current={view === "reviews" ? "page" : undefined} onClick={() => navigate("reviews")}>
           <ReceiptText aria-hidden="true" /> Reimbursements
         </button>
-        {preview && <button type="button" aria-current={view === "rules" ? "page" : undefined} onClick={() => navigate("rules")}>
+        <button type="button" aria-current={view === "rules" ? "page" : undefined} onClick={() => navigate("rules")}>
           <SlidersHorizontal aria-hidden="true" /> Learned rules
-        </button>}
+        </button>
       </nav>
       <div className={styles.sidebarBottom}>
 
