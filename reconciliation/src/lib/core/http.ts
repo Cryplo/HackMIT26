@@ -1,6 +1,7 @@
+import {IntakeError} from '../intake/schema';
 import { CoreError } from './validation';
 export function json(data: unknown, status = 200) { return Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } }); }
-export function errorResponse(error: unknown) { return error instanceof CoreError ? json({ error: { code: error.code, message: error.message } }, error.status) : json({ error: { code: 'INTERNAL_ERROR', message: 'Request failed; please retry.' } }, 500); }
+export function errorResponse(error: unknown) { return error instanceof CoreError || error instanceof IntakeError ? json({ error: { code: error.code, message: error.message } }, error.status) : json({ error: { code: 'INTERNAL_ERROR', message: 'Request failed; please retry.' } }, 500); }
 export async function mutationBody(request: Request): Promise<unknown> {
   const origin = request.headers.get('origin');
   const expected = process.env.RECONCILIATION_APP_ORIGIN || new URL(request.url).origin;
