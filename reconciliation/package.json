@@ -18,7 +18,8 @@
     "seed:receipts": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/seed-live-receipts.ts",
     "test:intelligence": "node --conditions=react-server --import tsx --test src/lib/intelligence/*.test.ts",
     "eval:heldout": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx evals/run-heldout.ts",
-    "email:worker": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/email-worker.ts"
+    "email:worker": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/email-worker.ts",
+    "test:inbox": "node --conditions=react-server --import tsx --test src/lib/inbox/inbox.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.116.0",

@@ -29,6 +29,10 @@ Each invocation creates a new temporary store. To choose its location, set `RECO
 
 See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are real private files, but their cached transcriptions are **authored fixtures, not OCR results**. Simulated uploads recognize exact bundled PDF bytes by hash; arbitrary files keep unknown extracted fields and require review. Form values never replace receipt evidence.
 
+## Import loose paperwork
+
+The `feat/document-inbox` extension adds `/import`: upload loose receipts, bookings, and email PDFs; inspect suggested links; confirm draft request details; then use ordinary review. Select **Try sample paperwork** for six fictional files, clear/ambiguous matches, and a preserved $10 discrepancy. See [Document inbox](docs/DOCUMENT_INBOX.md) for the single-server demo limits and tests.
+
 ## Pages and workflow
 
 | Page | Purpose |
@@ -37,6 +41,7 @@ See [Showcase](docs/SHOWCASE.md) for the case-by-case walkthrough. Seed PDFs are
 | `/business-demo` | Reimbursements, filters, Jev search, evidence review, export, and the Learned rules view |
 | `/investigations` | Persisted investigation runs and read-tool activity |
 | `/submit` | New synthetic claim and receipt intake |
+| `/import` | Loose paperwork → suggested links → confirmed claims |
 
 `/` redirects to `/overview`; `/search` and `/demo` redirect to `/business-demo`. `?preview=1` on workspace pages is a separate UI fixture mode; it does not exercise the persisted backend or automatic learning. Use the private-store showcase for a complete simulated workflow.
 

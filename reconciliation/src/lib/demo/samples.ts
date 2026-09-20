@@ -8,6 +8,11 @@ export function receiptPdf(fields: ParsedReceipt): Buffer {
     `Date: ${fields.receipt_date || 'Unknown'}`, `Guest / traveler: ${fields.names.join(', ') || 'Not provided'}`,
     `Total: ${fields.currency || '?'} ${fields.amount_minor === null ? 'Unknown' : (fields.amount_minor / 100).toFixed(2)}`,
     `Receipt: ${fields.receipt_number || 'Unknown'}`, 'Hackathon demonstration only. All details are fictional.'];
+  return textPdf(lines);
+}
+
+/** Shared minimal PDF writer for fictional, printable demo documents. */
+export function textPdf(lines: string[]): Buffer {
   const escape = (s: string) => s.replace(/[^\x20-\x7e]/g, '?').replace(/[\\()]/g, '\\$&');
   const stream = `BT /F1 14 Tf 50 750 Td 24 TL ${lines.map((s, i) => `${i ? 'T* ' : ''}(${escape(s)}) Tj`).join('\n')} ET`;
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',

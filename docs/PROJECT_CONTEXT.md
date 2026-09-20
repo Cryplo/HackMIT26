@@ -41,6 +41,10 @@ The user prefers a simple light-green design, meaningful status colors, obvious 
 
 `auditBucket`, `humanActions`, and the queue filter define the displayed groups. The dashboard and flow must use the same saved decision semantics. A queue progress denominator counts that queue/session, not every pending claim. Explain the subset instead of pretending different counts are equivalent.
 
+## Document inbox branch extension
+
+On `feat/document-inbox`, `/import` adds batch intake for loose synthetic receipts, booking PDFs, and email chains exported as PDFs. One extraction per file feeds deterministic candidate matching, source-linked editable drafts, and explicit confirmation into the existing claim/review flow. Requested amounts stay separate from receipt totals; ambiguous/conflicting requests need a person. No mailbox/Dropbox integration or database migration is included. Server-local staging and browser-memory drafts limit this to one server. See [document inbox runbook](../reconciliation/docs/DOCUMENT_INBOX.md) for demo, tests, live smoke check, and failure/restart limits.
+
 ## What is implemented
 
 **Assessment and approval.** Code checks money, currency, dates, policy limits, and mandatory safeguards. Jev evaluates bounded identity/merchant/duplicate evidence. With `RECONCILIATION_AUTOMATION_MODE=policy-caps`, eligible clean claims are automatically approved under existing caps. Automatic approval is tied to current evidence and knowledge, and never counts as human feedback. Human decisions survive rechecks. Automatic rejection is off: a reviewer can explicitly reject supported failures, including the guarded bulk action.

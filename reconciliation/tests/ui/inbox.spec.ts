@@ -1,0 +1,70 @@
+import { test, expect } from '@playwright/test';
+
+test('paperwork imports become source-linked claims with honest ambiguity and amount checks', async ({ page, request }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/import');
+  await expect(page.getByRole('heading', { name: 'From paperwork to review-ready claims.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Try sample paperwork' }).click();
+  await expect(page.getByRole('status').first()).toContainText('6 documents awaiting confirmation', { timeout: 30000 });
+  const ava = page.locator('article').filter({ has: page.getByText('Draft claim · Ava Demo', { exact: true }) });
+  await expect(ava.getByLabel('Requested amount · USD')).toHaveValue('190.00');
+  await expect(ava.getByLabel('Email', { exact: true })).toHaveValue('ava@example.invalid');
+  await expect(ava.getByText('Supporting documents (2/8)')).toBeVisible();
+  await expect(page.getByText('Requested amount differs from the receipt total.')).toBeVisible();
+  const ambiguous = page.locator('article').filter({ has: page.getByRole('link', { name: 'Re-train-tickets.pdf', exact: true }) }).first();
+  await expect(ambiguous.getByLabel('Attach to receipt')).toHaveValue('');
+  await expect(ambiguous.getByText('Possible match — choose a receipt after checking the evidence.')).toBeVisible();
+  const ben = page.locator('article').filter({ has: page.getByText('Draft claim · Ben Demo', { exact: true }) });
+  await expect(ben.first().getByLabel('Requested amount · USD')).toHaveValue('');
+  await ambiguous.getByLabel('Attach to receipt').selectOption({ label: 'phone-photo-A.pdf' });
+  const benA = ben.filter({ has: page.getByRole('link', { name: 'phone-photo-A.pdf', exact: true }) });
+  await benA.getByRole('button', { name: 'Refresh fields from linked request' }).click();
+  await expect(benA.getByLabel('Requested amount · USD')).toHaveValue('120.00');
+  await page.screenshot({ path: test.info().outputPath('inbox-desktop.png'), fullPage: true });
+
+  await ava.getByRole('checkbox').check();
+  await ava.getByLabel('Requested amount · USD').fill('191.00');
+  await expect(ava.getByRole('checkbox')).not.toBeChecked();
+  await expect(ava.getByRole('button', { name: 'Confirm & send for review' })).toBeDisabled();
+  await ava.getByLabel('Requested amount · USD').fill('190.00');
+  await ava.getByRole('checkbox').check();
+  const confirmation = page.waitForResponse(response => response.url().endsWith('/api/inbox/confirm'));
+  await ava.getByRole('button', { name: 'Confirm & send for review' }).click();
+  const response = await confirmation;
+  expect(response.status()).toBe(201);
+  const result = await response.json();
+  await expect(page.getByText('Claim saved with 2 supporting documents.')).toBeVisible();
+  await expect(ava).toHaveCount(0);
+  await expect.poll(async () => {
+    const data = await (await request.get('/api/workspace/reviews')).json();
+    return data.submissions.find((s: { id: string }) => s.id === result.submission_id)?.assessment_status;
+  }, { timeout: 20000 }).toBe('flagged');
+  const data = await (await request.get('/api/workspace/reviews')).json();
+  const saved = data.submissions.find((s: { id: string }) => s.id === result.submission_id);
+  expect(saved.amount_requested_minor).toBe(19000);
+  expect(saved.receipt.parsed_fields_json.amount_minor).toBe(18000);
+  expect(saved.decision_status).toBe('pending');
+  expect(saved.decisions.find((d: { field_checked: string }) => d.field_checked === 'amount').verdict).toBe('fail');
+  const support = await (await request.get(`/api/submissions/${result.submission_id}/supporting-documents`)).json();
+  expect(support.documents).toHaveLength(2);
+  expect(support.documents.every((d: { extraction_status: string }) => d.extraction_status === 'succeeded')).toBeTruthy();
+  const receipt = await request.get(`/api/receipts/${result.receipt_id}`);
+  expect(receipt.status()).toBe(200);
+  expect((await receipt.body()).subarray(0, 5).toString()).toBe('%PDF-');
+  await page.getByRole('link', { name: 'Open saved claim' }).click();
+  await expect(page).toHaveURL(new RegExp(`claim=${result.submission_id}`));
+  expect(errors).toEqual([]);
+});
+
+test('mobile import fits the viewport and rejects unsupported files visibly', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/import');
+  await page.getByLabel('Upload receipts, bookings, or email PDFs').setInputFiles({ name: 'mail.eml', mimeType: 'message/rfc822', buffer: Buffer.from('From: demo@example.invalid') });
+  await expect(page.getByText('Use a PDF, PNG, or JPG up to 8 MB.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Try sample paperwork' }).click();
+  await expect(page.getByRole('status').first()).toContainText('6 documents awaiting confirmation', { timeout: 30000 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('inbox-mobile.png'), fullPage: true });
+});

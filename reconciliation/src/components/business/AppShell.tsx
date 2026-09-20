@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight, LayoutDashboard, Menu, ReceiptText, ScanLine, SearchCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Files, LayoutDashboard, Menu, ReceiptText, ScanLine, SearchCheck, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import styles from "./business.module.css";
@@ -40,7 +40,7 @@ export function AppShell({ view, onViewChange, preview, children }: {
         </Link>
       </nav>
       <div className={styles.sidebarBottom}>
-
+        <Link href="/import"><Files aria-hidden="true" /> Import paperwork <ArrowUpRight aria-hidden="true" /></Link>
         <Link href="/submit"><ReceiptText aria-hidden="true" /> Submit a claim <ArrowUpRight aria-hidden="true" /></Link>
         <div className={styles.workspaceIdentity}><span aria-hidden="true">H</span><div>HackMIT 2026<small>Organizer workspace</small></div></div>
       </div>
