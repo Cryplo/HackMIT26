@@ -3,7 +3,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Short = Annotated[str, Field(min_length=1, max_length=200)]
-Operation = Literal['type', 'click', 'focus', 'select', 'scroll_up', 'scroll_down', 'back', 'play', 'pause']
+Operation = Literal[
+    'type', 'press_enter', 'click', 'focus', 'select', 'scroll_up', 'scroll_down', 'back', 'play', 'pause'
+]
 
 
 class Strict(BaseModel):
@@ -31,6 +33,7 @@ class Context(Strict):
 
 
 class GoalStep(Strict):
+    url: Annotated[str, Field(max_length=3000)] = ''
     operation: Annotated[str, Field(max_length=30)]
     label: Annotated[str, Field(max_length=300)] = ''
     text: Annotated[str, Field(max_length=2000)] | None = None
@@ -38,6 +41,7 @@ class GoalStep(Strict):
 
 
 class DecisionRequest(Strict):
+    url: Annotated[str, Field(max_length=3000)] = ''
     context: Context
     transcript: Annotated[str, Field(min_length=1, max_length=2000)]
     title: Annotated[str, Field(max_length=300)] = ''

@@ -1,6 +1,6 @@
 """Opt-in browser test bridge to the real backend and paid Gateway models.
 
-Only synthetic fixture commands are used by the live browser tests.
+Live browser tests use synthetic goals against local fixtures or public websites.
 """
 import json
 import secrets

@@ -93,6 +93,20 @@ test.beforeAll(async () => {
           liveRequests.set(id, resolve);
           live!.stdin.write(JSON.stringify({ id, body }) + "\n");
         });
+        console.log(
+          "LIVE_DECISION",
+          JSON.stringify({
+            choice: response.body.choice,
+            confidence: response.body.confidence,
+            margin: response.body.margin,
+            action: body.candidates.find(
+              (c: any) => c.id === response.body.choice,
+            ),
+            text: response.body.text,
+            question: response.body.question,
+            history: body.history,
+          }),
+        );
         res.statusCode = response.status;
         res.end(JSON.stringify(response.body));
         return;
@@ -192,6 +206,9 @@ test.beforeAll(async () => {
   manifest.host_permissions.push(
     "http://127.0.0.1:8768/*",
     "https://example.com/*",
+    "https://www.wikipedia.org/*",
+    "https://en.wikipedia.org/*",
+    "https://news.ycombinator.com/*",
   );
   await writeFile(temp + "/extension/manifest.json", JSON.stringify(manifest));
   context = await chromium.launchPersistentContext(temp + "/profile", {
@@ -205,6 +222,14 @@ test.beforeAll(async () => {
       `--load-extension=${temp}/extension`,
     ],
   });
+  context.on("requestfailed", (request) =>
+    console.log(
+      "REQUEST_FAILED",
+      request.method(),
+      new URL(request.url()).pathname,
+      request.failure()?.errorText,
+    ),
+  );
   const worker =
     context.serviceWorkers()[0] ||
     (await context.waitForEvent("serviceworker"));
@@ -229,6 +254,7 @@ test.afterAll(async () => {
   if (temp) await rm(temp, { recursive: true, force: true });
 });
 test.beforeEach(async () => {
+  await page.bringToFront();
   await page.goto("http://127.0.0.1:8768/fixture.html");
   await page.waitForLoadState();
   expect((await msg("bind", { tabId: tab })).ok).toBe(true);
@@ -558,7 +584,7 @@ test("new ungranted web tab exposes its URL for the site permission prompt", asy
 test("single-command fill preserves literal value, replaces and supports undo", async () => {
   await page.locator("#name").fill("Previous name");
   await panel
-    .getByRole("textbox", { name: "Speak naturally. Or type here." })
+    .getByRole("textbox", { name: "Command", exact: true })
     .fill("fill out fullname as Dylan Li");
   await panel.getByRole("button", { name: /^Run command/ }).click();
   await expect(page.locator("#name")).toHaveValue("Dylan Li");
@@ -597,7 +623,10 @@ test("free-form multi-field goal pauses for submission, then resumes to completi
   await expect(page.locator("#result")).toBeHidden();
   await run("confirm action");
   await expect(page.locator("#result")).toContainText("Local submissions: 1");
-  expect((await msg("get")).value.message).toContain("Goal completed");
+  expect((await msg("get")).value.status).toBe("OFF");
+  expect((await msg("get")).value.message).toMatch(
+    /Goal completed|thinks the task is complete|confirmed action was sent/,
+  );
 });
 test("missing information is clarified and the reply resumes the original goal", async () => {
   const result = await run("Fill my name as Dylan Li and my email");
@@ -653,4 +682,282 @@ test("speech stays connected between commands and stops its heartbeat when pause
   expect(await panel.evaluate(() => (window as any).speechHeartbeats)).toBe(
     stopped,
   );
+});
+
+test("follows the active website and cancels a response meant for the previous tab", async () => {
+  const old = page;
+  const other = await context.newPage();
+  try {
+    await other.goto("http://127.0.0.1:8768/fixture.html?other-page");
+    const otherId = await panel.evaluate(
+      async () =>
+        (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]
+          .id,
+    );
+    await expect.poll(async () => (await msg("get")).value.tabId).toBe(otherId);
+    await expect
+      .poll(async () => (await msg("get")).value.pageStatus)
+      .toBe("ready");
+    await run("Fill out full name as Dylan Li");
+    await expect(other.locator("#name")).toHaveValue("Dylan Li");
+    await expect(old.locator("#name")).toHaveValue("");
+    slow = true;
+    const before = modelCalls;
+    const delayed = msg("command", { text: "Focus the email address" });
+    await expect.poll(() => modelCalls).toBeGreaterThan(before);
+    await old.bringToFront();
+    await expect.poll(async () => (await msg("get")).value.tabId).toBe(tab);
+    await delayed;
+    await expect(other.locator("#email")).not.toBeFocused();
+  } finally {
+    slow = false;
+    await other.close();
+    await old.bringToFront();
+  }
+});
+
+test("restricted tabs clear the old target and never execute against the background page", async () => {
+  const internal = await context.newPage();
+  try {
+    await internal.goto("chrome://version");
+    await expect
+      .poll(async () => (await msg("get")).value.pageStatus)
+      .toBe("restricted");
+    const result = await msg("command", {
+      text: "Fill out full name as Dylan Li",
+    });
+    expect(result.ok).toBe(false);
+    await expect(page.locator("#name")).toHaveValue("");
+  } finally {
+    await internal.close();
+    await page.bringToFront();
+  }
+});
+
+test("voice turn begun on one tab is not transferred to the next tab", async () => {
+  expect((await msg("start")).ok).toBe(true);
+  const speak = (event: string) =>
+    panel.evaluate(
+      (event) =>
+        chrome.runtime.sendMessage({
+          to: "test-speech",
+          event: {
+            type: "TurnInfo",
+            event,
+            transcript: "Fill out full name as Dylan Li",
+            turn_index: 80,
+          },
+        }),
+      event,
+    );
+  await speak("StartOfTurn");
+  const other = await context.newPage();
+  try {
+    await other.goto("http://127.0.0.1:8768/fixture.html?voice-page");
+    await expect
+      .poll(async () => (await msg("get")).value.tabUrl)
+      .toContain("voice-page");
+    await expect
+      .poll(async () => (await msg("get")).value.pageStatus)
+      .toBe("ready");
+    await speak("EndOfTurn");
+    await expect
+      .poll(async () => (await msg("get")).value.message)
+      .toContain("page changed while");
+    await expect(other.locator("#name")).toHaveValue("");
+    await expect(page.locator("#name")).toHaveValue("");
+    expect((await msg("get")).value.listening).toBe(true);
+  } finally {
+    await msg("stop");
+    await other.close();
+    await page.bringToFront();
+  }
+});
+
+test("generic page controls include open shadow DOM, plain editors, and ARIA options", async () => {
+  await page.evaluate(() => {
+    document.body.innerHTML = `<main><div id="web-component"></div><div id="editor" contenteditable="plaintext-only" role="textbox" aria-label="Message" style="height:60px;border:1px solid"></div><div role="tab" tabindex="0" id="tab-option">Details</div></main>`;
+    const shadow = document
+      .querySelector("#web-component")!
+      .attachShadow({ mode: "open" });
+    shadow.innerHTML =
+      '<label for="query">Search catalog</label><input id="query"><button type="button">Show products</button>';
+    document
+      .querySelector("#tab-option")!
+      .addEventListener("click", (e) =>
+        (e.target as HTMLElement).setAttribute("aria-selected", "true"),
+      );
+  });
+  await focus("Search catalog");
+  await run("type: running shoes");
+  await expect(page.locator("#query")).toHaveValue("running shoes");
+  await focus("Message");
+  await run("type: Hello from Jev");
+  await expect(page.locator("#editor")).toHaveText("Hello from Jev");
+  await run("undo last entry");
+  await expect(page.locator("#editor")).toHaveText("");
+  const s = await content("snapshot");
+  await run("click " + s.elements.find((e: any) => e.label === "Details").id);
+  await expect(page.locator("#tab-option")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("scrolls a website's nested main pane", async () => {
+  await page.evaluate(() => {
+    document.body.style.cssText = "margin:0;overflow:hidden;height:100vh";
+    document.body.innerHTML =
+      '<div id="pane" style="height:80vh;overflow:auto"><input aria-label="Pane search"><div style="height:5000px">Long content</div></div>';
+  });
+  await focus("Pane search");
+  await run("scroll down");
+  expect(
+    await page.locator("#pane").evaluate((e) => e.scrollTop),
+  ).toBeGreaterThan(0);
+});
+
+test("Enter is offered for generic search fields and requires confirmation", async () => {
+  await page.evaluate(() => {
+    document.body.innerHTML =
+      '<form><label>Search<input id="search" type="search"></label></form><p id="searched"></p>';
+    document.querySelector("form")!.onsubmit = (e) => {
+      e.preventDefault();
+      document.querySelector("#searched")!.textContent = "Searched";
+    };
+  });
+  await focus("Search");
+  const s = await content("snapshot");
+  const enter = s.candidates.find((c: any) => c.operation === "press_enter");
+  expect(enter).toBeTruthy();
+  const action = { ...enter, id: "search-enter" };
+  const request = {
+    action,
+    documentId: s.documentId,
+    guard: s.guard,
+    generation: Date.now(),
+  };
+  await content("snapshot", { generation: request.generation });
+  const result = await content("execute", { request });
+  expect(result.status).toBe("confirmation");
+  await expect(page.locator("#searched")).toBeEmpty();
+  const confirmed = await content("execute", {
+    request: {
+      ...request,
+      action: { ...action, id: "search-confirmed" },
+      confirmed: result.confirmation,
+    },
+  });
+  expect(confirmed.status).toBe("executed");
+  await expect(page.locator("#searched")).toHaveText("Searched");
+});
+
+test("public Wikipedia search submits and opens a result through the real goal planner", async () => {
+  test.skip(
+    process.env.VOICE_LIVE !== "1" || process.env.VOICE_PUBLIC_SMOKE !== "1",
+    "Opt-in public real-model test",
+  );
+  await page.goto("https://www.wikipedia.org/", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect
+    .poll(async () => (await msg("get")).value.pageStatus)
+    .toBe("ready");
+  const result = await run("Search Wikipedia for browser extensions");
+  expect(result.pending, result.message).toBeTruthy();
+  const completed = await run("confirm action");
+  console.log("PUBLIC_COMPLETION", completed.status, completed.message);
+  expect(["OFF", "CLARIFYING"]).toContain(completed.status);
+  await expect(page).toHaveURL(
+    /en.wikipedia.org\/wiki\/|en.wikipedia.org\/w\/index.php/,
+    { timeout: 20000 },
+  );
+  await expect(page.locator("h1").first()).toBeVisible();
+  expect(page.url()).not.toBe("https://www.wikipedia.org/");
+  await panel.setViewportSize({ width: 380, height: 760 });
+  await panel.screenshot({
+    path: "../artifacts/voice-panel-public.png",
+    fullPage: true,
+  });
+});
+
+test("public news navigation uses generic observed links", async () => {
+  test.skip(
+    process.env.VOICE_PUBLIC_SMOKE !== "1",
+    "Opt-in public website test",
+  );
+  await page.goto("https://news.ycombinator.com/", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect
+    .poll(async () => (await msg("get")).value.pageStatus)
+    .toBe("ready");
+  const s = await content("snapshot");
+  const link = s.candidates.find(
+    (c: any) => c.operation === "click" && c.label === "new",
+  );
+  expect(link).toBeTruthy();
+  await run("click " + link.target);
+  await expect(page).toHaveURL(/news.ycombinator.com\/newest/);
+});
+
+test("unrelated page updates do not invalidate a stable field, but its own value changes do", async () => {
+  const s = await content("snapshot");
+  const target = s.elements.find((e: any) => e.label === "Full name");
+  const generation = Date.now();
+  await content("snapshot", { generation });
+  await page.locator("#email").fill("updated@example.com");
+  await page.evaluate(() => {
+    document.querySelector("main")!.style.paddingTop = "50px";
+  });
+  const request = {
+    action: {
+      id: "stable-field",
+      operation: "type",
+      target: target.id,
+      text: "Sam",
+      replace: true,
+    },
+    documentId: s.documentId,
+    guard: s.guard,
+    generation,
+  };
+  expect((await content("execute", { request })).status).toBe("executed");
+  await expect(page.locator("#name")).toHaveValue("Sam");
+  const fresh = await content("snapshot", { generation });
+  await page.locator("#name").fill("User edit");
+  expect(
+    (
+      await content("execute", {
+        request: {
+          ...request,
+          guard: fresh.guard,
+          action: { ...request.action, id: "changed-field" },
+        },
+      })
+    ).status,
+  ).toBe("stale");
+  await expect(page.locator("#name")).toHaveValue("User edit");
+});
+
+test("settings persist and the minimal panel has no demo-site dependency", async () => {
+  await panel.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(panel.getByLabel("Give me more time to speak")).toBeChecked();
+  await panel.getByLabel("Words to recognize").fill("Dylan Li, Jev");
+  await panel.getByLabel("Words to recognize").blur();
+  await expect
+    .poll(async () => (await msg("get")).value.preferences.vocabulary)
+    .toBe("Dylan Li, Jev");
+  await panel.reload();
+  await panel.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(panel.getByLabel("Words to recognize")).toHaveValue(
+    "Dylan Li, Jev",
+  );
+  await expect(
+    panel.getByRole("button", { name: "Open practice form" }),
+  ).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: "Use current tab" }),
+  ).toHaveCount(0);
+  await panel.getByRole("button", { name: "Settings", exact: true }).click();
 });

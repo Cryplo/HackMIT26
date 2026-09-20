@@ -1,3 +1,5 @@
+import { preferences, speechParameters } from "../shared/preferences";
+let settings = preferences(undefined);
 let session = "",
   streamId = "",
   socket: WebSocket | undefined,
@@ -53,7 +55,14 @@ async function connect(expected: number) {
   if (!response?.ok)
     throw Error(response?.error || "Unable to get speech credentials.");
   const captured = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      ...(settings.microphoneId
+        ? { deviceId: { exact: settings.microphoneId } }
+        : {}),
+    },
     video: false,
   });
   if (expected !== epoch) {
@@ -69,7 +78,7 @@ async function connect(expected: number) {
     throw Error("Unsupported microphone sample rate.");
   streamId = crypto.randomUUID();
   const ws = new WebSocket(
-    `wss://api.deepgram.com/v2/listen?model=flux-general-en&encoding=linear16&sample_rate=${rate}`,
+    `wss://api.deepgram.com/v2/listen?${speechParameters(settings, rate)}`,
     ["bearer", response.value.access_token],
   );
   socket = ws;
@@ -182,6 +191,7 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
   if (m.type === "start") {
     stop();
     session = m.session;
+    settings = preferences(m.preferences);
     attempts = 0;
     deadline = Date.now() + 600000;
     connect(epoch)

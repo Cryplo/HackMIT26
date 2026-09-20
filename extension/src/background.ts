@@ -6,6 +6,11 @@ import {
   type UIState,
 } from "./shared/protocol";
 import { TurnGate, normalize, route } from "./voice/router";
+import { preferences } from "./shared/preferences";
+let settings = preferences(undefined);
+let tabRevision = 0;
+let lastWebTabId: number | undefined;
+const speechTargets = new Map<string, string>();
 
 const gate = new TurnGate();
 gate.generation = Date.now();
@@ -16,6 +21,7 @@ let token = "",
   pinnedDoc: string | undefined;
 let controller: AbortController | undefined;
 type GoalHistory = {
+  url: string;
   operation: string;
   label: string;
   text?: string;
@@ -63,6 +69,12 @@ const ready = (async () => {
   token = typeof saved.token === "string" ? saved.token : "";
   sessionId = typeof saved.sessionId === "string" ? saved.sessionId : "";
   tabId = typeof saved.tabId === "number" ? saved.tabId : undefined;
+  lastWebTabId = tabId;
+  settings = preferences(
+    (await chrome.storage.local.get("preferences")).preferences,
+  );
+  state.preferences = settings;
+  state.pageStatus = "none";
   state.paired = !!token;
   state.tabId = tabId;
   const previous = saved.ui as Partial<UIState> | undefined;
@@ -111,16 +123,30 @@ async function sendContent(message: object) {
   );
 }
 async function api(path: string, body?: unknown, signal?: AbortSignal) {
-  const response = await fetch(BASE + path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(BASE + path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000),
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw Error("Cannot reach the local backend. Start it, then try again.");
+  }
   const data = await response.json();
+  if (response.status === 401) {
+    token = "";
+    state.paired = false;
+    await chrome.storage.session.remove(["token", "sessionId"]);
+    await publish();
+  }
   if (!response.ok)
     throw Error(
       typeof data.detail === "string"
@@ -165,7 +191,7 @@ async function stop() {
   await publish();
 }
 async function snapshot(g: number): Promise<Snapshot> {
-  if (tabId === undefined) throw Error("Select a tab first.");
+  if (tabId === undefined) throw Error("Open a regular web page first.");
   const tab = await chrome.tabs.get(tabId);
   if (
     !tab.url ||
@@ -174,17 +200,37 @@ async function snapshot(g: number): Promise<Snapshot> {
       origins: [new URL(tab.url).origin + "/*"],
     }))
   )
-    throw Error("Site permission is missing. Select and allow this tab again.");
+    throw Error("Allow website access in Jev before controlling this page.");
   try {
-    return await sendContent({ type: "snapshot", generation: g });
+    let result: Snapshot;
+    try {
+      result = await sendContent({ type: "snapshot", generation: g });
+    } catch {
+      // A full navigation creates a new document. Inject once and read; never replay an action.
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id! },
+        files: ["content.js"],
+      });
+      await sendContent({ type: "overlay", enabled: settings.overlay });
+      result = await sendContent({ type: "snapshot", generation: g });
+    }
+    state.tabUrl = tab.url;
+    state.tabTitle = tab.title;
+    state.pageStatus = "ready";
+    return result;
   } catch {
     throw Error(
-      "Page unavailable. Select the tab again and allow this site. Internal pages and PDFs are unsupported.",
+      "Page unavailable. Chrome pages, PDFs and protected frames cannot be controlled.",
     );
   }
 }
 async function execute(a: Action, s: Snapshot, g: number, confirmed?: string) {
   if (!gate.current(g)) return;
+  const current = await currentWebTab();
+  if (current && current.id !== tabId) {
+    await followTab(current);
+    return;
+  }
   state.status = "EXECUTING";
   await publish();
   if (!gate.current(g)) return;
@@ -264,7 +310,9 @@ async function command(text: string, turnId: string = crypto.randomUUID()) {
     const g = gate.generation;
     if (p.goal) {
       activeGoal = p.goal;
-      expectingNavigation = ["click", "back"].includes(p.action.operation);
+      expectingNavigation = ["click", "back", "press_enter"].includes(
+        p.action.operation,
+      );
     }
     const confirmed = await execute(
       { ...p.action, id: crypto.randomUUID() },
@@ -277,6 +325,7 @@ async function command(text: string, turnId: string = crypto.randomUUID()) {
         `${p.snapshot.documentId}:${p.action.operation}:${p.action.target}`,
       );
       p.goal.history.push({
+        url: p.snapshot.url.slice(0, 3000),
         operation: p.action.operation,
         label:
           p.snapshot.candidates.find((c) => c.target === p.action.target)
@@ -291,6 +340,8 @@ async function command(text: string, turnId: string = crypto.randomUUID()) {
     }
     return;
   }
+  await syncActiveTab();
+  if (state.pageStatus !== "ready") throw Error(state.message);
   const followup = clarification;
   const goalText = followup ? `${followup}\nUser clarification: ${text}` : text;
   const g = invalidate();
@@ -424,6 +475,7 @@ async function runGoal(goal: Goal) {
           {
             context,
             mode: "goal",
+            url: s.url.slice(0, 3000),
             transcript: goal.text,
             title: s.title,
             page_text: s.text,
@@ -467,24 +519,36 @@ async function runGoal(goal: Goal) {
         await publish();
         return;
       }
+      // DONE never mutates the page. Stop without making the user clarify a
+      // completed task, while distinguishing uncertain completion from verification.
+      if (d.choice === "DONE") {
+        state.status = state.listening ? "LISTENING" : "OFF";
+        state.message =
+          d.confidence >= 0.65
+            ? "Goal completed based on the current page and verified actions. Please review the result."
+            : "Jev thinks the task is complete. Please check the page before continuing.";
+        state.totalMs = Math.round(performance.now() - goal.started);
+        await publish();
+        return;
+      }
       const ranked = Object.values(d.probabilities || {})
         .filter((v): v is number => typeof v === "number")
         .sort((a, b) => b - a);
       if (
         d.confidence < 0.65 ||
+        (typeof d.margin === "number" && d.margin < 0.15) ||
         (ranked.length > 1 && ranked[0] - ranked[1] < 0.15)
       ) {
-        clarification = goal.text;
-        state.status = "CLARIFYING";
-        state.message =
-          "I am unsure about the next step. Please clarify the target or requested result.";
-        await publish();
-        return;
-      }
-      if (d.choice === "DONE") {
-        state.status = state.listening ? "LISTENING" : "OFF";
-        state.message =
-          "Goal completed based on the current page and verified actions. Please review the result.";
+        if (goal.committed?.size) {
+          state.status = state.listening ? "LISTENING" : "OFF";
+          state.message =
+            "The confirmed action was sent. Review the result; give a new command to continue.";
+        } else {
+          clarification = goal.text;
+          state.status = "CLARIFYING";
+          state.message =
+            "I am unsure about the next step. Please clarify the target or requested result.";
+        }
         await publish();
         return;
       }
@@ -504,7 +568,8 @@ async function runGoal(goal: Goal) {
         (typeof d.text !== "string" || !d.text.trim() || d.text.length > 2000)
       )
         throw Error("No valid field value returned. Nothing typed.");
-      const entry = {
+      const entry: GoalHistory = {
+        url: s.url.slice(0, 3000),
         operation: c.operation,
         label: c.label,
         text: c.operation === "type" ? d.text : undefined,
@@ -521,7 +586,9 @@ async function runGoal(goal: Goal) {
         throw Error(
           "Stopped because the same action was repeating. Please clarify the goal.",
         );
-      expectingNavigation = ["click", "back"].includes(c.operation);
+      expectingNavigation = ["click", "back", "press_enter"].includes(
+        c.operation,
+      );
       const result = await execute(
         {
           ...c,
@@ -559,42 +626,102 @@ async function runGoal(goal: Goal) {
     }
   }
 }
-async function bind(id: number) {
-  await stop();
-  const tab = await chrome.tabs.get(id);
-  if (!tab.url || !/^https?:/.test(tab.url))
-    throw Error("Choose an ordinary HTTP or HTTPS page.");
-  const origin = new URL(tab.url).origin + "/*";
-  if (!(await chrome.permissions.contains({ origins: [origin] })))
-    throw Error("Allow this site using “Use current tab”.");
-  await chrome.scripting.executeScript({
-    target: { tabId: id },
-    files: ["content.js"],
+function ownPage(url?: string) {
+  return !!url?.startsWith(chrome.runtime.getURL(""));
+}
+function ordinaryPage(url?: string) {
+  return (
+    !!url &&
+    /^https?:/.test(url) &&
+    !/^https:\/\/(chromewebstore\.google\.com|chrome\.google\.com\/webstore)/.test(
+      url,
+    )
+  );
+}
+async function currentWebTab() {
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true,
   });
-  tabId = id;
-  state.tabId = id;
-  state.tabTitle = tab.title;
-  await chrome.storage.session.set({ tabId: id });
-  const s = await snapshot(gate.generation);
-  state.elements = s.elements;
-  state.omitted = s.omitted;
-  state.message = "Tab selected. Try “focus” followed by a field name.";
-  await publish();
-  const registrations = await chrome.scripting.getRegisteredContentScripts();
-  if (!registrations.some((x) => x.matches?.includes(origin)))
-    await chrome.scripting.registerContentScripts([
-      {
-        id: "site-" + crypto.randomUUID(),
-        matches: [origin],
-        js: ["content.js"],
-        runAt: "document_idle",
-        persistAcrossSessions: true,
-      },
-    ]);
+  // Microphone onboarding and the extension's standalone panel retain the web target.
+  if (tab && ownPage(tab.url || tab.pendingUrl))
+    return lastWebTabId === undefined
+      ? undefined
+      : chrome.tabs.get(lastWebTabId).catch(() => undefined);
+  return tab;
+}
+async function followTab(tab: chrome.tabs.Tab, force = false) {
+  if (tab.id === undefined || ownPage(tab.url || tab.pendingUrl)) return;
+  if (ordinaryPage(tab.url)) lastWebTabId = tab.id;
+  if (
+    !force &&
+    tab.id === tabId &&
+    state.tabUrl === tab.url &&
+    state.pageStatus === "ready"
+  )
+    return;
+  const revision = ++tabRevision;
+  await cancel("Page changed. Ready for a new command.");
+  if (revision !== tabRevision) return;
+  tabId = tab.id;
+  state.tabId = tab.id;
+  state.tabTitle = tab.title || "Current page";
+  state.tabUrl = tab.url;
+  state.elements = [];
+  await chrome.storage.session.set({ tabId });
+  if (revision !== tabRevision) return;
+  if (!ordinaryPage(tab.url)) {
+    state.pageStatus = "restricted";
+    state.message =
+      "Open a regular website. Chrome settings, the Web Store and browser documents cannot be controlled.";
+  } else if (
+    !(await chrome.permissions.contains({
+      origins: [new URL(tab.url!).origin + "/*"],
+    }))
+  ) {
+    state.pageStatus = "permission";
+    state.message = "Allow website access to use Jev on this page.";
+  } else if (tab.status === "loading") {
+    state.pageStatus = "loading";
+    state.message = "Waiting for the page to load…";
+  } else {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"],
+      });
+      if (revision !== tabRevision) return;
+      const s = await sendContent({
+        type: "overlay",
+        enabled: settings.overlay,
+      });
+      if (revision !== tabRevision) return;
+      state.elements = s.elements;
+      state.omitted = s.omitted;
+      state.pageStatus = "ready";
+      state.message = state.listening
+        ? "Listening on this page."
+        : "Ready on this page.";
+    } catch {
+      if (revision !== tabRevision) return;
+      state.pageStatus = "restricted";
+      state.message =
+        "Chrome blocks access to this page. Try a regular website instead of a PDF or browser page.";
+    }
+  }
+  if (revision === tabRevision) await publish();
+}
+async function syncActiveTab() {
+  const tab = await currentWebTab();
+  if (tab) await followTab(tab);
+}
+async function bind(id: number) {
+  await followTab(await chrome.tabs.get(id), true);
 }
 async function start() {
-  if (!token) throw Error("Pair the backend first.");
-  if (tabId === undefined) throw Error("Select a tab first.");
+  if (!token) throw Error("Connect the backend first.");
+  await syncActiveTab();
+  if (state.pageStatus !== "ready") throw Error(state.message);
   await stop();
   if (!(await chrome.offscreen.hasDocument()))
     await chrome.offscreen.createDocument({
@@ -609,6 +736,7 @@ async function start() {
     to: "offscreen",
     type: "start",
     session,
+    preferences: settings,
   });
   if (!result?.ok)
     throw Error(
@@ -624,13 +752,25 @@ async function start() {
 async function handle(m: any) {
   await ready;
   if (m.type === "get") return state;
+  if (m.type === "sync-tab") await syncActiveTab();
+  if (m.type === "preferences") {
+    settings = preferences(m.value);
+    state.preferences = settings;
+    await chrome.storage.local.set({ preferences: settings });
+    if (state.pageStatus === "ready")
+      await sendContent({ type: "overlay", enabled: settings.overlay }).catch(
+        () => {},
+      );
+    await publish();
+  }
   if (m.type === "pair") {
     const p = await api("/v1/pair", { code: m.code });
     token = p.token;
     sessionId = p.sessionId;
     state.paired = true;
     await chrome.storage.session.set({ token, sessionId });
-    state.message = "Paired. Choose a web tab.";
+    state.message = "Connected.";
+    await syncActiveTab();
     await publish();
     return state;
   }
@@ -685,12 +825,28 @@ async function handle(m: any) {
         await cancel();
         return;
       }
-      if (event.event === "EndOfTurn")
-        await command(
-          event.transcript,
-          `${m.session}:${m.stream}:${event.turn_index}`,
+      const turn = `${m.session}:${m.stream}:${event.turn_index}`;
+      if (!speechTargets.has(turn)) {
+        speechTargets.set(
+          turn,
+          state.pageStatus === "ready" ? `${tabId}:${tabRevision}` : "blocked",
         );
-      else await publish();
+        if (speechTargets.size > 200)
+          speechTargets.delete(speechTargets.keys().next().value!);
+      }
+      if (event.event === "EndOfTurn") {
+        await syncActiveTab();
+        if (
+          speechTargets.get(turn) !== `${tabId}:${tabRevision}` ||
+          state.pageStatus !== "ready"
+        ) {
+          state.message =
+            "The page changed while you were speaking. Repeat the command on the current page.";
+          await publish();
+          return;
+        }
+        await command(event.transcript, turn);
+      } else await publish();
     }
   }
   return state;
@@ -724,39 +880,59 @@ chrome.runtime.onMessage.addListener((m, sender, reply) => {
     });
   return true;
 });
-chrome.tabs.onUpdated.addListener((id, change) => {
-  if (id === tabId && (change.status === "loading" || change.url)) {
+function reportTabError(error: unknown) {
+  state.status = "ERROR";
+  state.message = error instanceof Error ? error.message : "Page unavailable.";
+  void publish();
+}
+chrome.tabs.onUpdated.addListener((id, change, tab) => {
+  if (ownPage(tab.url || tab.pendingUrl)) return;
+  if (id !== tabId) {
+    if (tab.active && (change.url || change.status === "complete"))
+      void ready.then(() => syncActiveTab()).catch(reportTabError);
+    return;
+  }
+  if (change.title) {
+    state.tabTitle = change.title;
+    void publish();
+  }
+  if (change.status === "loading" || change.url) {
     if (activeGoal && expectingNavigation && gate.current(activeGoal.g)) return;
-    void ready.then(() =>
-      cancel("Page changed. Wait for it to load, then repeat your command."),
-    );
+    void ready.then(() => followTab(tab, true)).catch(reportTabError);
+  } else if (change.status === "complete" && !activeGoal) {
+    void ready.then(() => followTab(tab, true)).catch(reportTabError);
   }
 });
 chrome.tabs.onRemoved.addListener((id) => {
-  if (id === tabId)
-    void ready.then(async () => {
-      await stop();
+  if (id !== tabId) return;
+  void ready
+    .then(async () => {
+      await cancel();
       tabId = undefined;
       state.tabId = undefined;
+      state.pageStatus = "none";
       await chrome.storage.session.remove("tabId");
+      await syncActiveTab();
       await publish();
-    });
+    })
+    .catch(reportTabError);
 });
-chrome.permissions.onRemoved.addListener(
-  () =>
-    void ready.then(async () => {
+chrome.permissions.onRemoved.addListener(() => {
+  void ready
+    .then(async () => {
       await stop();
-      state.message =
-        "Site permission changed. Select and allow the tab again.";
-      await publish();
-    }),
-);
-
-chrome.tabs.onActivated.addListener((info) => {
-  if (tabId !== undefined && info.tabId !== tabId)
-    void ready.then(() =>
-      cancel(
-        "Active tab changed. Commands still target the selected tab shown in the panel.",
-      ),
-    );
+      state.pageStatus = "permission";
+      await syncActiveTab();
+    })
+    .catch(reportTabError);
+});
+chrome.permissions.onAdded.addListener(() => {
+  void ready.then(() => syncActiveTab()).catch(reportTabError);
+});
+chrome.tabs.onActivated.addListener(() => {
+  void ready.then(() => syncActiveTab()).catch(reportTabError);
+});
+chrome.windows.onFocusChanged.addListener((id) => {
+  if (id !== chrome.windows.WINDOW_ID_NONE)
+    void ready.then(() => syncActiveTab()).catch(reportTabError);
 });

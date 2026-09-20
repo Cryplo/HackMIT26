@@ -1,159 +1,134 @@
-# Jev voice extension
+# Jev browser extension
 
-The Chrome extension is the main path for voice-controlled browsing. It executes
-ordinary HTML actions through an isolated content script, with no remote-debugging
-connection or Browser Use daemon required. The existing inspector at port 8766 is
-still available separately.
+Jev follows the active Google Chrome tab. Speak or type a goal against the website
+you are using; the practice form is only a test fixture. The extension uses a
+local backend, Jev through Vercel AI Gateway, and Deepgram Flux for speech.
 
-## Start the prototype
+## Install and run
 
-1. Install dependencies and build:
+```sh
+uv sync --locked
+npm ci --prefix extension
+npm run build --prefix extension
+```
 
-   ```sh
-   uv sync --locked
-   npm ci --prefix extension
-   npm run build --prefix extension
-   ```
+1. In `chrome://extensions`, enable Developer mode and load `extension/dist` as an
+   unpacked extension. Copy its extension ID.
+2. Start the backend: `uv run hackmit serve --extension-id YOUR_EXTENSION_ID`.
+   `.env` holds `AI_GATEWAY_API_KEY` and `DEEPGRAM_API_KEY`; permanent keys never
+   enter the extension. Deepgram token issuance requires Member permission.
+3. Open the Jev panel and enter the single-use pairing code printed in the terminal.
+4. Open an ordinary website. Click **Allow website access** and accept Chrome's
+   permission prompt. This optional grant allows use across HTTP/HTTPS websites;
+   Chrome's own site-access settings can further restrict it.
+5. Type a goal, or click **Start listening**. If necessary, the microphone setup
+   page opens so Chrome can show a visible permission prompt. Return to your web
+   page after allowing it.
 
-2. In Google Chrome, open `chrome://extensions`, turn on **Developer mode**, click
-   **Load unpacked**, and select this project's `extension/dist` folder. Copy the
-   extension ID shown on its card.
-3. Start the backend from the repository directory:
+Example goals: “Fill my name as Sam Lee and my email as sam@example.com”,
+“Search Wikipedia for browser extensions”, “Select Creative coding”, or “Open the
+new stories”. Only requested submissions execute, after confirmation. Missing
+personal details prompt a question; answer it in the command box or by voice.
 
-   ```sh
-   uv run hackmit serve --extension-id YOUR_EXTENSION_ID
-   ```
+Switching tabs updates the current page automatically and cancels unfinished
+commands, dictation targets, and approvals. A spoken turn begun on the old page
+is discarded. Listening stays enabled while switching tabs, until explicitly
+paused or the ten-minute limit is reached. Restricted pages show an explanation
+and cannot redirect commands to a background tab.
 
-   The backend binds only to `127.0.0.1:8767` and prints a single-use pairing code
-   valid for ten minutes. The existing `AI_GATEWAY_API_KEY` in `.env` is reused.
-4. Click the Jev extension toolbar button to open its side panel. Paste the pairing
-   code. Open the **practice form** under **Setup & privacy**, then click
-   **Use current tab** and grant access to that site.
-5. Try a natural-language goal: `My name is Sam Lee and my email is
-   sam@example.com. Fill out the form and select Creative coding.` You can also
-   ask it to register; submission pauses for `Confirm action`. Missing details
-   prompt a question—answer in the same command box. Submission on the practice
-   form is local only.
+After rebuilding, reload Jev in `chrome://extensions` and refresh the web page
+so its content script updates. A backend restart requires a new pairing code.
+Settings persist locally; pairing is limited to the Chrome session.
 
-For voice, add `DEEPGRAM_API_KEY` to the ignored local `.env` and restart the
-backend. The Deepgram key needs at least **Member** permission to mint temporary
-tokens. Re-pair after a backend restart. Choose **Set up microphone permission**
-in the panel, allow Chrome/OS microphone access, return to the panel, and choose
-**Start listening**. If permission has not been granted, Start listening opens
-the visible microphone setup page automatically. Click **Allow microphone**,
-accept Chrome's prompt, then click **Return to selected page**. The permanent speech key never enters the extension.
+## Minimal controls
 
-The current local Deepgram key successfully mints temporary tokens. A live Flux
-WebSocket authenticated using the browser-compatible bearer subprotocol and
-accepted a short synthetic-silence connection test. Real-microphone recognition
-and end-to-end voice workflows still need validation. Typed commands do not need Deepgram.
+The panel shows the current website, status, microphone button, command box, and
+last transcript. **Edit** copies a misheard command into the box for correction.
+Settings contains voice controls, permissions, and diagnostics.
 
-Reload the extension in `chrome://extensions` after rebuilding its source, and
-select the page again. A worker restart stops speech and discards unfinished work.
+- **Give me more time to speak**, enabled by default, uses Flux `eot_threshold=0.85`
+  and `eot_timeout_ms=7000`. Standard mode uses 0.7 / 5000 ms. This reduces premature
+  turn endings at the cost of some response time; it does not guarantee accuracy.
+- **Microphone** selects an input device. Grant microphone permission to see device
+  names. Speech settings apply on the next listening session.
+- **Words to recognize** supplies up to 20 comma-separated vocabulary hints to
+  Deepgram. Names and specialized terms can benefit; hints are not exact spelling
+  guarantees. Do not enter secrets into this field.
+- **Show numbered targets** is off by default. Enable it to use exact local
+  commands such as “focus 3” or “click 8”.
 
-## Commands and scope
+“Stop” cancels a task. “Stop listening” or “pause listening” closes audio capture.
+“Start dictation” pins the focused field; “finish dictation” returns to command
+mode. While dictating, ordinary phrases including “click 12” are literal text.
+`Type: literal text` appends text locally; “undo last entry” restores a value only
+if it has not changed. “Confirm action” executes the current unchanged preview.
 
-| Command | Behavior |
-| --- | --- |
-| `Fill out full name as Dylan Li` | Choose the field with Jev and replace its value with the literal supplied text; undo is available. |
-| `Focus the destination field` | Jev selects a visible, supported field. |
-| `Focus 3`, `Click 8` | Local numbered-target selection, no model request. |
-| `Type: London` | Append exactly this text to the pinned/focused field. |
-| `Start dictation` | Pin the current field; subsequent final turns become text. |
-| `Finish dictation` | Return to command mode. |
-| `Clear this field` | Preview clearing; requires `Confirm action`. |
-| `Undo last entry` | Restore the previous value only if it has not changed. |
-| `Select Creative coding` | Jev chooses an observed native select option. |
-| `Scroll down`, `Scroll up`, `Go back` | Local page controls. |
-| `Play the video`, `Pause the video` | Jev selects a visible native media element; browser autoplay restrictions still apply. |
-| `Cancel`, `Stop` | Cancel pending commands in command mode; keep listening. |
-| `Stop listening`, `Pause listening` | Stop audio capture and disconnect speech in either mode. |
-| `Confirm action`, `Confirm submit` | Execute only the current unchanged, unexpired preview. |
+## Compatibility
 
-In dictation mode, `click 12` and `cancel` are literal text. Only `Finish dictation`
-and `Stop listening` / `Pause listening` escape dictation. A fresh final turn
-supersedes unfinished inference; commands do not accumulate in a queue.
+Supported controls include visible inputs, textarea, native selects, checkboxes,
+radios, links, buttons, ARIA tabs/options/menu items/switches, native media, open
+shadow DOM controls, and plain contenteditable fields. Scrolling prefers a focused
+nested scroll pane, then the document or main scroll region. Enter is available
+for editable fields without a visible native submit button and requires approval.
 
-Supported: visible main-frame HTML inputs, textarea, native select, checkboxes,
-radios, links, buttons, scrolling, history back, and native media. React-controlled
-text inputs are covered by a browser fixture. Each site must be explicitly
-permitted. Custom controls may reject synthetic events.
+This is a generic DOM executor, not a site-specific script. It cannot guarantee
+compatibility with every web application. Browser settings, the Chrome Web Store,
+PDF viewers, protected/cross-origin frames, closed shadow roots, canvas-based
+editors, rich document editors, file uploads, password/payment fields and controls
+requiring trusted native input remain unsupported. Text extraction is grounded
+in the supplied goal; arbitrary prose composition is not implemented. Native date
+pickers need further coverage. Custom widgets may reject synthetic input events.
 
-Unsupported: password/payment fields, file uploads, date-picker automation,
-canvas, iframes, closed shadow roots, rich document editors, browser-internal pages,
-and prose composition (field values must come from your request). This is not an arbitrary-website
-compatibility claim. Speech-driven tab switching and trusted native key input are
-not part of this first extension slice.
+## Architecture and boundaries
 
-## Architecture and safety properties
+- **Jev:** one model call scores observed actions directly for small control sets,
+  or uses separate operation/target heads for larger pages. Only validated offered
+  choices can execute. Confidence and margin checks apply before page actions.
+  Uncertain completion stops with a review message. No generated selectors or
+  JavaScript execute.
+- **Goal coordinator:** fresh snapshots after each step, at most 20 steps / two
+  minutes per goal, cancellation across tab/document changes, no command queue,
+  no replay after a lost acknowledgement, and duplicate-turn/action protection.
+- **Text helper:** `TEXT_MODEL` (Mercury by default) extracts exact field values or
+  asks a clarification through the same Gateway. Missing or ungrounded values
+  cannot be typed. Both model attempts count toward the budget.
+- **Executor:** stable document-scoped IDs, current visibility/occlusion checks,
+  target identity/value/semantic guards, and at most 196 offered actions. Layout
+  changes or unrelated fields do not invalidate a stable target. Replaced targets
+  and edits to the selected field do. Field writes are read back.
+- **Approval:** submit-like actions, Enter, destructive labels and clearing need
+  confirmation, expiring after 20 seconds. Approval binds to the document and full
+  form/page guard. Confirmed actions are removed from the remainder of that goal.
+  Custom consequential widgets still require site-specific acceptance testing.
+- **Speech:** AudioWorklet streams mono PCM16 in 60 ms chunks using the actual
+  AudioContext sample rate. Flux partial turns update the display; only EndOfTurn
+  executes (explicit stop phrases can interrupt). Temporary JWTs authenticate
+  through the bearer WebSocket subprotocol. A local ten-second heartbeat prevents
+  worker idling during silence; it stops with listening and makes no model calls.
+- **Recovery:** speech reconnects at most twice with a fresh stream and drops old
+  buffered audio. A worker restart stops audio and discards unfinished actions.
+  Backend fetches time out and expired authentication returns to pairing.
 
-- **Content script:** stable document-scoped element IDs, bounded candidate lists,
-  noninteractive number overlays, accessible labels, fresh identity/value/geometry/
-  visibility/occlusion guards, and an execution ledger. Replacement nodes get new
-  IDs. At most 196 actions are sent to the backend; omitted actions are reported.
-- **Coordinator:** selected tab, command/dictation modes, final-turn deduplication,
-  cancellation generation, pinned field, confirmation preview, and timing counters.
-  It restores pairing and tab metadata from `chrome.storage.session`, but never
-  resumes unfinished actions after a worker restart. Page scripts cannot command
-  the worker via `window.postMessage`.
-- **Goal loop:** up to 20 steps / two minutes, refreshing the page snapshot after
-  each action. Jev chooses one observed action, clarification, wait, unsupported,
-  or done. A successful confirmation resumes the goal, with that confirmed
-  action removed from subsequent choices to prevent repeat submission.
-- **Jev backend:** calls Vercel's TypeSafe-compatible endpoint. Field entry and
-  clarification use a text helper (`TEXT_MODEL`, Mercury by default) through the
-  same Gateway. Extracted values must occur in the user request; ungrounded or
-  missing values prompt a question. No generated JavaScript or selectors.
-- **Speech:** offscreen document → AudioWorklet → mono signed 16-bit little-endian
-  PCM in 60 ms chunks → Deepgram Flux `/v2/listen`. AudioContext requests 16 kHz;
-  if Chrome chooses another supported rate, that actual rate is advertised.
-  Temporary JWTs use the `bearer` WebSocket subprotocol. Partial transcripts only
-  update the panel, except explicit stop/cancel phrases. Only `EndOfTurn` executes.
-- **Confirmation:** submit-like controls, destructive labels, and field clearing
-  require a preview. It expires after 20 seconds and binds to the original action,
-  document, and form state. This heuristic does not identify every consequential
-  custom widget; test any real sending/purchasing workflow separately.
-- **Execution:** duplicate action IDs return their original result, including
-  failed attempts. Lost acknowledgements are never replayed. Field changes are
-  read back; clicks and navigation are reported as requests, not verified success.
-- **Privacy:** model requests contain the spoken/typed goal, page title, up to
-  6,000 characters of visible page text, bounded labels/options, supported field
-  values, and recent action history. The local execution guard stays in the browser.
-  These requests can contain personal information. No application audio
-  recording or disk transcript log is created. The panel retains the last heard
-  text in session storage while Chrome runs. Provider retention is governed by
-  your provider account settings.
+## Privacy and cost
 
-## Limits and recovery
+Audio is sent to Deepgram only while listening. Silence while connected may still
+incur speech charges. Commands, page address/title, up to 6,000 characters of page text,
+control labels/options, supported field values and recent action history are sent
+to Gateway models for semantic commands. Website text is untrusted input, never
+permission to act. The local execution guard stays in the browser.
 
-`VOICE_MAX_REQUESTS` configures the backend's model-call budget (default 120 per
-paired session); every attempt counts, including failures and text-helper calls. The backend also caps
-requests at 45/minute. It does not automatically retry model calls. Local commands
-can still work without an available model. These are application limits, not a
-statement of your provider quota.
+No application audio recording or disk transcript log is created. The last
+transcript stays in session storage while Chrome runs. Preferences and custom
+vocabulary are stored locally. Provider retention follows your provider settings.
+Website permissions can be removed in Settings or Chrome extension site access.
 
-While listening, a local heartbeat every ten seconds keeps the coordinator active
-between spoken turns. It stops when listening stops and makes no provider calls.
-An actual worker restart still discards pending actions and stops audio.
+The backend binds to loopback, checks Host/extension Origin, and issues an eight-hour
+session after a ten-minute single-use pairing code. `VOICE_MAX_REQUESTS` defaults
+to 120 model attempts per session, with 45/minute and no automatic model retry.
+A session can mint at most 20 speech tokens. These application limits are separate
+from provider quotas. This local deployment is not a hosted multi-user service.
 
-Listening stops after ten minutes per activation. Speech reconnects at most twice
-with a new token and stream ID, drops old buffered audio, and invalidates pending
-actions. A paired session can mint at most 20 tokens. Pairing expires after eight
-hours. Pausing closes the stream; silence while connected can still incur speech
-charges. A wake phrase cannot resume a stopped microphone.
-
-Goal-initiated navigation can continue on a permitted origin. Manual navigation
-cancels the goal. On a new origin,
-choose **Use current tab** and grant that site's permission. Revoking permission
-stops listening; reselect and allow the page to resume. Site registration survives
-Chrome restarts, while pairing is session-only. Revocation is available in the
-panel or Chrome's extension site-access settings.
-
-A changed form, obscured control, replaced target, or expired preview yields an
-actionable error. Refresh targets or repeat the original command; do not assume
-that a click means the site's task completed.
-
-## Test and inspect
+## Verification
 
 ```sh
 uv run pytest
@@ -165,37 +140,24 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-Browser tests install the actual built extension into an isolated Chromium profile.
-Only the temporary test manifest pregrants the fixture origin. By default a test-only provider
-adapter supplies deterministic transcripts and a fake microphone; no real audio
-or paid provider is used in CI. Native and React form tests exercise the production
-content script and coordinator. See [measured results](voice-demo-results.md).
+Default browser tests install the built extension in an isolated profile and use
+simulated speech/provider responses. Tests cover actual content scripts, React
+inputs, tab switching, stale responses, confirmations, microphone onboarding,
+idle listening, open shadow DOM, plain editors, nested scrolling and settings.
 
-Optional live Gateway probe (five potentially billable requests, synthetic data):
-
-```sh
-uv run python scripts/check_voice_jev.py
-```
-
-Primary API references: [Chrome offscreen documents](https://developer.chrome.com/docs/extensions/reference/api/offscreen),
-[Deepgram temporary tokens](https://developers.deepgram.com/guides/fundamentals/token-based-authentication),
-[Flux state events](https://developers.deepgram.com/docs/flux/state), and
-[Deepgram browser authentication implementation](https://github.com/deepgram/deepgram-js-sdk/blob/main/src/CustomClient.ts).
-
-### Tab selection troubleshooting
-
-After updating, click Reload on Jev's card in `chrome://extensions` and reopen
-the side panel. The extension requests the `tabs` permission to identify the
-current page before requesting that site's optional access. This reads tab
-metadata; page control still requires the site's separate permission. If Chrome
-asks you to accept the updated permission, do so to enable tab selection.
-
-Open the practice form at `http://127.0.0.1:8767/demo` in Google Chrome itself.
-The extension cannot control Codex's embedded browser, `chrome://extensions`,
-the new-tab page, or its own microphone setup page.
-
-Opt-in real Jev + text-helper browser test (billable, synthetic local form only):
+Opt-in network tests, from the project root:
 
 ```sh
+VOICE_PUBLIC_SMOKE=1 npm run test:browser --prefix extension -- --grep public
+VOICE_LIVE=1 VOICE_PUBLIC_SMOKE=1 npm run test:browser --prefix extension -- --grep "public Wikipedia"
 VOICE_LIVE=1 npm run test:browser --prefix extension -- --grep "free-form multi-field"
 ```
+
+`VOICE_LIVE=1` uses paid Gateway calls with synthetic test goals and public page
+content. See [verification results](voice-demo-results.md). Actual voice accuracy
+and accessibility acceptance require representative speech and intended-user
+validation; a successful synthetic test is not evidence of universal reliability.
+
+References: [Flux settings](https://developers.deepgram.com/docs/flux/configuration),
+[keyterm prompting](https://developers.deepgram.com/docs/keyterm),
+[Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).

@@ -179,10 +179,10 @@ def goal_body(turn='goal'):
 def goal_provider(text='Dylan Li', question=None, truncated=False):
     def respond(request):
         if request.url.path.endswith('systemone'):
-            criteria = json.loads(request.content)['questions']['action']['criteria']
-            return httpx.Response(200, json={'answers': {'action': {
-                'choice': 'type:1', 'confidence': .99,
-                'probabilities': {key: int(key == 'type:1') for key in criteria}}},
+            criteria = json.loads(request.content)['questions']['operation']['criteria']
+            return httpx.Response(200, json={'answers': {'operation': {
+                'choice': 'type', 'confidence': .99,
+                'probabilities': {key: int(key == 'type') for key in criteria}}},
                 'usage': {'input_tokens': 50, 'output_tokens': 10}})
         payload = json.loads(request.content)
         assert payload['reasoning'] == {'enabled': False}
@@ -229,8 +229,8 @@ def test_goal_terminal_choices_do_not_generate_text(api):
     client, app, seen = api
     def done(request):
         seen.append(request)
-        criteria = json.loads(request.content)['questions']['action']['criteria']
-        return httpx.Response(200, json={'answers': {'action': {'choice': 'DONE', 'confidence': 1,
+        criteria = json.loads(request.content)['questions']['operation']['criteria']
+        return httpx.Response(200, json={'answers': {'operation': {'choice': 'DONE', 'confidence': 1,
             'probabilities': {key: int(key == 'DONE') for key in criteria}}}})
     app.state.client._transport = httpx.MockTransport(done)
     result = client.post('/v1/decide', json=goal_body())
@@ -245,3 +245,15 @@ def test_goal_ungrounded_helper_value_requires_clarification(api):
     assert data['needs_clarification'] is True
     assert 'text' not in data
     assert 'exact value' in data['question']
+
+
+def test_provider_timeout_is_actionable_and_never_retried(api):
+    client, app, seen = api
+    def timeout(request):
+        seen.append(request)
+        raise httpx.ReadTimeout('timed out')
+    app.state.client._transport = httpx.MockTransport(timeout)
+    response = client.post('/v1/decide', json=body())
+    assert response.status_code == 504
+    assert 'This step did not run' in response.json()['detail']
+    assert len(seen) == 1

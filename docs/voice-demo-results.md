@@ -132,3 +132,36 @@ site test was skipped. This verifies the lifecycle fix with simulated speech,
 not the precise cause of every failure in the user's live microphone session.
 
 Reference: [Chrome worker lifecycle](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).
+
+## Active websites and minimal panel — September 19 update
+
+The panel now follows the active Chrome website after an optional website-access
+grant. It no longer opens or directs users to the fixture. Page switching cancels
+unfinished actions and speech turns tied to the old page. Settings holds microphone
+selection, patient turn-taking, custom recognition vocabulary, optional numbered
+targets and diagnostics; the main panel has microphone, text command and status.
+
+Generic executor coverage now includes open shadow DOM, plain editable regions,
+ARIA options/tabs, nested scrolling, Enter for fields without an available submit
+button, and exclusion of controls covered by overlays. A stable field remains
+usable when an unrelated sidebar or layout changes. Target identity/value guards
+and full confirmation guards remain enforced.
+
+Validation: 89 Python tests and six TypeScript tests passed. The complete browser
+suite passed 25 tests, with three opt-in network checks skipped. Later focused
+backend tests cover the final planner changes. A final real-Gateway run passed
+both multi-field registration (exactly one approved submission) and a Wikipedia
+search that navigated to the Browser extension article. A separate public Hacker
+News navigation test passed. The compact panel was visually checked at 380px width;
+`artifacts/voice-panel-public.png` is an ignored local screenshot.
+
+Live tests also exposed intermittent network disconnection and provider timeouts.
+The backend reports a timeout without replaying a step. Jev can be uncertain about
+whether a task is finished even after the requested action succeeds; it now stops
+with an explicit result-review message instead of selecting an unnecessary next
+action. Do not interpret a stopped task or dispatched click as verified site success.
+
+The release improves the local browser extension; it is not a universal website
+compatibility or production-accessibility certification. Live microphone accuracy
+still needs representative user speech. English Flux is retained with optional
+vocabulary hints and slower end-of-turn settings, not an accuracy guarantee.

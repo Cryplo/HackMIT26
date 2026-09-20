@@ -23,11 +23,11 @@ function install() {
   let next = 1,
     version = 0,
     generation = 0,
-    overlayOn = true;
+    overlayOn = false;
   const ledger = new Map<string, Result>();
   let undo:
     | {
-        element: HTMLInputElement | HTMLTextAreaElement;
+        element: HTMLElement;
         before: string;
         after: string;
       }
@@ -40,7 +40,34 @@ function install() {
   const shadow = host.attachShadow({ mode: "closed" });
   document.documentElement.append(host);
   const selectors =
-    'input,textarea,select,button,a[href],[role="button"],[role="link"],[role="checkbox"],[role="radio"],video,audio';
+    'input,textarea,select,button,a[href],[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="tab"],[role="option"],[role="menuitem"],[role="switch"],[role="combobox"],[contenteditable="true"],[contenteditable="plaintext-only"],video,audio';
+  function controls(
+    root: Document | ShadowRoot = document,
+    depth = 0,
+  ): HTMLElement[] {
+    const result = Array.from(
+      root.querySelectorAll<HTMLElement>(selectors),
+    ).slice(0, 2000);
+    if (depth < 8)
+      for (const e of root.querySelectorAll<HTMLElement>("*")) {
+        if (e.shadowRoot) result.push(...controls(e.shadowRoot, depth + 1));
+        if (result.length >= 2000) break;
+      }
+    return result.slice(0, 2000);
+  }
+  function activeElement(): Element | null {
+    let e = document.activeElement;
+    while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement;
+    return e;
+  }
+  const plainEditable = (e: HTMLElement) =>
+    e.isContentEditable &&
+    (e.getAttribute("contenteditable") === "plaintext-only" ||
+      (e.getAttribute("contenteditable") === "true" &&
+        Array.from(e.children).every((c) => c.tagName === "BR")));
+  const valueOf = (e: HTMLElement) =>
+    "value" in e ? String((e as HTMLInputElement).value) : e.innerText;
+
   const sensitive = (e: HTMLElement) =>
     e instanceof HTMLInputElement &&
     (![
@@ -63,13 +90,18 @@ function install() {
   const editable = (e: HTMLElement) =>
     ((e instanceof HTMLInputElement &&
       ["text", "search", "email", "tel", "url", "number"].includes(e.type)) ||
-      e instanceof HTMLTextAreaElement) &&
+      e instanceof HTMLTextAreaElement ||
+      plainEditable(e)) &&
     !sensitive(e) &&
     !e.hasAttribute("readonly");
   function name(e: HTMLElement) {
     const labelled = (e.getAttribute("aria-labelledby") || "")
       .split(/\s+/)
-      .map((id) => document.getElementById(id)?.textContent || "")
+      .map(
+        (id) =>
+          (e.getRootNode() as Document | ShadowRoot).getElementById(id)
+            ?.textContent || "",
+      )
       .join(" ")
       .trim();
     const labels =
@@ -93,6 +125,20 @@ function install() {
       .slice(0, 300);
   }
   function visible(e: HTMLElement) {
+    for (
+      let parent: HTMLElement | null = e;
+      parent;
+      parent =
+        parent.parentElement ||
+        ((parent.getRootNode() as ShadowRoot).host as HTMLElement | null)
+    ) {
+      if (
+        parent.hasAttribute("inert") ||
+        parent.getAttribute("aria-hidden") === "true" ||
+        getComputedStyle(parent).opacity === "0"
+      )
+        return false;
+    }
     const r = e.getBoundingClientRect(),
       s = getComputedStyle(e);
     return (
@@ -109,6 +155,22 @@ function install() {
       !e.closest("[inert]")
     );
   }
+  function reachable(e: HTMLElement) {
+    const r = e.getBoundingClientRect();
+    const x = Math.max(0, Math.min(innerWidth - 1, r.left + r.width / 2));
+    const y = Math.max(0, Math.min(innerHeight - 1, r.top + r.height / 2));
+    let top = document.elementFromPoint(x, y);
+    while (top?.shadowRoot) {
+      const inner = top.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === top) break;
+      top = inner;
+    }
+    while (top) {
+      if (top === e || e.contains(top)) return true;
+      top = (top.getRootNode() as ShadowRoot).host || null;
+    }
+    return false;
+  }
   function enabled(e: HTMLElement) {
     return !e.matches(':disabled,[aria-disabled="true"]') && !sensitive(e);
   }
@@ -117,8 +179,8 @@ function install() {
     if (!n) {
       n = String(next++);
       ids.set(e, n);
-      nodes.set(n, e);
     }
+    nodes.set(n, e);
     return n;
   }
   function state(e: HTMLElement) {
@@ -133,7 +195,7 @@ function install() {
       e.getAttribute("role"),
       e.getAttribute("aria-checked"),
       e.getAttribute("aria-expanded"),
-      "value" in e ? (e as HTMLInputElement).value : null,
+      editable(e) || "value" in e ? valueOf(e) : null,
       "checked" in e ? (e as HTMLInputElement).checked : null,
       enabled(e),
       visible(e),
@@ -166,8 +228,8 @@ function install() {
     const elements: Snapshot["elements"] = [];
     let omitted = 0;
     for (const [n, e] of nodes) if (!e.isConnected) nodes.delete(n);
-    for (const e of document.querySelectorAll<HTMLElement>(selectors)) {
-      if (!visible(e) || !enabled(e)) continue;
+    for (const e of controls()) {
+      if (!visible(e) || !enabled(e) || !reachable(e)) continue;
       const n = id(e),
         label = name(e);
       const offered: Candidate[] = [];
@@ -184,10 +246,26 @@ function install() {
             operation: "type",
             target: n,
             label,
-            current_value: (e as HTMLInputElement).value.slice(0, 2000),
-            focused: document.activeElement === e,
+            current_value: valueOf(e).slice(0, 2000),
+            focused: activeElement() === e,
             required: e.hasAttribute("required"),
           },
+          ...(e instanceof HTMLInputElement &&
+          e.form &&
+          Array.from(
+            e.form.querySelectorAll<HTMLElement>(
+              'button:not([type="button"]):not([type="reset"]),input[type="submit"]',
+            ),
+          ).some((b) => visible(b) && enabled(b) && reachable(b))
+            ? []
+            : [
+                {
+                  id: `enter:${n}`,
+                  operation: "press_enter" as const,
+                  target: n,
+                  label: `Press Enter in ${label}`.slice(0, 300),
+                },
+              ]),
         );
       else if (e instanceof HTMLSelectElement) {
         for (const o of Array.from(e.options).filter(
@@ -251,8 +329,8 @@ function install() {
       omitted,
       guard: digest(),
       active:
-        document.activeElement instanceof HTMLElement
-          ? ids.get(document.activeElement)
+        activeElement() instanceof HTMLElement
+          ? ids.get(activeElement()!)
           : undefined,
     };
   }
@@ -289,7 +367,20 @@ function install() {
       },
       { capture: true, passive: true },
     );
-  function valueSet(e: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  function valueSet(e: HTMLElement, value: string) {
+    if (plainEditable(e)) {
+      e.textContent = value;
+      e.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          inputType: "insertText",
+          data: value,
+        }),
+      );
+      e.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+      return;
+    }
     const proto =
       e instanceof HTMLInputElement
         ? HTMLInputElement.prototype
@@ -301,14 +392,46 @@ function install() {
   function risk(e: HTMLElement, action: Action) {
     return (
       action.operation === "clear" ||
+      action.operation === "press_enter" ||
       (action.operation === "click" &&
-        (e.matches(
-          'button:not([type="button"]):not([type="reset"]),input[type="submit"],input[type="reset"]',
-        ) ||
+        (((e instanceof HTMLButtonElement || e instanceof HTMLInputElement) &&
+          !!e.form &&
+          ["submit", "reset"].includes(e.type)) ||
           /submit|send|delete|remove|purchase|buy|pay|order|confirm|publish|book|sign.?up|register/i.test(
             name(e),
           )))
     );
+  }
+  function guardMatches(req: Execute) {
+    const current = digest();
+    if (req.guard === current) return true;
+    // A changing sidebar, clock, or layout must not invalidate an unrelated field.
+    // Confirmations still bind to the entire form; normal actions bind to the
+    // original element identity and semantics, then check its live hit target below.
+    if (req.confirmed || !req.action.target) return false;
+    try {
+      const before = JSON.parse(req.guard);
+      const after = JSON.parse(current);
+      if (before[0] !== after[0]) return false;
+      const old = before[1].find(
+        ([id]: [string]) => id === req.action.target,
+      )?.[1];
+      const now = after[1].find(
+        ([id]: [string]) => id === req.action.target,
+      )?.[1];
+      const withoutGeometry = (value: unknown[]) => [
+        ...value.slice(0, 13),
+        ...value.slice(17),
+      ];
+      return (
+        !!old &&
+        !!now &&
+        JSON.stringify(withoutGeometry(old)) ===
+          JSON.stringify(withoutGeometry(now))
+      );
+    } catch {
+      return false;
+    }
   }
   async function execute(req: Execute): Promise<Result> {
     if (ledger.has(req.action.id)) return ledger.get(req.action.id)!;
@@ -329,7 +452,7 @@ function install() {
     if (
       req.documentId !== documentId ||
       req.generation !== generation ||
-      req.guard !== digest()
+      !guardMatches(req)
     )
       return finish({
         status: "stale",
@@ -342,18 +465,11 @@ function install() {
         status: "stale",
         message: "Target is no longer available.",
       });
-    if (e) {
-      const r = e.getBoundingClientRect();
-      const top = document.elementFromPoint(
-        Math.max(0, Math.min(innerWidth - 1, r.left + r.width / 2)),
-        Math.max(0, Math.min(innerHeight - 1, r.top + r.height / 2)),
-      );
-      if (top !== e && !e.contains(top))
-        return finish({
-          status: "stale",
-          message: "Target is covered. Close the covering dialog first.",
-        });
-    }
+    if (e && !reachable(e))
+      return finish({
+        status: "stale",
+        message: "Target is covered. Close the covering dialog first.",
+      });
     if (e && risk(e, a)) {
       if (!req.confirmed) {
         pending = {
@@ -391,8 +507,8 @@ function install() {
             status: "unsupported",
             message: "Focus a supported text field first.",
           });
-        const field = e as HTMLInputElement | HTMLTextAreaElement,
-          before = field.value;
+        const field = e,
+          before = valueOf(e);
         const after =
           a.operation === "clear"
             ? ""
@@ -401,22 +517,25 @@ function install() {
               (a.text || "");
         if (
           after.length > 10000 ||
-          (field.maxLength >= 0 && after.length > field.maxLength)
+          ("maxLength" in field &&
+            (field as HTMLInputElement).maxLength >= 0 &&
+            after.length > (field as HTMLInputElement).maxLength)
         )
           return finish({
             status: "unsupported",
             message: "Field text limit reached.",
           });
+        field.focus();
         valueSet(field, after);
         undo = { element: field, before, after };
         await new Promise((r) => setTimeout(r, 0));
         return finish({
-          status: field.value === after ? "executed" : "failed",
+          status: valueOf(field) === after ? "executed" : "failed",
           message:
-            field.value === after
+            valueOf(field) === after
               ? "Field updated."
               : "The page rejected the value.",
-          verified: field.value === after,
+          verified: valueOf(field) === after,
         });
       }
       if (a.operation === "undo") {
@@ -425,7 +544,7 @@ function install() {
         if (
           !previous ||
           !previous.element.isConnected ||
-          previous.element.value !== previous.after ||
+          valueOf(previous.element) !== previous.after ||
           !enabled(previous.element) ||
           !visible(previous.element) ||
           !editable(previous.element)
@@ -439,7 +558,7 @@ function install() {
         return finish({
           status: "executed",
           message: "Last entry restored.",
-          verified: previous.element.value === previous.before,
+          verified: valueOf(previous.element) === previous.before,
         });
       }
       if (a.operation === "focus" && e && editable(e)) {
@@ -447,7 +566,7 @@ function install() {
         return finish({
           status: "executed",
           message: `Focused ${name(e)}. Say “type” followed by your text.`,
-          verified: document.activeElement === e,
+          verified: activeElement() === e,
         });
       }
       if (a.operation === "select" && e instanceof HTMLSelectElement) {
@@ -467,6 +586,35 @@ function install() {
           verified: e.value === a.option,
         });
       }
+      if (a.operation === "press_enter" && e && editable(e)) {
+        e.focus();
+        const proceed = e.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            composed: true,
+            cancelable: true,
+          }),
+        );
+        e.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            key: "Enter",
+            code: "Enter",
+            bubbles: true,
+            composed: true,
+          }),
+        );
+        if (proceed && e instanceof HTMLInputElement && e.form)
+          e.form.requestSubmit();
+        return finish({
+          status: "executed",
+          message: "Enter sent. Check the page for the result.",
+          verified: false,
+        });
+      }
       if (a.operation === "click" && e) {
         e.click();
         return finish({
@@ -476,8 +624,37 @@ function install() {
         });
       }
       if (a.operation === "scroll_up" || a.operation === "scroll_down") {
-        scrollBy({
-          top: innerHeight * 0.65 * (a.operation === "scroll_up" ? -1 : 1),
+        const canScroll = (el: HTMLElement) =>
+          visible(el) &&
+          el.scrollHeight > el.clientHeight + 2 &&
+          /auto|scroll/.test(getComputedStyle(el).overflowY);
+        let container: HTMLElement | undefined;
+        let parent = activeElement() as HTMLElement | null;
+        while (parent && parent !== document.body) {
+          if (canScroll(parent)) {
+            container = parent;
+            break;
+          }
+          parent =
+            parent.parentElement ||
+            ((parent.getRootNode() as ShadowRoot).host as HTMLElement | null);
+        }
+        if (
+          !container &&
+          document.documentElement.scrollHeight <= innerHeight + 2
+        )
+          container = Array.from(document.querySelectorAll<HTMLElement>("*"))
+            .filter(canScroll)
+            .sort(
+              (a, b) =>
+                b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight,
+            )[0];
+        const target = container || window;
+        target.scrollBy({
+          top:
+            (container?.clientHeight || innerHeight) *
+            0.65 *
+            (a.operation === "scroll_up" ? -1 : 1),
           behavior: "instant",
         });
         return finish({

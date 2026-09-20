@@ -1,5 +1,6 @@
 export type Operation =
   | "type"
+  | "press_enter"
   | "click"
   | "focus"
   | "select"
@@ -72,6 +73,9 @@ export type UIState = {
   message: string;
   tabId?: number;
   tabTitle?: string;
+  tabUrl?: string;
+  pageStatus?: "ready" | "permission" | "restricted" | "loading" | "none";
+  preferences?: Preferences;
   transcript: string;
   paired: boolean;
   listening: boolean;
@@ -87,5 +91,17 @@ export type UIState = {
   totalMs?: number;
   executionMs?: number;
   listeningSeconds: number;
+};
+export type Preferences = {
+  overlay: boolean;
+  patientSpeech: boolean;
+  vocabulary: string;
+  microphoneId: string;
+};
+export const DEFAULT_PREFERENCES: Preferences = {
+  overlay: false,
+  patientSpeech: true,
+  vocabulary: "",
+  microphoneId: "",
 };
 export const BASE = "http://127.0.0.1:8767";
