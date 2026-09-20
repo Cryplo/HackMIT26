@@ -134,11 +134,12 @@ test('actual Jev wire payload, evidence, response validation, usage once per API
     assert.equal(evaluation.simulated,false); assert.equal(requests,1); assert.equal(store.calls.length,1); assert.equal(store.calls[0].input_tokens,123); assert.equal(store.calls[0].estimated_cost_usd,null);
     globalThis.fetch=async()=>Response.json({error:'unavailable'},{status:503});
     await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c)),/503/);
-    assert.equal(store.calls.length,2); assert.equal(store.calls[1].input_tokens,null);
+    // Both transport attempts of the retried failure are billed and logged separately.
+    assert.equal(store.calls.length,3); assert.equal(store.calls[1].input_tokens,null); assert.equal(store.calls[2].input_tokens,null);
     let attempts=0;
     globalThis.fetch=async()=>{attempts++;return attempts===1?Response.json({error:'rate limited'},{status:429,headers:{'retry-after':'0'}}):Response.json(raw)};
     assert.equal((await new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c))).simulated,false);
-    assert.equal(attempts,2); assert.equal(store.calls.length,3);
+    assert.equal(attempts,2); assert.equal(store.calls.length,5); assert.equal(store.calls[3].input_tokens,null); assert.equal(store.calls[4].input_tokens,123);
     attempts=0; globalThis.fetch=async()=>{attempts++;return Response.json({error:'bad request'},{status:400})};
     await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state,crypto.randomUUID(),c=>store.usage(c)),/400/);
     assert.equal(attempts,1);

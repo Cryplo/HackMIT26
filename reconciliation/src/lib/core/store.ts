@@ -107,10 +107,28 @@ export class SupabaseStore implements Store {
   async assertSchema() {
     if (await this.request('rpc/core_platform_version', {}) !== 2) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
   }
+  /** Reads and the schema probe are idempotent, so an overload response is retried rather than
+   * surfaced as an outage. Writes are sent once: only the database knows whether they applied. */
+  private static readonly retryable = [408, 429, 500, 502, 503, 504, 544];
+  private async send(path: string, body?: unknown): Promise<Response> {
+    const idempotent = path === 'rpc/core_snapshot' || path === 'rpc/core_platform_version';
+    const attempts = idempotent ? 3 : 1;
+    let last: unknown;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+      try {
+        const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/${path}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json', ...(path.startsWith('rpc/') ? {} : { Prefer: 'return=minimal' }) }, body: JSON.stringify(body), signal: AbortSignal.timeout(idempotent ? 45000 : 15000), cache: 'no-store' });
+        if (res.ok || !SupabaseStore.retryable.includes(res.status) || attempt === attempts - 1) return res;
+        last = res; await res.body?.cancel().catch(() => {});
+      } catch (error) { last = error; }
+    }
+    if (last instanceof Response) return last;
+    throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
+  }
   private async request(path: string, body?: unknown) {
     // Check every operation: an earlier successful request cannot authorize an older schema.
     if (path !== 'rpc/core_platform_version') await this.assertSchema();
-    const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/${path}`, { method: 'POST', headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json', ...(path.startsWith('rpc/') ? {} : { Prefer: 'return=minimal' }) }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000), cache: 'no-store' });
+    const res = await this.send(path, body);
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       if (path === 'rpc/core_platform_version' && ['PGRST202', '42883'].includes(e.code)) throw new CoreError('SCHEMA_MISMATCH', 'Apply the reviewed platform migration before using this app.', 503);
@@ -122,46 +140,8 @@ export class SupabaseStore implements Store {
     }
     const text = await res.text(); return text ? JSON.parse(text) : undefined;
   }
-  /** Audit-only column; reading it grows the snapshot by ~2 KB per decision and times the query out. */
-  private static readonly decisionColumns = 'id,run_id,submission_id,field_checked,check_method,question_type,answer_json,probability,confidence_score,verdict,rationale_text,evidence_json,model_used,created_at';
-  /** Reads are idempotent, so a pool timeout or gateway blip is retried rather than
-   * surfaced as an outage; a rejected request is returned on the first attempt. */
-  private async page(path: string, query: string, range: string): Promise<Response> {
-    let last: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt) await new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
-      try {
-        const res = await fetch(`${this.url.replace(/\/$/, '')}/rest/v1/${path}?${query}`, { headers: { apikey: this.key, Authorization: `Bearer ${this.key}`, 'Range-Unit': 'items', Range: range }, signal: AbortSignal.timeout(45000), cache: 'no-store' });
-        if (res.ok || ![408, 429, 500, 502, 503, 504, 544].includes(res.status)) return res;
-        last = res; await res.body?.cancel().catch(() => {});
-      } catch (error) { last = error; }
-    }
-    if (last instanceof Response) return last;
-    throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
-  }
-  private async select<T>(path: string, query: string): Promise<T[]> {
-    const page = 1000; const rows: T[] = [];
-    for (let from = 0; ; from += page) {
-      const res = await this.page(path, query, `${from}-${from + page - 1}`);
-      if (!res.ok) throw new CoreError('DATABASE_ERROR', 'Reimbursement storage request failed.', 503);
-      const batch = (await res.json()) as T[];
-      rows.push(...batch);
-      if (batch.length < page) return rows;
-    }
-  }
-  async snapshot(): Promise<Snapshot> {
-    // Direct table reads bypass request(), so the schema gate is applied here too.
-    await this.assertSchema();
-    const [submissions, receipts, policies, decisions, corrections, runs] = await Promise.all([
-      this.select<Submission>('submissions', 'select=*&order=submitted_at.asc,id.asc'),
-      this.select<Receipt>('receipts', 'select=*&order=id.asc'),
-      this.select<PolicyRule>('policy_rules', 'select=*&order=id.asc'),
-      this.select<Decision>('decisions', `select=${SupabaseStore.decisionColumns}&order=created_at.asc,id.asc`),
-      this.select<Correction>('corrections', 'select=*&order=corrected_at.asc,id.asc'),
-      this.select<ReconciliationRun>('reconciliation_runs', 'select=*&order=id.asc')
-    ]);
-    return { submissions, receipts, policies, decisions, corrections, runs };
-  }
+  /** One transactional projection: rules, knowledge revision and review revisions must be read together. */
+  snapshot(): Promise<Snapshot> { return this.request('rpc/core_snapshot', {}); }
   begin(id: string): Promise<string> { return this.request('rpc/core_begin_run', { p_submission: id }); }
   finish(id: string, ds: Decision[], status: SubmissionStatus) { return this.request('rpc/core_finish_run', { p_run: id, p_decisions: ds, p_status: status }); }
   fail(id: string, message: string) { return this.request('rpc/core_fail_run', { p_run: id, p_error: message }); }

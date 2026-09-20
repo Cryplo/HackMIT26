@@ -4,7 +4,7 @@ import { SupabaseStore, MemoryStore } from '../store';
 import { CoreService } from '../service';
 import { demoSnapshot, DEMO_IDS } from '../fixtures';
 import { DatabaseRetrieval } from '../retrieval';
-import { SimulatedJev } from '../jev';
+import { SimulatedJev, LiveJev } from '../jev';
 import { workspaceReviews } from '../workspace';
 import { retryExtraction, backfillReceiptHashes } from '../receipts';
 import { IntakeError } from '../../intake/schema';
@@ -37,6 +37,56 @@ test('live operations require a fresh exact schema version; old or unavailable s
   await assert.rejects(store.begin(DEMO_IDS[0]), {code:'SCHEMA_MISMATCH',status:503});
   await assert.rejects(store.receiptHash(demoSnapshot().receipts[0].id,'a'.repeat(64)), {code:'SCHEMA_MISMATCH',status:503});
   assert.ok(paths.slice(before).every(p=>p.endsWith('/core_platform_version')));
+});
+
+test('live snapshots read one atomic projection that keeps rules and knowledge revision, and retry overload', async t => {
+  const store = new SupabaseStore('https://snapshot.example.invalid', 'synthetic-test-key');
+  const projection = {...demoSnapshot(), knowledge_revision: 7, rules: [{id:'rule-1', status:'active'}]};
+  const paths: string[] = [];
+  let overloads = 2;
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
+    const path = new URL(new Request(input, init).url).pathname;
+    paths.push(path);
+    if (path.endsWith('/core_platform_version')) return Response.json(2);
+    if (overloads-- > 0) return Response.json({message:'canceling statement due to statement timeout'}, {status:544});
+    return Response.json(projection);
+  });
+  const snapshot = await store.snapshot();
+  assert.equal(snapshot.knowledge_revision, 7);
+  assert.deepEqual(snapshot.rules?.map(r=>r.id), ['rule-1']);
+  assert.equal(snapshot.submissions.length, projection.submissions.length);
+  // One transactional read, retried in place: separately timed table reads cannot be mixed.
+  const reads = paths.filter(p => !p.endsWith('/core_platform_version'));
+  assert.deepEqual([...new Set(reads)], ['/rest/v1/rpc/core_snapshot']);
+  assert.equal(reads.length, 3);
+});
+
+test('a cancelled evaluation is never retried', async t => {
+  const controller = new AbortController();
+  const transport = t.mock.method(globalThis, 'fetch', async () => { controller.abort(); return Response.json({error:'unavailable'}, {status:503}); });
+  const calls: unknown[] = [];
+  const core = new CoreService(new MemoryStore(demoSnapshot()),new DatabaseRetrieval(),new SimulatedJev(),true);
+  const state = {submission:(await core.store.snapshot()).submissions[0], receipt:(await core.store.snapshot()).receipts[0].parsed_fields_json!, evidence:{candidates:[],aliases:[],retrieval_mode:'database' as const}};
+  await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state,'test-run',async call=>{calls.push(call);},controller.signal));
+  assert.equal(transport.mock.callCount(), 1);
+  assert.equal(calls.length, 1);
+});
+
+test('a read requested after a completed correction never joins the pre-write snapshot', async () => {
+  const store = new MemoryStore(demoSnapshot());
+  const inner = store.snapshot.bind(store);
+  const core = new CoreService(store,new DatabaseRetrieval(),new SimulatedJev(),true);
+  let settle: () => void = () => {};
+  const gate = new Promise<void>(resolve => { settle = resolve; });
+  // The first read is still in flight, holding pre-correction state, when the correction lands.
+  store.snapshot = async () => { await gate; return inner(); };
+  const inflight = core.readSnapshot();
+  await core.correct({submission_id:DEMO_IDS[0],expected_review_revision:0,human_verdict:'rejected',human_note:'Rejected by reviewer.',correction_type:'decision_override',correction_payload_json:{}});
+  store.snapshot = inner;
+  const refreshed = core.readSnapshot();
+  assert.notEqual(refreshed, inflight);
+  settle();
+  assert.equal((await refreshed).submissions.find(s=>s.id===DEMO_IDS[0])!.status, 'rejected');
 });
 
 test('public reviews omit raw provider payloads, preserve useful evidence and expose expired operations for retry', async () => {

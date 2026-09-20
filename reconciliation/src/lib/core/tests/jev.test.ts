@@ -107,11 +107,15 @@ test('HTTP failures, invalid JSON/answers, timeouts and network errors reject an
     const calls: ModelCall[] = [];
     await assert.rejects(new LiveJev('synthetic-test-key').evaluate(state(), 'test-run', async call => { calls.push(call); }),
       error => { if (failure.code) assert.equal((error as { code: string }).code, failure.code); return true; });
-    assert.equal(transport.mock.callCount(), failure.transport ?? 1);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].input_tokens, null);
-    assert.equal(calls[0].output_tokens, null);
-    assert.equal(calls[0].estimated_cost_usd, null);
+    const attempts = failure.transport ?? 1;
+    assert.equal(transport.mock.callCount(), attempts);
+    // One usage record per transport attempt: a retry is a second billed provider call.
+    assert.equal(calls.length, attempts);
+    for (const call of calls) {
+      assert.equal(call.input_tokens, null);
+      assert.equal(call.output_tokens, null);
+      assert.equal(call.estimated_cost_usd, null);
+    }
   });
 });
 

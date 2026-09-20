@@ -7,17 +7,27 @@ import type { Retrieval } from './retrieval';
 import type { IntelligencePort } from '../review-contracts';
 import { confirmedDuplicates, latestCorrection } from './safety';
 import type { Snapshot, Store } from './store';
+import type { RuleCommand } from './rule-state';
 import { CoreError, parsedReceipt, aliasPayload, normalize } from './validation';
 import { publicEvidence } from './projection';
 export class CoreService {
   constructor(public store: Store, private retrieval: Retrieval, private jev: Jev, public demoMode: boolean, public readonly execution?: { decisions: string; retrieval: string; storage: string; justification?: string }, private justifier: Justifier = new SimulatedJustifier(), public intelligence?:IntelligencePort) {}
-  /** Concurrent read-only projections share one in-flight read instead of queuing a
-   * full snapshot each; nothing is cached past completion, so writes stay visible. */
-  private pending: Promise<Snapshot> | null = null;
+  /** Concurrent read-only projections share one in-flight read instead of queuing a full
+   * snapshot each. A read requested after any write started cannot join a snapshot that began
+   * before it, so a reviewer never sees pre-write state after their own write completed. */
+  private pending: { snapshot: Promise<Snapshot>; epoch: number } | null = null;
+  private epoch = 0;
+  /** Every write bumps the epoch on both sides, so reads started during it cannot be shared
+   * with reads requested after it finished. */
+  async mutate<T>(operation: () => Promise<T>): Promise<T> {
+    this.epoch++; this.pending = null;
+    try { return await operation(); } finally { this.epoch++; this.pending = null; }
+  }
   readSnapshot(): Promise<Snapshot> {
-    if (this.pending) return this.pending;
-    const snapshot = this.store.snapshot().finally(() => { if (this.pending === snapshot) this.pending = null; });
-    this.pending = snapshot;
+    if (this.pending?.epoch === this.epoch) return this.pending.snapshot;
+    const epoch = this.epoch;
+    const snapshot = this.store.snapshot().finally(() => { if (this.pending?.snapshot === snapshot) this.pending = null; });
+    this.pending = { snapshot, epoch };
     return snapshot;
   }
   async reconcile(ids: string[]): Promise<{ results: ReconcileResult[] }> {
@@ -38,18 +48,18 @@ export class CoreService {
   private async run(id: string): Promise<ReconcileResult> {
     let run: string | null = null;
     try {
-      run = await this.store.begin(id);
+      run = await this.mutate(() => this.store.begin(id));
       const state = await this.store.snapshot(); const s = state.submissions.find(s => s.id === id)!;
       const r = state.receipts.find(r => r.submission_id === id) || null;
       const ds = await this.assess(state,id,run,call=>this.store.usage(call));
       const status = overall(ds);
       const justification = await this.narrate({ submission: s, receipt: r?.parsed_fields_json ?? null, decisions: ds, status }, run);
       ds.push(decision(s, run, 'overall_status', status === 'approved' ? 'pass' : status === 'flagged' ? 'fail' : 'unknown', status, status === 'approved' ? 'All required checks passed.' : ds.filter(d => d.verdict !== 'pass').map(d => `${d.field_checked}: ${d.verdict}`).join('; '), { simulated: this.demoMode, decision_ids: ds.map(d => d.id), justification }));
-      await this.store.finish(run, ds, status);
+      await this.mutate(() => this.store.finish(run!, ds, status));
       return { submission_id: id, run_id: run, status };
     } catch (error) {
       const message = error instanceof CoreError ? error.message : 'Reconciliation failed; review required.';
-      if (run) await this.store.fail(run, message).catch(() => undefined);
+      if (run) await this.mutate(() => this.store.fail(run!, message)).catch(() => undefined);
       const state = await this.store.snapshot().catch(() => null);
       const current = state?.submissions.find(s => s.id === id);
       // Preserve reviewer status when a run was invalidated. All other errors are non-approvals.
@@ -68,7 +78,7 @@ export class CoreService {
           const evidence = await this.retrieval.retrieve(s, r.parsed_fields_json, state);
           const semanticState = { submission: s, receipt: r.parsed_fields_json, evidence };
           signal?.throwIfAborted();
-          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call));
+          const evaluation = await this.jev.evaluate(semanticState, run, call => log(call), signal);
           signal?.throwIfAborted();
           const confirmed=confirmedDuplicates(state,s.id);
           for (const field of ['merchant', 'name', 'duplicate'] as SemanticField[]) {
@@ -112,7 +122,8 @@ export class CoreService {
     const request: JustificationRequest = { submission: s, receipt, decisions, status: s.status, override };
     return { submission_id: id, run_id: run.id, status: s.status, justification: await this.narrate(request, run.id) };
   }
-  correct(input: CorrectionInput) { return this.store.correct(input); }
+  correct(input: CorrectionInput) { return this.mutate(() => this.store.correct(input)); }
+  rule(command: RuleCommand) { return this.mutate(() => this.store.rule(command)); }
   async reviews(): Promise<ReviewsResponse> {
     const state = await this.readSnapshot();
     const rows = state.submissions.map(s => {
