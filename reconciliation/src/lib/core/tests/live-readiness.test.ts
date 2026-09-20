@@ -13,7 +13,7 @@ import type { IntakeStore } from '../../intake/store';
 test('live operations require a fresh exact schema version; old or unavailable schemas never reach a mutation', async t => {
   const store = new SupabaseStore('https://schema.example.invalid', 'synthetic-test-key');
   const paths: string[] = [];
-  let version: unknown = 3;
+  let version: unknown = 4;
   let missing = false;
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const path = new URL(new Request(input, init).url).pathname;
@@ -25,7 +25,7 @@ test('live operations require a fresh exact schema version; old or unavailable s
   await store.snapshot();
   await store.correct(input);
   assert.equal(paths.filter(p=>p.endsWith('/core_platform_version')).length, 2);
-  for (const invalid of [1, 2, null, '3', {version:3}]) {
+  for (const invalid of [1, 2, 3, null, '4', {version:4}]) {
     version = invalid;
     const before = paths.length;
     await assert.rejects(store.correct(input), {code:'SCHEMA_MISMATCH',status:503});

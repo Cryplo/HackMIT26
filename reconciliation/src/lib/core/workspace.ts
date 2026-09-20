@@ -6,11 +6,13 @@ import { workspaceRows, workspaceSnapshot } from './projection';
 export { workspaceRows, workspaceSnapshot } from './projection';
 export { assertApprovable } from './safety';
 import { search } from '../intelligence/search';
+import { emailCapabilities } from '../email/config';
 
 export async function workspaceReviews(core:CoreService):Promise<ReviewsResponse> {
  const state=await core.store.snapshot();const snapshot=workspaceSnapshot(state);
  const rows=snapshot.rows;
- return {contract_version:2,snapshot_token:snapshot.token,knowledge_revision:state.knowledge_revision??0,capabilities:{supporting_documents:true,investigations:core.investigationMode!=='disabled',resolution_procedures:!!core.intelligence?.build_procedure_suite&&!!core.intelligence?.evaluate_procedure,rule_learning:!!core.intelligence,extraction_retry:true,export:true,custom_checks:false,duplicate_links:true,knowledge_revisions:true},coverage:{complete:true,returned:snapshot.rows.length,total:snapshot.rows.length},submissions:rows,demo_mode:core.demoMode,
+ const email=emailCapabilities();
+ return {contract_version:2,snapshot_token:snapshot.token,knowledge_revision:state.knowledge_revision??0,capabilities:{decision_email_drafts:email.decision_email_drafts,decision_emails:email.decision_emails,email_mode:email.email_mode,email_error:email.error,supporting_documents:true,investigations:core.investigationMode!=='disabled',resolution_procedures:!!core.intelligence?.build_procedure_suite&&!!core.intelligence?.evaluate_procedure,rule_learning:!!core.intelligence,extraction_retry:true,export:true,custom_checks:false,duplicate_links:true,knowledge_revisions:true},coverage:{complete:true,returned:snapshot.rows.length,total:snapshot.rows.length},submissions:rows,demo_mode:core.demoMode,
  summary:{approved_amount_minor:rows.filter(r=>r.decision_status==='approved').reduce((a,r)=>a+r.amount_requested_minor,0),pending_review_count:rows.filter(r=>r.decision_status==='pending').length,matched_count:rows.filter(r=>r.assessment_status==='matched').length,flagged_count:rows.filter(r=>r.assessment_status==='flagged').length,needs_review_count:rows.filter(r=>r.assessment_status==='needs_review').length},
  execution:{extraction:'See each receipt extraction provenance',decisions:core.execution?.decisions||'unknown',retrieval:core.execution?.retrieval||'stored candidates',storage:core.execution?.storage||'unknown',investigation:core.execution?.investigation||core.investigationMode}};
 }

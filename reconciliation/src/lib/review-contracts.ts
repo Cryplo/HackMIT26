@@ -65,6 +65,7 @@ export interface ReviewRow extends ClaimFacts {
   investigation: InvestigationResult | null;
 }
 export interface WorkspaceCapabilities {
+  decision_email_drafts?: boolean; decision_emails?: boolean; email_mode?: 'disabled' | 'preview' | 'live'; email_error?: string | null;
   supporting_documents?: boolean; investigations?: boolean; resolution_procedures?: boolean;
   rule_learning: boolean; extraction_retry: boolean; export: boolean;
   custom_checks: boolean; duplicate_links: boolean; knowledge_revisions: boolean;
@@ -264,3 +265,6 @@ export interface ProcedureEvaluationInput {
   /** Fresh defensive copies; never model input or client-authored proof. */
   get_observations?: () => ProcedureAssessmentObservation[];
 }
+
+/** Additive reviewer email DTO; contract_version remains 2. */
+export type { PublicClaimMessage as ClaimMessage } from './core/communications-state';

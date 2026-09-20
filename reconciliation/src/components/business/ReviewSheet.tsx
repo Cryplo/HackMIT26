@@ -15,6 +15,8 @@ import { amountDelta, approvalBlock, financialIssue, normalizeVendor as normaliz
 import type { ReviewSheetProps } from "@/lib/dashboard/ui-contracts";
 import type { ReviewRow } from "@/lib/review-contracts";
 import { AssessmentBadge, DecisionBadge } from "./ReviewStatus";
+import { DecisionMessageDialog } from "./DecisionMessageDialog";
+import { CommunicationHistory, communicationStatus } from "./CommunicationHistory";
 import styles from "./panels.module.css";
 
 const fieldLabels: Record<string, string> = {
@@ -100,6 +102,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, capabil
   const [busy, setBusy] = useState<"decision" | "retry" | "recheck" | "proposal" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [communicationRefresh, setCommunicationRefresh] = useState(0);
   const [imageFailed, setImageFailed] = useState(false);
   const decisionOrigin = useRef<HTMLButtonElement | null>(null);
   const mutationLock = useRef(false);
@@ -122,6 +125,7 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, capabil
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incoming.id]);
   const simulation = client.mode === "preview" || row.investigation?.mode === "simulated" || checks.some((check) => check.evidence_json.simulated === true);
+  const emailEnabled = capabilities?.decision_email_drafts === true && !!client.draftMessage && !!client.editMessage && !!client.decisionAndSend && !!client.getMessages;
   const changedDuringDecision = decision !== null && (decisionRevision !== row.review_revision || row.processing_status === "running");
 
   async function refresh() {
@@ -239,6 +243,8 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, capabil
 
           {humanCheck && <section data-review-section="human-decision"><h3 className="mb-2 font-semibold">Reviewer decision</h3><DecisionBadge status={row.decision_status} /><p className="mt-2 text-sm leading-6 text-muted-foreground">{humanCheck.rationale_text}</p></section>}
 
+          {client.getMessages && <CommunicationHistory claimId={row.id} client={client} revision={row.review_revision + communicationRefresh} />}
+
           {row.investigation && <section><h3 className="mb-2 font-semibold">Investigation</h3><Badge variant="outline" className="mb-2 rounded">{row.investigation.mode === "simulated" ? "Simulated investigation" : "Live investigation"}</Badge><p className="text-sm leading-6 text-muted-foreground">{row.investigation.summary || "The investigation did not return a summary."}</p>{row.investigation.status === "unavailable" && <p className="mt-2 text-xs text-destructive">Investigation unavailable{row.investigation.error_code ? ` (${row.investigation.error_code})` : ""}. Review the receipt and checks directly.</p>}{row.investigation.steps.length > 0 && <details className="mt-3 text-xs"><summary className="cursor-pointer py-2 font-medium">Tool observations ({row.investigation.steps.length})</summary><ol className="mt-2 space-y-3">{row.investigation.steps.map((step, index) => <li key={`${step.tool}-${index}`}><p className="font-medium">{statusLabel(step.tool)}</p><p className="mt-1 leading-5 text-muted-foreground">{step.summary}</p><p className="mt-1 break-all text-muted-foreground">{step.evidence_refs.join(", ")}</p></li>)}</ol></details>}</section>}
 
           {capabilities?.rule_learning && merchantException && <section className="rounded border p-4"><h3 className="font-semibold">Remember this merchant name</h3><p className="mt-2 text-sm text-muted-foreground">Save a draft mapping from <span className="font-medium text-foreground">{parsed?.vendor}</span> to its canonical name, only for {row.category} claims in {row.currency}. You will test it before activation.</p><form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); void propose(); }}><Label htmlFor="canonical-vendor">Canonical merchant name</Label><Input id="canonical-vendor" value={canonical} onChange={(event) => setCanonical(event.target.value)} maxLength={120} required disabled={!!busy} placeholder="Full merchant name" /><Button type="submit" variant="outline" size="lg" aria-busy={busy === "proposal"} disabled={!!busy || !canonical.trim() || canonical.trim().length > 120 || normalize(canonical) === normalize(parsed?.vendor || "")}>{busy === "proposal" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "proposal" ? "Saving draft…" : "Create draft rule"}</Button></form></section>}
@@ -252,11 +258,18 @@ function ReviewContent({ row: incoming, rows, client, knowledgeRevision, capabil
     <footer className="shrink-0 space-y-3 border-t bg-background px-5 py-4">
       {error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}
       {notice && <p role="status" className="motion-enter text-sm text-[var(--status-good)]">{notice}</p>}
+      {!emailEnabled && capabilities?.email_error && <p className="text-xs text-muted-foreground">Applicant email is unavailable: {capabilities.email_error}. Decisions can still be recorded without email.</p>}
       {blocked && row.decision_status !== "approved" && <p id="approval-blocked" className="text-xs text-muted-foreground">{blocked}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.receipt?.extraction_status !== "succeeded"} aria-busy={busy === "recheck"} onClick={() => void recheckOrRetry("recheck")}><RotateCw aria-hidden="true" className={busy === "recheck" ? "motion-safe:animate-spin" : undefined} />{busy === "recheck" ? "Rechecking…" : "Recheck"}</Button><div className="flex gap-2"><Button variant="outline" size="lg" disabled={!!busy || row.processing_status === "running" || row.decision_status === "rejected"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("rejected"); setError(null); }}>Reject</Button><Button size="lg" aria-describedby={blocked && row.decision_status !== "approved" ? "approval-blocked" : undefined} disabled={!!busy || !!blocked || row.decision_status === "approved"} onClick={(event) => { decisionOrigin.current = event.currentTarget; setDecisionRevision(row.review_revision); setDecision("approved"); setError(null); }}>{row.decision_status === "approved" ? "Approved" : "Approve"}</Button></div></div>
     </footer>
 
-    <Dialog open={decision !== null} onOpenChange={(open) => { if (!open && !busy) setDecision(null); }}>
+    {emailEnabled && decision !== null && <DecisionMessageDialog key={`${row.id}:${decision}`} row={row} decision={decision} expectedRevision={decisionRevision} client={client} approvalBlocked={blocked} initialNote={note} onNoteChange={setNote} onClose={() => setDecision(null)} onRefresh={refresh} onCloseAutoFocus={(event) => { event.preventDefault(); decisionOrigin.current?.focus(); }} onConfirmed={async (savedMessage, savedRow) => {
+      if (savedRow) setUpdated(savedRow);
+      setCommunicationRefresh(value => value + 1);
+      setDecision(null); setNote(""); setNotice(communicationStatus(savedMessage));
+      await refresh();
+    }} />}
+    <Dialog open={!emailEnabled && decision !== null} onOpenChange={(open) => { if (!open && !busy) setDecision(null); }}>
       <DialogContent className={styles.confirmation} showCloseButton={!busy} onCloseAutoFocus={(event) => { event.preventDefault(); decisionOrigin.current?.focus(); }}>
         <DialogHeader><DialogTitle>{decision === "approved" ? "Approve reimbursement" : "Reject reimbursement"}</DialogTitle><DialogDescription>{decision === "approved" ? `Approve ${money(row.amount_requested_minor, row.currency)} for ${row.attendee_name}. This records approval; it does not send payment.` : `Record why ${row.attendee_name}'s claim is being rejected.`}</DialogDescription></DialogHeader>
         <form onSubmit={(event) => { event.preventDefault(); void saveDecision(); }} className="space-y-4"><div className="space-y-2"><Label htmlFor="decision-reason">Decision reason</Label><Textarea id="decision-reason" value={note} onChange={(event) => setNote(event.target.value)} required maxLength={2000} rows={4} disabled={!!busy} placeholder="Explain what you verified and why." /><p className="text-xs text-muted-foreground">Required · saved with this decision</p></div>{changedDuringDecision && <p role="alert" className="motion-enter text-sm text-[var(--status-review)]">This claim changed while the confirmation was open. Cancel and inspect the updated evidence. Your note will be kept.</p>}{error && <p role="alert" className="motion-enter text-sm text-destructive">{error}</p>}<DialogFooter><Button type="button" variant="outline" disabled={!!busy} onClick={() => setDecision(null)}>Cancel</Button><Button type="submit" variant={decision === "rejected" ? "destructive" : "default"} size="lg" aria-busy={busy === "decision"} disabled={!!busy || !note.trim() || changedDuringDecision || (decision === "approved" && !!blocked)}>{busy === "decision" && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy === "decision" ? "Saving…" : decision === "approved" ? "Confirm approval" : "Confirm rejection"}</Button></DialogFooter></form>

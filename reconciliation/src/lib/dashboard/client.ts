@@ -1,5 +1,5 @@
 import type { DashboardClient } from "./ui-contracts";
-import type { ReviewsResponse } from "./types";
+import type { ClaimMessage, ReviewsResponse } from "./types";
 import { api, DashboardError, validateReviews } from "./helpers";
 import { createPreviewClient } from "./preview";
 
@@ -8,6 +8,20 @@ export function createDashboardClient(mode: "api" | "preview"): DashboardClient 
   return {
     mode: "api",
     getReviews: async signal => validateReviews(await api<ReviewsResponse>("/api/workspace/reviews", undefined, signal)),
+    getMessages: (id, signal) => api(`/api/submissions/${encodeURIComponent(id)}/messages`, undefined, signal),
+    draftMessage: (id, input) => api(`/api/submissions/${encodeURIComponent(id)}/messages/draft`, input),
+    async editMessage(id, input) {
+      const response = await fetch(`/api/messages/${encodeURIComponent(id)}`, {
+        method: "PATCH", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new DashboardError(data?.error?.code || "MESSAGE_SAVE_FAILED", data?.error?.message || `Draft could not be saved (${response.status}).`, response.status);
+      if (!data?.message) throw new DashboardError("INVALID_RESPONSE", "The server did not return a saved draft.");
+      return data as { message: ClaimMessage };
+    },
+    decisionAndSend: (id, input) => api(`/api/submissions/${encodeURIComponent(id)}/decision-and-send`, input),
+    retryMessage: (id, input) => api(`/api/messages/${encodeURIComponent(id)}/retry`, input),
     getRules: signal => api("/api/rules", undefined, signal),
     reconcile: input => api("/api/workspace/reconcile", input),
     decide: input => api("/api/workspace/decisions", input),
