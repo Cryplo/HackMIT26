@@ -9,7 +9,7 @@ const proposal=z.object({submission_id:z.uuid(),expected_review_revision:z.numbe
 const mutation=z.object({expected_rule_version:z.number().int().positive()}).strict();
 function parsed<T>(schema:z.ZodType<T>,raw:unknown){const p=schema.safeParse(raw);if(!p.success)throw new CoreError('INVALID_INPUT','Invalid rule request.');return p.data;}
 function port(core:CoreService){if(!core.intelligence)throw new CoreError('RULE_LEARNING_UNAVAILABLE','Rule testing is not installed.',503);return core.intelligence;}
-export function publicRule(rule:MerchantRule):MerchantRule{const {id,version,state,source_submission_id,source_correction_id,payload,created_at,latest_test,latest_test_error}=rule;return {id,version,state,source_submission_id,source_correction_id,payload,created_at,latest_test,latest_test_error};}
+export function publicRule(rule:MerchantRule):MerchantRule{const {id,version,state,source_submission_id,source_correction_id,payload,created_at,latest_test,latest_test_error}=rule;return {id,version,state,source_submission_id,source_correction_id,payload,created_at,latest_test,latest_test_error,...(rule.prepared_demo === true ? {prepared_demo:true as const} : {})};}
 export async function rules(core:CoreService){const state=await core.store.snapshot();return {rules:(state.rules??[]).map(publicRule),knowledge_revision:state.knowledge_revision??0};}
 export async function proposeRule(core:CoreService,raw:unknown){port(core);const result=await core.store.rule({action:'propose',...parsed(proposal,raw)});return {...result,rule:publicRule(result.rule)};}
 export async function changeRule(core:CoreService,id:string,action:'test'|'activate'|'disable',raw:unknown,signal:AbortSignal){

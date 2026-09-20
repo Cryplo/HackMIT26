@@ -142,6 +142,8 @@ The remaining 10 use ordinary live checking after **Start audit**. Their seed nu
 | 6 | Casey's missing booking; no supporting evidence to investigate |
 | 7 | Riley's missing receipt identity under receipt-only policy; investigation candidate |
 
+For repeat rehearsals, apply migration 018 and run `npm run demo:prepare-live-reset` once. It stores an immutable prepared baseline inside Supabase after verifying all original files; it leaves the current audit unchanged. **Reset demo** then archives the active audit and copies that saved baseline locally, retaining originals and advancing stale-action revisions. It restores the inactive merchant-rule example too. No AI or email calls occur during preparation or reset.
+
 The selected scenarios give four matched, three flagged, and three inconclusive outcomes for these ten in the offline fixture; only Morgan and Riley qualify for automatic investigation. Live outcomes remain model-dependent. The seven prepared rejections are claims 15, 30, 35, 37, 44, 59, and 68; their reasons begin **Prepared demo decision:**. Claims 36, 47, 69, and 80 are already checked but still need review.
 
 Focused verification, without network calls:
