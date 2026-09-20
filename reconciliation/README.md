@@ -40,7 +40,7 @@ npm run demo:reset -- --confirm
 npm run demo
 ```
 
-Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, without deleting it or touching Supabase. For a custom data directory, supply the same `RECONCILIATION_INTAKE_DEMO_DIR` to both commands. If an interrupted process leaves `.core-lock`, confirm no app process is running before removing that lock directory.
+Reset archives existing local data to `.intake-demo.backup-<timestamp>/`, without deleting it or touching Supabase. For a custom data directory, supply the same `RECONCILIATION_INTAKE_DEMO_DIR` to both commands. A lock left by a crashed process is recovered automatically (dead owner PID, or an unreadable owner older than a minute); a lock held by a live process is never stolen, and a request that loses its lock to recovery fails with `DEMO_BUSY` rather than overwriting the winner's state. An unreadable or incomplete `core-state.json` is reported as `DEMO_CORRUPT` and never reseeded over; an unreadable `*.receipt.json` or `*.submission.json` quarantines that one claim and is logged, leaving the rest of the ledger readable.
 
 ## Full live setup: manual credentials required
 
