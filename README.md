@@ -30,9 +30,3 @@ The demonstration includes ordinary claims, an amount mismatch, a policy-cap vio
 | Public data/API types | [Review contracts](reconciliation/src/lib/review-contracts.ts) |
 | Prior implementation assignments | [Historical instruction pack](docs/next-work/README.md) |
 | Earlier browser/voice project | [Archived prototype guide](docs/archive/browser-prototype.md) |
-
-## What is real
-
-Both local and live modes persist claims, evidence, decisions, investigations, and learning state. The local showcase simulates model output. Live mode calls configured services and can fail; it does not silently substitute simulated success. Seeded receipt transcriptions are authored fixtures even in live storage. New live uploads exercise extraction. Applicant email remains preview-only in the current demo configuration.
-
-This is a synthetic-data hackathon app without authentication or payments. Learning is narrow, versioned evidence-check logic, not model retraining. A passing fixed safety suite is not a general accuracy or savings benchmark. See [verification and remaining work](docs/PROJECT_CONTEXT.md#verification-and-remaining-work) before making demo claims.
