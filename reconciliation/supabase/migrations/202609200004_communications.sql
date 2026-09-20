@@ -67,7 +67,7 @@ begin
  end if;
  if action='draft' then
   m:=p_input->'message';perform core_message_current(m);
-  if m->>'status' is distinct from 'draft' or m->>'correction_id' is not null or m->>'request_id' is not null or m->>'intended_verdict' not in ('approved','rejected') or m->>'kind' is distinct from case when m->>'intended_verdict'='approved' then 'approval' else 'rejection' end then raise exception 'INVALID_INPUT';end if;
+  if m->>'status' is distinct from 'draft' or m->>'correction_id' is not null or m->>'request_id' is not null or m->>'intended_verdict' not in ('approved','rejected') or m->>'kind' is distinct from (case when m->>'intended_verdict'='approved' then 'approval' else 'rejection' end) then raise exception 'INVALID_INPUT';end if;
   if exists(select 1 from claim_messages where id=(m->>'id')::uuid)then raise exception 'MESSAGE_CONFLICT';end if;
   insert into claim_messages(id,claim_id,doc)values((m->>'id')::uuid,(m->>'claim_id')::uuid,m);
   return jsonb_build_object('message',m);
