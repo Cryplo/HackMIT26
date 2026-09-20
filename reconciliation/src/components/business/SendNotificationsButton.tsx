@@ -50,7 +50,7 @@ export function SendNotificationsButton({ client, refreshKey, disabled = false }
       const queued = result.messages.filter(message => message.status === "queued" || message.status === "sending").length;
       const attention = result.messages.length - previewed - accepted - queued;
       if (result.delivery_error) setError(result.delivery_error);
-      setNotice(result.processed === 0 ? "No notifications were processed. Review Emails in the claim details before trying again." : result.mode === "preview" ? `${previewed} notification previews generated. No email was sent.` : `${accepted} accepted by the email provider${queued ? `; ${queued} queued` : ""}${attention ? `; ${attention} need attention in claim Emails` : ""}. Provider acceptance does not confirm inbox delivery.`);
+      setNotice(result.processed === 0 ? "No notifications were processed. Review Emails in the claim details before trying again." : result.mode === "preview" ? `${previewed} notifications simulated. No real email was delivered.` : `${accepted} accepted by the email provider${queued ? `; ${queued} queued` : ""}${attention ? `; ${attention} need attention in claim Emails` : ""}. Provider acceptance does not confirm inbox delivery.`);
       setConfirmation(null);
     } catch (failure) {
       setConfirmation(null);
@@ -67,17 +67,17 @@ export function SendNotificationsButton({ client, refreshKey, disabled = false }
     <div className="flex flex-wrap items-center gap-2">
     <Button variant="outline" disabled={disabled || loading || sending || pending?.mode === "disabled" || (pending !== null && !pending.messages.length && !error)} aria-busy={loading || sending} title={pending?.mode === "disabled" ? "Notification delivery is unavailable" : pending && !pending.messages.length ? "No saved notifications are waiting" : undefined} onClick={() => void review()}>
       {loading || sending ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <Mail aria-hidden="true" />}
-      {sending ? preview ? "Generating previews…" : "Sending notifications…" : loading ? "Checking notifications…" : `${preview ? "Preview notifications" : "Send all notifications"} (${pending?.messages.length ?? "…"})`}
+      {sending ? preview ? "Simulating send…" : "Sending notifications…" : loading ? "Checking notifications…" : `Send all notifications (${pending?.messages.length ?? "…"})`}
     </Button>
     </div>
     {error && <p role="alert" className="mt-2 max-w-sm text-xs leading-5 text-destructive">{error}</p>}
     {notice && <p role="status" className="mt-2 max-w-sm text-xs leading-5 text-muted-foreground">{notice}</p>}
     <Dialog open={!!confirmation} onOpenChange={open => { if (!open && !sending) setConfirmation(null); }}>
       <DialogContent showCloseButton={!sending} onEscapeKeyDown={event => { if (sending) event.preventDefault(); }} onPointerDownOutside={event => { if (sending) event.preventDefault(); }}>
-        <DialogHeader><DialogTitle>{confirmation?.mode === "preview" ? "Generate notification previews?" : "Send all pending notifications?"}</DialogTitle><DialogDescription>{confirmation?.messages.length} saved approval or rejection {confirmation?.messages.length === 1 ? "notice" : "notices"}. {confirmation?.mode === "preview" ? "Preview mode will save simulated delivery results. No email will be sent." : "Confirm to send these notices to their applicants. Decisions stay unchanged and no payments are made."}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{confirmation?.mode === "preview" ? "Send demo notifications?" : "Send all pending notifications?"}</DialogTitle><DialogDescription>{confirmation?.messages.length} saved approval or rejection {confirmation?.messages.length === 1 ? "notice" : "notices"}. {confirmation?.mode === "preview" ? "Demo mode saves simulated messages in each claim’s Emails section. No real email will be delivered." : "Confirm to send these notices to their applicants. Decisions stay unchanged and no payments are made."}</DialogDescription></DialogHeader>
         {confirmation?.messages.some(message => message.status === "failed" || message.status === "delivery_unknown") && <p className="text-sm text-muted-foreground">Includes {confirmation.messages.filter(message => message.status === "failed" || message.status === "delivery_unknown").length} eligible delivery retries using their existing saved messages.</p>}
         <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">Review recipients</summary><ul className="max-h-48 space-y-2 overflow-y-auto">{confirmation?.messages.map(message => <li key={message.id} className="break-words border-t pt-2"><p className="font-medium">{message.recipient}</p><p className="text-xs text-muted-foreground">{message.subject}</p></li>)}</ul></details>
-        <DialogFooter><Button variant="outline" disabled={sending} onClick={() => setConfirmation(null)}>Cancel</Button><Button disabled={sending} aria-busy={sending} onClick={() => void send()}>{sending && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{sending ? confirmation?.mode === "preview" ? "Generating previews…" : "Sending…" : confirmation?.mode === "preview" ? "Generate previews" : "Send notifications"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" disabled={sending} onClick={() => setConfirmation(null)}>Cancel</Button><Button disabled={sending} aria-busy={sending} onClick={() => void send()}>{sending && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{sending ? confirmation?.mode === "preview" ? "Simulating send…" : "Sending…" : "Send notifications"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </div>;
