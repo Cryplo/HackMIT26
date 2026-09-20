@@ -56,10 +56,17 @@ test('held notices require one explicit batch, survive learning, and exclude aut
  store.state.knowledge_revision!++;
  const batch=await listWorkspaceNotifications(core);
  assert.deepEqual(batch.messages.map(m=>m.id),[saved.message!.id],'a new human decision on prepared evidence survives learning');
+ assert.deepEqual(batch.history,[],'held notices are not sent history');
  const request={snapshot_token:batch.snapshot_token,message_ids:batch.messages.map(m=>m.id),confirmed:true};
  await assert.rejects(sendWorkspaceNotifications(core,{...request,confirmed:false}),{code:'INVALID_INPUT'});
  const sent=await sendWorkspaceNotifications(core,request);
  assert.equal(sent.processed,1);assert.equal(sent.messages[0].status,'previewed');
+ const history=(await listWorkspaceNotifications(core)).history;
+ assert.equal(history.length,1);assert.equal(history[0].id,saved.message!.id);
+ assert.equal(history[0].rendered_text,sent.messages[0].rendered_text);
+ assert.equal(history[0].recipient,sent.messages[0].recipient);
+ assert.ok(!JSON.stringify(history).includes('PRIVATE REVIEWER NOTE'));
+ assert.ok(!('idempotency_key' in history[0]));
  await assert.rejects(sendWorkspaceNotifications(core,request),{code:'STALE_MESSAGE'});
  assert.equal(store.state.corrections.length,1);
  saved.message!.status='draft';

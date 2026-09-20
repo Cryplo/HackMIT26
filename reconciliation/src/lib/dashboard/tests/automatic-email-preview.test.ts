@@ -38,13 +38,23 @@ test("preview decisions create private-note-free notices and replay exactly once
     const pending = await client.getNotifications!();
     assert.equal(pending.mode, "preview");
     assert.deepEqual(pending.messages.map(message => message.id), [approved.message!.id]);
+    assert.deepEqual(pending.history, [], "unconfirmed drafts stay out of email history");
     await assert.rejects(client.sendNotifications!({ snapshot_token: "stale", message_ids: [approved.message!.id], confirmed: true }), { code: "STALE_SNAPSHOT" });
     assert.equal((await client.getMessages!(input.submission_id)).messages[0].status, "draft");
     const generated = await client.sendNotifications!({ snapshot_token: pending.snapshot_token, message_ids: [approved.message!.id], confirmed: true });
     assert.equal(generated.processed, 1);
     assert.equal(generated.delivery_error, null);
     assert.equal(generated.messages[0].status, "previewed");
-    assert.equal((await client.getNotifications!()).messages.length, 0);
+    const afterSend = await client.getNotifications!();
+    assert.equal(afterSend.messages.length, 0);
+    assert.equal(afterSend.history.length, 1);
+    assert.equal(afterSend.history[0].status, "previewed");
+    assert.equal(afterSend.history[0].recipient, generated.messages[0].recipient);
+    assert.equal(afterSend.history[0].subject, generated.messages[0].subject);
+    assert.equal(afterSend.history[0].rendered_text, generated.messages[0].rendered_text);
+    assert.ok(afterSend.history[0].rendered_text?.includes(replay.message!.body));
+    assert.ok(!JSON.stringify(afterSend.history).includes("PRIVATE"));
+    afterSend.history[0].body = "external history mutation";
     await assert.rejects(client.sendNotifications!({ snapshot_token: pending.snapshot_token, message_ids: [approved.message!.id], confirmed: true }), { code: "STALE_SNAPSHOT" });
 
     const rejected = await client.decide({ ...input, submission_id: fixtureId(3), human_verdict: "rejected", request_id: crypto.randomUUID(), applicant_reason: "The supporting booking could not establish this expense." });
@@ -58,6 +68,9 @@ test("preview decisions create private-note-free notices and replay exactly once
     assert.deepEqual(await client.getMessages!(fixtureId(6)), { messages: [] });
     const failed = await client.decide({ ...input, submission_id: fixtureId(2), human_verdict: "rejected", request_id: crypto.randomUUID() });
     assert.match(failed.message!.body, /receipt shows/);
+    const laterHistory = (await client.getNotifications!()).history;
+    assert.deepEqual(laterHistory.map(message => message.id), [approved.message!.id]);
+    assert.equal(laterHistory[0].body, replay.message!.body, "saved preview contents survive subsequent decisions and external mutation");
   } finally { globalThis.fetch = originalFetch; }
 });
 
@@ -84,6 +97,12 @@ test("shared preview decisions publish row totals and notices across refresh and
       assert.equal(navigated, store);
       assert.equal((await navigated.client.getReviews()).summary.pending_review_count, initial.summary.pending_review_count - 1);
       assert.equal((await navigated.client.getMessages!(claim.id)).messages[0].status, "draft");
+      const pending = await navigated.client.getNotifications!();
+      await navigated.client.sendNotifications!({ snapshot_token: pending.snapshot_token, message_ids: pending.messages.map(message => message.id), confirmed: true });
+      await store.refresh();
+      const history = (await getWorkspaceStore("preview").client.getNotifications!()).history;
+      assert.equal(history[0].status, "previewed");
+      assert.equal(history[0].rendered_text, saved.message!.rendered_text, "email contents persist across workspace refresh and navigation");
     } finally { unsubscribe(); }
   } finally { globalThis.fetch = originalFetch; }
 });

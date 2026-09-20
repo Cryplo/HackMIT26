@@ -38,7 +38,7 @@ export interface DashboardClient {
   updateCheck(id: string, input: CustomCheckUpsert & CheckMutationRequest): Promise<CheckResponse>;
   enableCheck(id: string, input: CheckMutationRequest): Promise<CheckResponse>;
   disableCheck(id: string, input: CheckMutationRequest): Promise<CheckResponse>;
-  getNotifications?(signal?: AbortSignal): Promise<{ snapshot_token: string; mode: "preview" | "live" | "disabled"; messages: ClaimMessage[] }>;
+  getNotifications?(signal?: AbortSignal): Promise<{ snapshot_token: string; mode: "preview" | "live" | "disabled"; messages: ClaimMessage[]; history: ClaimMessage[] }>;
   sendNotifications?(input: { snapshot_token: string; message_ids: string[]; confirmed: true }): Promise<{ messages: ClaimMessage[]; processed: number; mode: "preview" | "live"; delivery_error: string | null }>;
   getMessages?(id: string, signal?: AbortSignal): Promise<{ messages: ClaimMessage[] }>;
   draftMessage?(id: string, input: DraftMessageInput): Promise<{ message: ClaimMessage; generation_error: string | null }>;

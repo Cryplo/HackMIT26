@@ -18,12 +18,14 @@ async function notificationBatch(core: CoreService) {
   const messages = history.filter(m => pendingNotice(state, m)).sort((a, b) => a.id.localeCompare(b.id));
   const snapshot_token = createHash('sha256').update(JSON.stringify({ workspace: workspaceSnapshot(state).token,
     mode: config.mode, messages: messages.map(m => [m.id, m.message_revision]) })).digest('hex');
-  return { config, state, messages, snapshot_token };
+  return { config, state, messages, history, snapshot_token };
 }
 
 export async function listWorkspaceNotifications(core: CoreService) {
   const batch = await notificationBatch(core);
-  return { snapshot_token: batch.snapshot_token, mode: batch.config.mode, messages: batch.messages.map(publicMessage) };
+  const history = batch.history.filter(m => ['previewed', 'queued', 'sending', 'accepted', 'failed', 'delivery_unknown'].includes(m.status))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
+  return { snapshot_token: batch.snapshot_token, mode: batch.config.mode, messages: batch.messages.map(publicMessage), history: history.map(publicMessage) };
 }
 
 /** Release exactly one reviewed batch. Repeat requests fail stale instead of authorizing another send. */

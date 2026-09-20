@@ -166,7 +166,7 @@ export function createPreviewClient(): DashboardClient {
     },
     async getNotifications(signal) {
       signal?.throwIfAborted();
-      return copy({ snapshot_token: notificationSnapshot(), mode: "preview" as const, messages: pendingNotifications() });
+      return copy({ snapshot_token: notificationSnapshot(), mode: "preview" as const, messages: pendingNotifications(), history: messages.filter(message => ["previewed", "queued", "sending", "accepted", "failed", "delivery_unknown"].includes(message.status)) });
     },
     async sendNotifications(input) {
       if (input.confirmed !== true || !Array.isArray(input.message_ids) || !input.message_ids.length || input.message_ids.length > 1000 || new Set(input.message_ids).size !== input.message_ids.length) fail("INVALID_INPUT", "Confirm a nonempty notification selection.", 400);
