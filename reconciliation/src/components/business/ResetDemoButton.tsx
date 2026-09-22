@@ -14,13 +14,13 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
-  if (!data || (!preview && !data.capabilities?.demo_reset)) return null;
-  const active = audit.status === "running" || audit.status === "stopping" || data.submissions.some(row =>
+  const available = !!data && (preview || !!data.capabilities?.demo_reset);
+  const active = audit.status === "running" || audit.status === "stopping" || !!data?.submissions.some(row =>
     row.processing_status === "running" || row.receipt?.extraction_status === "pending" || row.latest_investigation?.status === "running");
-  const confirmationChanged = !!confirmation && confirmation.token !== data.snapshot_token;
+  const confirmationChanged = !!confirmation && confirmation.token !== data?.snapshot_token;
 
   async function reset(token: string, live: boolean) {
-    if (lock.current || active) return;
+    if (lock.current || active || !available) return;
     if (live && token !== data?.snapshot_token) {
       setError("The workspace changed while confirmation was open. Cancel and open Reset demo again to review the current state.");
       return;
@@ -46,8 +46,8 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
   }
 
   return <>
-    <Button variant="outline" disabled={busy || active || (!preview && !data.snapshot_token)} title={active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : data.demo_mode ? "Archive this demo and restore fresh unchecked demo claims" : "Restore 70 prepared claims and 10 unchecked claims"}
-      onClick={() => { setError(""); if (preview || data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
+    <Button variant="outline" disabled={!available || busy || active || (!preview && !data?.snapshot_token)} title={!available ? "Demo reset is not enabled for this workspace." : active ? "Finish active work before resetting." : preview ? "Restore the original synthetic preview claims" : data?.demo_mode ? "Archive this demo and restore fresh unchecked demo claims" : "Restore 70 prepared claims and 10 unchecked claims"}
+      onClick={() => { if (!data || !available) return; setError(""); if (preview || data.demo_mode) void reset(data.snapshot_token, false); else setConfirmation({ token: data.snapshot_token, count: data.submissions.length }); }}>
       {busy ? <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" /> : <RotateCcw aria-hidden="true" />}{busy ? "Restoring saved demo…" : "Reset demo"}
     </Button>
     {error && !confirmation && <p role="alert" className="max-w-sm text-sm text-destructive">{error}</p>}
@@ -59,7 +59,7 @@ export function ResetDemoButton({ preview, onBusy }: { preview: boolean; onBusy(
         {confirmationChanged && !busy && <p role="alert" className="text-sm text-destructive">The workspace changed while this confirmation was open. Cancel and open Reset demo again to review the current state.</p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button variant="outline" disabled={busy} onClick={() => setConfirmation(null)}>Cancel</Button>
-          <Button variant="destructive" disabled={busy || active || confirmationChanged} aria-busy={busy} onClick={() => { if (confirmation) void reset(confirmation.token, true); }}>
+          <Button variant="destructive" disabled={!available || busy || active || confirmationChanged} aria-busy={busy} onClick={() => { if (confirmation) void reset(confirmation.token, true); }}>
             {busy && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />}{busy ? "Restoring saved demo…" : "Archive and reset live demo"}
           </Button></DialogFooter>
       </DialogContent>

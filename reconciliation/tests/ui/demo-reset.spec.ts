@@ -20,7 +20,7 @@ for (const demo of [true, false]) {
     data.demo_mode = demo;
     data.capabilities!.demo_reset = true;
     let payload: unknown;
-    await page.route('**/api/**', route => route.fulfill({ json: {} }));
+    await page.route('**/api/**', route => route.fulfill({ json: { mode: 'preview', messages: [] } }));
     await page.route('**/api/workspace/reviews', route => route.fulfill({ json: data }));
     await page.route('**/api/workspace/demo-reset', route => {
       payload = route.request().postDataJSON();
@@ -31,7 +31,7 @@ for (const demo of [true, false]) {
     if (!demo) {
       expect(payload).toBeUndefined();
       const dialog = page.getByRole('dialog', { name: 'Reset the live demo?' });
-      await expect(dialog).toContainText('restore fresh unchecked demo claims');
+      await expect(dialog).toContainText('Restore the saved demo');
       await dialog.getByRole('button', { name: 'Archive and reset live demo', exact: true }).click();
     }
     await expect(page.getByRole('alert').filter({ hasText: 'Workspace changed. Refresh before resetting.' })).toBeVisible();
@@ -39,17 +39,35 @@ for (const demo of [true, false]) {
   });
 }
 
-test('server reset stays hidden without capability and disabled during active work', async ({ page }) => {
+test('server reset stays visible but disabled without capability or during active work', async ({ page }) => {
   const data = structuredClone(fixtureReviews);
-  await page.route('**/api/**', route => route.fulfill({ json: {} }));
+  await page.route('**/api/**', route => route.fulfill({ json: { mode: 'preview', messages: [] } }));
   await page.route('**/api/workspace/reviews', route => route.fulfill({ json: data }));
   await page.goto('/overview');
   await expect(page.getByRole('heading', { name: 'Follow the audit' })).toBeVisible();
   const reset = page.getByRole('button', { name: 'Reset demo', exact: true });
-  await expect(reset).toHaveCount(0);
+  await expect(reset).toBeVisible();
+  await expect(reset).toBeDisabled();
+  await expect(reset).toHaveAttribute('title', 'Demo reset is not enabled for this workspace.');
   data.capabilities!.demo_reset = true;
   data.submissions[0].processing_status = 'running';
   await page.reload();
   await expect(reset).toBeDisabled();
   await expect(reset).toHaveAttribute('title', 'Finish active work before resetting.');
+});
+
+
+test('reset stays visible when the source integration is enabled', async ({ page }) => {
+  const data = structuredClone(fixtureReviews);
+  data.capabilities!.demo_reset = true;
+  await page.route('**/api/**', route => route.fulfill({ json: { mode: 'preview', messages: [] } }));
+  await page.route('**/api/workspace/reviews', route => route.fulfill({ json: data }));
+  let sourceReads = 0;
+  await page.route('**/api/inbox/audit', route => {
+    sourceReads++;
+    return route.fulfill({ json: { enabled: true, phase: 'idle', total: 10, cursor: 0, current: null, documents: [], imports: [], held: [], duplicates: 0, error: '' } });
+  });
+  await page.goto('/overview');
+  await expect.poll(() => sourceReads).toBeGreaterThan(0);
+  await expect(page.getByRole('button', { name: 'Reset demo', exact: true })).toBeEnabled();
 });

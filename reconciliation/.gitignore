@@ -7,6 +7,8 @@ node_modules/
 *.tsbuildinfo
 
 .intake-demo.backup-*/
+.intake-demo.archive-*/
+supabase/.temp/
 test-results/
 test-results-*/
 playwright-report/

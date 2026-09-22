@@ -1,6 +1,6 @@
 # Working on Sift
 
-Read [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) and [reconciliation/README.md](reconciliation/README.md) at the start of a new task. The active app is `reconciliation/`; the Python browser/voice prototype elsewhere is historical. Read the app's own `AGENTS.md` before changing Next.js code.
+Read [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) and [reconciliation/README.md](reconciliation/README.md) at the start of a new task. The active app is `reconciliation/`; an earlier Python browser/voice prototype has been removed from the repository. Read the app's own `AGENTS.md` before changing Next.js code.
 
 - Current implementation status is in the project context and source. Older module handoffs and planning packets are historical, not proof that delivered capabilities are still missing.
 - Inspect `git status` first. This is a shared checkout: preserve unrelated edits, stage only owned files, and avoid resets, stashes, force pushes, or replacing someone else's work. Coordinate changes to shared contracts, migrations, and global styles.
