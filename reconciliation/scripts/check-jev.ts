@@ -1,7 +1,7 @@
 import { LiveJev } from '../src/lib/core/jev';
 import { demoSnapshot } from '../src/lib/core/fixtures';
 async function main() {
-if (process.argv.includes('--workflow')) throw new Error('The legacy workflow smoke test is retired. Follow docs/next-work/04-devin-benchmark.md for reviewed rule testing; no model calls were made.');
+if (process.argv.includes('--workflow')) throw new Error('The legacy workflow smoke test is retired. Follow docs/REVIEW_LEARNING.md for reviewed rule testing; no model calls were made.');
 const direct = process.env.TYPESAFE_API_KEY || process.env.JEV_API_KEY;
 const key = direct || process.env.AI_GATEWAY_API_KEY;
 if (!key) throw new Error('Set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY before the live smoke test.');

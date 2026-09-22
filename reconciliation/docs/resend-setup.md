@@ -1,6 +1,6 @@
 # Resend setup for the Sift demo
 
-Sift persists applicant notices with human decisions and eligible automatic policy approvals. Preview mode saves the decision and notice without sending. Live mode can attempt delivery immediately and uses a separate Resend worker for durable retries. Internal review reasons remain private. See [current project context](../../docs/PROJECT_CONTEXT.md) and [the app README](../README.md) for current behavior; the [original architecture](../../docs/next-work/06-decision-email-plan.md) is historical. Request-information links and delivery webhooks remain future work.
+Sift persists applicant notices with human decisions and eligible automatic policy approvals. Preview mode saves the decision and notice without sending. New decision notices remain held until the reviewer confirms **Send all notifications**. Live mode delivers released notices and uses a separate Resend worker for durable retries. Internal review reasons remain private. See [current project context](../../docs/PROJECT_CONTEXT.md) and [the app README](../README.md) for current behavior. Request-information links and delivery webhooks remain future work.
 
 ## Simulated send
 
@@ -69,7 +69,7 @@ npm run email:worker
 
 The worker is a separate foreground process. Keep it running alongside Next.js, or supervise it on a private worker host. It reads the same ignored `.env.local` as the app. Preview/disabled mode does not deliver mail. No worker or email send is started by installing this release.
 
-When ready for both manual and automatic decision notices to send, set `RECONCILIATION_EMAIL_MODE=live` and restart the app and worker. The dispatcher attempts eligible new notices immediately; the worker handles pending delivery and retries. For the advanced draft workflow, generate a fresh draft so the reviewer sees live-send labels. Drafts prepared under preview cannot be silently promoted to live delivery. For Azure-generated rejection explanations, separately set `RECONCILIATION_EMAIL_DRAFT_MODE=live`; approvals continue to use a deterministic template.
+When ready for both manual and automatic decision notices to send, set `RECONCILIATION_EMAIL_MODE=live` and restart the app and worker. Confirm **Send all notifications** to release the held batch. The dispatcher attempts eligible released notices; the worker handles pending delivery and retries. For the advanced draft workflow, generate a fresh draft so the reviewer sees live-send labels. Drafts prepared under preview cannot be silently promoted to live delivery. For Azure-generated rejection explanations, separately set `RECONCILIATION_EMAIL_DRAFT_MODE=live`; approvals continue to use a deterministic template.
 
 Live mode requires the synthetic-only gate, a valid key, exact allowed recipients, and a private reviewer environment. A local app origin qualifies; a hosted installation must actually be access-protected before setting `RECONCILIATION_EMAIL_PRIVATE_REVIEWER=true`. This flag is an operator assertion, not an authentication mechanism.
 

@@ -15,3 +15,8 @@ extension/dist/
 extension/test-results/
 extension/playwright-report/
 extension/tests/.generated/
+
+# Local agent/browser scratch files and generated reports
+.review/
+.playwright-mcp/
+*.log

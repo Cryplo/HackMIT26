@@ -1,8 +1,8 @@
-> **ARCHIVED — superseded on 2026-09-20.** Historical assignment from commit `9f3d593`; not current implementation instructions. Start with [the active investigation pack](../../next-work/README.md). Relative document links were relocated for this archive.
+> **ARCHIVED — superseded on 2026-09-20.** Historical assignment from commit `9f3d593`; not current implementation instructions. Start with [current project context](../../PROJECT_CONTEXT.md). Relative document links were relocated for this archive.
 
 # Agent C — Intelligence implementation handoff
 
-Read [00-contracts.md](00-contracts.md) and [README.md](README.md) **first**. They supersede conflicting instructions in the [previous Agent C context](../../superpowers/plans/2026-09-19-dylanli/agent-3-intelligence.md). Report interface conflicts rather than changing another owner's contract.
+Read [00-contracts.md](00-contracts.md) and [README.md](README.md) **first**. They supersede conflicting instructions in the [previous Agent C context](../../../reconciliation/src/lib/intelligence/). Report interface conflicts rather than changing another owner's contract.
 
 **Goal:** Deliver the ten-case scoped-alias activation gate and preserve Jev correctness for the USD travel reimbursement demo. A model judgment never authorizes payment.
 

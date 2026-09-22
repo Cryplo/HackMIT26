@@ -26,10 +26,10 @@ For the existing live demo, preserve `.env.local` and the database. Follow [live
 
 ## UI direction
 
-Keep the light-green theme, semantic green approvals/red failures/amber uncertainty, concise evidence, and obvious actions. Summary cards are non-clickable. Technical details and tool traces are collapsible. Review moves to the next eligible claim; completion goes to review only if actions remain.
+Keep white/neutral-gray surfaces, charcoal text, black primary actions, green approvals, red failures, and amber uncertainty. Summary values are informational; their headings open expanded claim lists. Technical details and tool traces are collapsible. Review moves to the next eligible claim; completion goes to review only if actions remain.
 
 Theme tokens live in `reconciliation/src/app/theme.css`; layout styles live beside the business components. Reuse installed shadcn/Radix primitives and current shared data helpers. Do not add a second status model to fix one page.
 
 ## Historical plans
 
-[The September 20 assignment pack](docs/next-work/README.md) records the original investigation/procedure design and ownership. [Older plans](docs/superpowers/plans/) and module handoffs document earlier stages. They are useful background, not current deployment status or instructions to rebuild completed features. Benchmark work remains separate; inspect its own checked-in findings and any uncommitted work before touching `reconciliation/evals/`.
+[The archived September 20 assignment pack](docs/archive/2026-09-20-review-workflow/README.md) records earlier design and ownership. Obsolete working copies and completed handoffs were removed during post-hackathon cleanup; Git history retains them. Benchmark work remains separate; inspect its own checked-in findings and any uncommitted work before touching `reconciliation/evals/`.

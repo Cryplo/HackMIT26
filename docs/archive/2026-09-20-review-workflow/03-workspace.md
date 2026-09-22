@@ -1,4 +1,4 @@
-> **ARCHIVED — superseded on 2026-09-20.** Historical assignment from commit `9f3d593`; not current implementation instructions. Start with [the active investigation pack](../../next-work/README.md). Relative document links were relocated for this archive.
+> **ARCHIVED — superseded on 2026-09-20.** Historical assignment from commit `9f3d593`; not current implementation instructions. Start with [current project context](../../PROJECT_CONTEXT.md). Relative document links were relocated for this archive.
 
 # 03 — Travel review workspace: colleague A prompt
 
