@@ -8,6 +8,8 @@
 
 AI-assisted reimbursement review that turns human decisions into tested, reusable checks.
 
+🏆 **HackMIT 2026 Finalist**
+
 ![HackMIT 2026](https://img.shields.io/badge/HackMIT-2026-F5C542?style=flat-square)
 ![Next.js 16](https://img.shields.io/badge/Next.js-16-171717?style=flat-square&logo=nextdotjs)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
