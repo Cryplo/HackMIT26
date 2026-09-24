@@ -103,20 +103,3 @@ One focused offline check:
 ```sh
 node --conditions=react-server --import tsx scripts/check-showcase.ts
 ```
-
-## 📚 Explore the repo
-
-| Path | Contents |
-| --- | --- |
-| [`reconciliation/`](reconciliation/README.md) | Active app, setup, configuration, and checks |
-| [`reconciliation/src/lib/core/`](reconciliation/src/lib/core/) | Assessment, decisions, persistence, and feedback learning |
-| [`reconciliation/src/lib/intelligence/`](reconciliation/src/lib/intelligence/) | Investigation, search, and reusable check implementations |
-| [`reconciliation/evals/`](reconciliation/evals/) | Evaluation tooling and dated findings |
-| [Project context](docs/PROJECT_CONTEXT.md) | Current architecture, behavior, and implementation limits |
-| [Review learning](reconciliation/docs/REVIEW_LEARNING.md) | Scope, safety tests, and evidence requirements |
-| [Build guide](BUILD_INSTRUCTIONS.md) | Contributor setup and focused verification |
-| [Historical prototype](docs/archive/browser-prototype.md) | Earlier Python/browser/voice work |
-
-## Demo boundaries
-
-Sift is a **synthetic-data hackathon app** without authentication or payment execution. Source connection cards are previews, not connected Gmail/Dropbox accounts. Local models are simulated; live providers can fail and never silently substitute simulated success. Seeded transcriptions are authored fixtures, while new live uploads exercise extraction. Email defaults to preview. Fixed safety tests and demo results are not a general accuracy or savings benchmark.
